@@ -12,7 +12,7 @@ export const DeleteConfirmModal: React.FC = () => {
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && cancelDeleteAccount()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-white p-6 shadow-xl animate-in zoom-in-95 fade-in-0 duration-150 dark:border-neutral-800 dark:bg-neutral-900">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-card p-6 shadow-xl animate-in zoom-in-95 fade-in-0 duration-150 dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex items-start gap-3.5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
               <AlertTriangle className="h-5 w-5" />
@@ -34,7 +34,7 @@ export const DeleteConfirmModal: React.FC = () => {
           <div className="mt-6 flex justify-end gap-2.5">
             <button
               onClick={cancelDeleteAccount}
-              className="rounded-lg border border-neutral-200 bg-white px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              className="rounded-lg border border-neutral-200 bg-card px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
             >
               取消
             </button>

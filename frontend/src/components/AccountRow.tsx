@@ -80,7 +80,7 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
   const tier = account.subscriptionTier || 'FREE';
 
   return (
-    <div className="rounded-xl border border-neutral-200/90 bg-white transition-all shadow-xs hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700">
+    <div className="rounded-xl border border-neutral-200/90 bg-card transition-all shadow-xs hover:border-neutral-300 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700">
       <div className="flex flex-wrap items-center justify-between gap-4 p-4.5">
         {/* Account Info & Status */}
         <div className="flex min-w-[240px] flex-1 items-start gap-3">
@@ -157,16 +157,16 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
                     ? 'bg-rose-500'
                     : isMid
                     ? 'bg-amber-500'
-                    : 'bg-neutral-900 dark:bg-neutral-100'
+                    : 'bg-emerald-500 dark:bg-emerald-400'
                 }`}
                 style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
               />
             )}
           </div>
 
-          <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-400">
+          <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
             <span>重置时间:</span>
-            <span className="font-medium text-neutral-600 dark:text-neutral-400">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
               {formatReset(account.resetTime)}
             </span>
           </div>
@@ -193,7 +193,7 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
             disabled={isRefreshing || isSwitching}
             aria-label={`刷新账号 ${account.email} 额度`}
             title="刷新该账号额度"
-            className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-2xs transition-colors hover:bg-neutral-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+            className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-card px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-2xs transition-colors hover:bg-neutral-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
           >
             <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>刷新</span>
@@ -204,7 +204,7 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
             disabled={isSwitching}
             aria-label={`删除账号 ${account.email}`}
             title="删除此账号记录"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 shadow-2xs transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-card text-neutral-500 shadow-2xs transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -213,7 +213,7 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
             onClick={() => toggleExpand(account.id)}
             aria-label="展开或收起额度明细"
             title={isExpanded ? '收起详情' : '展开窗口明细'}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-600 shadow-2xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-card text-neutral-600 shadow-2xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
           >
             {isExpanded ? (
               <ChevronUp className="h-3.5 w-3.5" />

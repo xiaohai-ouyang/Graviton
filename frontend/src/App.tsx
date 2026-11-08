@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAccountStore } from './store/useAccountStore';
+import { useThemeStore } from './store/useThemeStore';
 import { Header } from './components/Header';
 import { FeedbackBanner } from './components/FeedbackBanner';
 import { AccountRow } from './components/AccountRow';
@@ -8,10 +9,13 @@ import { Users, UserPlus } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { accounts, loading, loadAccounts, captureCurrentAccount } = useAccountStore();
+  const initTheme = useThemeStore((s) => s.initTheme);
 
   useEffect(() => {
     loadAccounts();
-  }, [loadAccounts]);
+    const cleanup = initTheme();
+    return cleanup;
+  }, [loadAccounts, initTheme]);
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100 flex flex-col">
@@ -25,7 +29,7 @@ export const App: React.FC = () => {
             <p className="text-xs">正在加载账号数据与凭据...</p>
           </div>
         ) : accounts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white/50 p-12 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-card/50 p-12 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               <Users className="h-7 w-7" />
             </div>
@@ -59,12 +63,12 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="border-t border-neutral-200/80 bg-white py-3.5 text-center text-[11px] text-neutral-400 dark:border-neutral-800/80 dark:bg-neutral-900/50">
+      <footer className="border-t border-neutral-200/80 bg-card py-3.5 text-center text-[11px] text-neutral-500 dark:border-neutral-800/80 dark:bg-neutral-900/50 dark:text-neutral-400">
         <p>
-          CodeTool · Antigravity 多账号管理与配额工具 · 数据保存在 <code className="rounded bg-neutral-100 px-1 py-0.5 dark:bg-neutral-800">%LOCALAPPDATA%\CodeTool</code>
+          CodeTool · Antigravity 多账号管理与配额工具 · 数据保存在 <code className="rounded bg-neutral-100 px-1 py-0.5 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">%LOCALAPPDATA%\CodeTool</code>
         </p>
-        <p className="mt-1 text-[10px] text-neutral-400/80">
-          核心协议与客户端集成移植自 <a href="https://github.com/lbjlaq/Antigravity-Manager" target="_blank" rel="noreferrer" className="underline hover:text-neutral-600 dark:hover:text-neutral-300">Antigravity-Manager</a> · CC BY-NC-SA 4.0 许可证
+        <p className="mt-1 text-[10px] text-neutral-400/90 dark:text-neutral-500">
+          核心协议与客户端集成移植自 <a href="https://github.com/lbjlaq/Antigravity-Manager" target="_blank" rel="noreferrer" className="underline hover:text-neutral-800 dark:hover:text-neutral-200">Antigravity-Manager</a> · CC BY-NC-SA 4.0 许可证
         </p>
       </footer>
 
