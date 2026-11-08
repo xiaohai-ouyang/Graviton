@@ -39,28 +39,37 @@ func (cs *ClientSwitcher) SwitchAccount(payload *cred.CredentialPayload, clientO
 	if err != nil {
 		// Even if client path cannot be detected, write credential anyway if it's modern
 		_ = cred.WriteClientCredential(payload)
+		readback, rErr := cred.ReadClientCredential()
+		if rErr != nil || readback == nil || readback.Token.RefreshToken != payload.Token.RefreshToken {
+			return nil, errors.New("凭据写入后回读校验失败")
+		}
 		return &SwitchResult{
 			Success: true,
-			Message: "凭据已更新（未检测到客户端运行或可执行文件）",
+			Message: "凭据已更新",
 		}, nil
 	}
 
 	version := DetectClientVersion(clientPath)
 	isModern := IsModernVersion(version)
 
-	// Check if legacy DB exists if version is unknown
-	if !isModern || version == "" {
-		appData := os.Getenv("APPDATA")
-		candidates := FindCandidateLegacyDBPaths(appData, clientPath)
-		var legacyDBPath string
-		for _, cp := range candidates {
-			if _, err := os.Stat(cp); err == nil {
-				legacyDBPath = cp
-				break
-			}
+	// Check legacy SQLite DB candidates
+	appData := os.Getenv("APPDATA")
+	candidates := FindCandidateLegacyDBPaths(appData, clientPath)
+	var legacyDBPath string
+	for _, cp := range candidates {
+		if _, err := os.Stat(cp); err == nil {
+			legacyDBPath = cp
+			break
 		}
+	}
 
-		if legacyDBPath != "" && !isModern {
+	// Requirement: 版本未知时，只有验证了旧版数据库结构才允许写入
+	if version == "" && legacyDBPath != "" {
+		if err := cs.dbSync.ValidateDBSchema(legacyDBPath); err == nil {
+			return cs.switchLegacy(payload, clientPath, legacyDBPath)
+		}
+	} else if !isModern && legacyDBPath != "" {
+		if err := cs.dbSync.ValidateDBSchema(legacyDBPath); err == nil {
 			return cs.switchLegacy(payload, clientPath, legacyDBPath)
 		}
 	}
@@ -82,7 +91,7 @@ func (cs *ClientSwitcher) switchModern(payload *cred.CredentialPayload, clientPa
 		// 2. Locate language_server subprocesses
 		lsPIDs, err := FindLanguageServerDescendants(runningProc.PID)
 		if err == nil && len(lsPIDs) > 0 {
-			// Hot switch attempt
+			// Hot switch attempt: kill language_server subprocesses
 			for _, pid := range lsPIDs {
 				_ = KillPID(pid)
 			}
@@ -92,35 +101,46 @@ func (cs *ClientSwitcher) switchModern(payload *cred.CredentialPayload, clientPa
 
 			// Wait for respawn
 			if WaitForLanguageServerRespawn(runningProc.PID, 15*time.Second) {
+				// Verify readback
+				readback, err := cred.ReadClientCredential()
+				if err != nil || readback == nil || readback.Token.RefreshToken != payload.Token.RefreshToken {
+					return nil, errors.New("凭据写入后回读校验失败")
+				}
 				return &SwitchResult{
 					Success:     true,
 					HotSwitched: true,
-					Message:     "凭据已更新（热切换成功）",
+					Message:     "凭据已更新",
 				}, nil
 			}
 		}
 
 		// Hot switch degraded or not possible: full restart
+		// Capture command line args before killing
+		cmdLine := GetProcessCommandLine(runningProc.PID)
+		activeArgs := ParseCommandLineArgs(cmdLine)
+
 		_ = KillProcessTree(runningProc.PID)
-		// Wait for process to exit
-		deadline := time.Now().Add(10 * time.Second)
-		for time.Now().Before(deadline) {
-			time.Sleep(300 * time.Millisecond)
-			if check, _ := FindRunningAntigravityMain(); check == nil {
-				break
-			}
-		}
+		_ = WaitForProcessExit(runningProc.PID, 10*time.Second)
+
+		// Sweep orphan language_server processes
+		SweepOrphanLanguageServers()
 
 		// Post-kill re-assert write
 		_ = cred.WriteClientCredential(payload)
 
-		// Relaunch
-		_ = LaunchClient(clientPath)
+		// Relaunch with captured args
+		_ = LaunchClient(clientPath, activeArgs...)
+
+		// Verify readback
+		readback, err := cred.ReadClientCredential()
+		if err != nil || readback == nil || readback.Token.RefreshToken != payload.Token.RefreshToken {
+			return nil, errors.New("凭据写入后回读校验失败")
+		}
 
 		return &SwitchResult{
 			Success:          true,
 			ClientRelaunched: true,
-			Message:          "凭据已更新（客户端已重启）",
+			Message:          "凭据已更新",
 		}, nil
 	}
 
@@ -129,7 +149,14 @@ func (cs *ClientSwitcher) switchModern(payload *cred.CredentialPayload, clientPa
 		return nil, fmt.Errorf("failed to write system keyring: %w", err)
 	}
 
+	SweepOrphanLanguageServers()
 	_ = LaunchClient(clientPath)
+
+	// Verify readback
+	readback, err := cred.ReadClientCredential()
+	if err != nil || readback == nil || readback.Token.RefreshToken != payload.Token.RefreshToken {
+		return nil, errors.New("凭据写入后回读校验失败")
+	}
 
 	return &SwitchResult{
 		Success:          true,
@@ -139,21 +166,19 @@ func (cs *ClientSwitcher) switchModern(payload *cred.CredentialPayload, clientPa
 }
 
 func (cs *ClientSwitcher) switchLegacy(payload *cred.CredentialPayload, clientPath, dbPath string) (*SwitchResult, error) {
-	// Close running client if any
+	// Close running client if any (graceful close + timeout check)
+	var activeArgs []string
 	runningProc, err := FindRunningAntigravityMain()
 	if err == nil && runningProc != nil {
-		_ = KillProcessTree(runningProc.PID)
-		deadline := time.Now().Add(20 * time.Second)
-		closed := false
-		for time.Now().Before(deadline) {
-			time.Sleep(500 * time.Millisecond)
-			if check, _ := FindRunningAntigravityMain(); check == nil {
-				closed = true
-				break
-			}
-		}
-		if !closed {
-			return nil, errors.New("旧版客户端正在运行且无法自动关闭，请先手动退出 Antigravity 后再切换")
+		cmdLine := GetProcessCommandLine(runningProc.PID)
+		activeArgs = ParseCommandLineArgs(cmdLine)
+
+		// Attempt graceful close without /F
+		_ = ClosePIDGraceful(runningProc.PID)
+
+		// Wait up to 15s for normal exit
+		if !WaitForProcessExit(runningProc.PID, 15*time.Second) {
+			return nil, errors.New("旧版客户端正常关闭超时，请先手动关闭 Antigravity 客户端后再切换")
 		}
 	}
 
@@ -175,8 +200,14 @@ func (cs *ClientSwitcher) switchLegacy(payload *cred.CredentialPayload, clientPa
 		return nil, fmt.Errorf("旧版数据库写入失败: %w", err)
 	}
 
+	// Verify readback from legacy database
+	_, readbackRT, _, _, err := cs.dbSync.ReadLegacyToken(dbPath)
+	if err != nil || readbackRT != payload.Token.RefreshToken {
+		return nil, errors.New("旧版数据库写入后回读校验失败")
+	}
+
 	if clientPath != "" {
-		_ = LaunchClient(clientPath)
+		_ = LaunchClient(clientPath, activeArgs...)
 	}
 
 	return &SwitchResult{

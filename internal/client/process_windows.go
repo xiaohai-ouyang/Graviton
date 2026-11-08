@@ -19,10 +19,12 @@ import (
 
 var (
 	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	modshell32  = windows.NewLazySystemDLL("shell32.dll")
 
 	procCreateToolhelp32Snapshot = modkernel32.NewProc("CreateToolhelp32Snapshot")
 	procProcess32FirstW          = modkernel32.NewProc("Process32FirstW")
 	procProcess32NextW           = modkernel32.NewProc("Process32NextW")
+	procCommandLineToArgvW       = modshell32.NewProc("CommandLineToArgvW")
 )
 
 const (
@@ -129,7 +131,7 @@ func IsAntigravityMainProcess(p ProcessInfo, myPID uint32) bool {
 	return false
 }
 
-// FindRunningAntigravityMain searches for the active main Antigravity process.
+// FindRunningAntigravityMain searches for the active main Antigravity process (the root of the process tree).
 func FindRunningAntigravityMain() (*ProcessInfo, error) {
 	myPID := uint32(os.Getpid())
 	procs, err := SnapshotProcesses()
@@ -137,13 +139,51 @@ func FindRunningAntigravityMain() (*ProcessInfo, error) {
 		return nil, err
 	}
 
+	// 1. Gather all candidate processes matching Antigravity executable
+	var candidates []ProcessInfo
+	candPIDs := make(map[uint32]bool)
 	for _, p := range procs {
 		if IsAntigravityMainProcess(p, myPID) {
-			return &p, nil
+			candidates = append(candidates, p)
+			candPIDs[p.PID] = true
 		}
 	}
 
-	return nil, nil
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	// 2. The main/root process is the one whose ParentPID is NOT in candPIDs
+	var rootCandidates []ProcessInfo
+	for _, p := range candidates {
+		if !candPIDs[p.ParentPID] {
+			rootCandidates = append(rootCandidates, p)
+		}
+	}
+
+	// If exactly one root candidate, that is our main process
+	if len(rootCandidates) == 1 {
+		res := rootCandidates[0]
+		return &res, nil
+	}
+
+	// If multiple roots, prioritize the one that has language_server descendants
+	for _, root := range rootCandidates {
+		ls, _ := FindLanguageServerDescendants(root.PID)
+		if len(ls) > 0 {
+			res := root
+			return &res, nil
+		}
+	}
+
+	if len(rootCandidates) > 0 {
+		res := rootCandidates[0]
+		return &res, nil
+	}
+
+	// Fallback to first candidate
+	res := candidates[0]
+	return &res, nil
 }
 
 // FindLanguageServerDescendants returns the PIDs of language_server subprocesses
@@ -156,9 +196,7 @@ func FindLanguageServerDescendants(mainPID uint32) ([]uint32, error) {
 
 	// Build parent -> children map
 	childMap := make(map[uint32][]ProcessInfo)
-	procMap := make(map[uint32]ProcessInfo)
 	for _, p := range procs {
-		procMap[p.PID] = p
 		childMap[p.ParentPID] = append(childMap[p.ParentPID], p)
 	}
 
@@ -188,6 +226,83 @@ func FindLanguageServerDescendants(mainPID uint32) ([]uint32, error) {
 	return lsPIDs, nil
 }
 
+// SweepOrphanLanguageServers terminates any orphan language_server processes left behind.
+func SweepOrphanLanguageServers() {
+	procs, err := SnapshotProcesses()
+	if err != nil {
+		return
+	}
+	parentExists := make(map[uint32]bool)
+	for _, p := range procs {
+		parentExists[p.PID] = true
+	}
+	for _, p := range procs {
+		name := strings.ToLower(p.ExeFile)
+		path := strings.ToLower(p.ExePath)
+		if strings.Contains(name, "language_server") || strings.Contains(path, "language_server") {
+			// If parent is dead or not running
+			if !parentExists[p.ParentPID] {
+				_ = KillPID(p.PID)
+			}
+		}
+	}
+}
+
+// GetProcessCommandLine retrieves the raw command line of a process by PID using WMI.
+func GetProcessCommandLine(pid uint32) string {
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command",
+		fmt.Sprintf("(Get-CimInstance Win32_Process -Filter 'ProcessId = %d').CommandLine", pid))
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// ParseCommandLineArgs parses command line arguments using Win32 CommandLineToArgvW and sanitizes internal args.
+func ParseCommandLineArgs(cmdLine string) []string {
+	if cmdLine == "" {
+		return nil
+	}
+	cmdLinePtr, err := windows.UTF16PtrFromString(cmdLine)
+	if err != nil {
+		return nil
+	}
+	var numArgs int32
+	r1, _, _ := procCommandLineToArgvW.Call(
+		uintptr(unsafe.Pointer(cmdLinePtr)),
+		uintptr(unsafe.Pointer(&numArgs)),
+	)
+	if r1 == 0 || numArgs <= 1 {
+		return nil
+	}
+	defer windows.LocalFree(windows.Handle(r1))
+
+	argPtrs := (*[1 << 20]*uint16)(unsafe.Pointer(r1))[:numArgs:numArgs]
+	var args []string
+	for i := 1; i < int(numArgs); i++ {
+		arg := windows.UTF16PtrToString(argPtrs[i])
+		lower := strings.ToLower(arg)
+		// Filter out internal engine and language server flags (matching upstream)
+		if strings.HasPrefix(lower, "--standalone") ||
+			strings.HasPrefix(lower, "--override_ide_name") ||
+			strings.HasPrefix(lower, "--subclient_type") ||
+			strings.Contains(lower, "language_server") {
+			continue
+		}
+		args = append(args, arg)
+	}
+	return args
+}
+
+// ClosePIDGraceful attempts a graceful close of a process using taskkill without /F.
+func ClosePIDGraceful(pid uint32) error {
+	cmd := exec.Command("taskkill", "/PID", strconv.Itoa(int(pid)))
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	return cmd.Run()
+}
+
 // KillPID forcefully kills a single PID on Windows.
 func KillPID(pid uint32) error {
 	cmd := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(int(pid)))
@@ -200,6 +315,25 @@ func KillProcessTree(pid uint32) error {
 	cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(int(pid)))
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd.Run()
+}
+
+// WaitForProcessExit polls until the given process PID has exited or timeout expires.
+func WaitForProcessExit(pid uint32, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(300 * time.Millisecond)
+		hProc, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+		if err != nil {
+			return true // Process no longer exists
+		}
+		var exitCode uint32
+		err = windows.GetExitCodeProcess(hProc, &exitCode)
+		windows.CloseHandle(hProc)
+		if err != nil || exitCode != 259 { // STILL_ACTIVE is 259
+			return true
+		}
+	}
+	return false
 }
 
 // WaitForLanguageServerRespawn polls for new language_server child processes for up to timeout.
@@ -221,6 +355,7 @@ func DetectClientPath(overridePath string) (string, error) {
 		if _, err := os.Stat(overridePath); err == nil {
 			return overridePath, nil
 		}
+		return "", fmt.Errorf("指定的客户端路径不存在: %s", overridePath)
 	}
 
 	// Try running process

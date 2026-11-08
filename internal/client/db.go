@@ -15,7 +15,7 @@ import (
 // LegacyDBSync handles reading and writing legacy Antigravity state.vscdb SQLite files.
 type LegacyDBSync struct{}
 
-// ValidateDBSchema checks if ItemTable exists with required columns.
+// ValidateDBSchema checks if ItemTable exists with required columns (key, value).
 func (s *LegacyDBSync) ValidateDBSchema(dbPath string) error {
 	if _, err := os.Stat(dbPath); err != nil {
 		return fmt.Errorf("database file does not exist: %w", err)
@@ -31,6 +31,12 @@ func (s *LegacyDBSync) ValidateDBSchema(dbPath string) error {
 	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ItemTable'").Scan(&count)
 	if err != nil || count == 0 {
 		return errors.New("ItemTable does not exist in SQLite database")
+	}
+
+	var colCount int
+	err = db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('ItemTable') WHERE name IN ('key', 'value')").Scan(&colCount)
+	if err != nil || colCount < 2 {
+		return errors.New("ItemTable missing required columns 'key' or 'value'")
 	}
 
 	return nil

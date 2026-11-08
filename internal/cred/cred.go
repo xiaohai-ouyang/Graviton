@@ -1,9 +1,11 @@
 package cred
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -93,6 +95,28 @@ func WriteClientCredential(payload *CredentialPayload) error {
 	return WriteCredential(TargetGeminiAntigravity, DefaultUserName, payload)
 }
 
+// ExtractEmailFromIDToken extracts the email claim from a Google JWT ID token without network calls.
+func ExtractEmailFromIDToken(idToken string) string {
+	parts := strings.Split(idToken, ".")
+	if len(parts) < 2 {
+		return ""
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		payloadBytes, err = base64.URLEncoding.DecodeString(parts[1])
+	}
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(payloadBytes, &claims); err == nil {
+		return claims.Email
+	}
+	return ""
+}
+
 // ReadCredential reads and decodes the JSON payload from the given target name.
 func ReadCredential(target string) (*CredentialPayload, error) {
 	raw, err := ReadRaw(target)
@@ -102,6 +126,9 @@ func ReadCredential(target string) (*CredentialPayload, error) {
 	var payload CredentialPayload
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, fmt.Errorf("failed to parse credential JSON: %w", err)
+	}
+	if payload.IDTokenEmail == "" && payload.IDToken != "" {
+		payload.IDTokenEmail = ExtractEmailFromIDToken(payload.IDToken)
 	}
 	return &payload, nil
 }
@@ -114,3 +141,4 @@ func WriteCredential(target string, userName string, payload *CredentialPayload)
 	}
 	return WriteRaw(target, userName, data)
 }
+

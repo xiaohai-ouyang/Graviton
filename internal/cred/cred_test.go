@@ -51,3 +51,15 @@ func TestCredential_Lifecycle(t *testing.T) {
 	_, err = ReadCredential(testTarget)
 	assert.ErrorIs(t, err, ErrNotFound)
 }
+
+func TestExtractEmailFromIDToken(t *testing.T) {
+	// A mock JWT: header.payload.signature
+	// payload: {"email":"user@gmail.com","sub":"12345"}
+	// base64url of {"email":"user@gmail.com","sub":"12345"} is eyJlbWFpbCI6InVzZXJAZ21haWwuY29tIiwic3ViIjoiMTIzNDUifQ
+	mockJWT := "eyJhbGciOiJSUzI1NiJ9.eyJlbWFpbCI6InVzZXJAZ21haWwuY29tIiwic3ViIjoiMTIzNDUifQ.signature"
+	email := ExtractEmailFromIDToken(mockJWT)
+	assert.Equal(t, "user@gmail.com", email)
+
+	assert.Equal(t, "", ExtractEmailFromIDToken("invalid.jwt"))
+	assert.Equal(t, "", ExtractEmailFromIDToken(""))
+}
