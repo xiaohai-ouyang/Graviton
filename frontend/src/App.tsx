@@ -1,15 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAccountStore } from './store/useAccountStore';
 import { useThemeStore } from './store/useThemeStore';
 import { Header } from './components/Header';
 import { FeedbackBanner } from './components/FeedbackBanner';
-import { AccountRow } from './components/AccountRow';
+import { AccountCard } from './components/AccountCard';
+import { AccountDetailModal } from './components/AccountDetailModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
-import { Users, UserPlus } from 'lucide-react';
+import { getGroupEffectivePct } from './utils/quota';
+import { ArrowDownWideNarrow, Users, UserPlus } from 'lucide-react';
+
+type SortMode = 'default' | 'gemini' | 'claude';
 
 export const App: React.FC = () => {
   const { accounts, loading, loadAccounts, captureCurrentAccount } = useAccountStore();
   const initTheme = useThemeStore((s) => s.initTheme);
+
+  const [sortMode, setSortMode] = useState<SortMode>('default');
+  const [detailAccountId, setDetailAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAccounts();
@@ -17,12 +24,32 @@ export const App: React.FC = () => {
     return cleanup;
   }, [loadAccounts, initTheme]);
 
+  const currentAccount = useMemo(
+    () => accounts.find((a) => a.isCurrent) ?? null,
+    [accounts]
+  );
+
+  const sortedAccounts = useMemo(() => {
+    if (sortMode === 'default') return accounts;
+    const keyword = sortMode === 'gemini' ? 'gemini' : 'claude';
+    return [...accounts].sort((a, b) => {
+      const scoreA = getGroupEffectivePct(a, keyword);
+      const scoreB = getGroupEffectivePct(b, keyword);
+      return scoreB - scoreA;
+    });
+  }, [accounts, sortMode]);
+
+  const detailAccount = useMemo(
+    () => accounts.find((a) => a.id === detailAccountId) ?? null,
+    [accounts, detailAccountId]
+  );
+
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
       <Header />
       <FeedbackBanner />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6">
         {loading && accounts.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center gap-3 text-neutral-400">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800 dark:border-neutral-700 dark:border-t-neutral-200" />
@@ -48,30 +75,74 @@ export const App: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400 px-1">
-              <span>已收录账号 ({accounts.length})</span>
-              <span>按收录顺序展示</span>
+          <div className="space-y-4">
+            {/* Compact Status & Sort Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
+                  全部账号 ({accounts.length})
+                </span>
+                <span className="text-neutral-300 dark:text-neutral-700">|</span>
+                {currentAccount ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    当前使用: <strong className="font-semibold">{currentAccount.email}</strong>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/50 dark:text-amber-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    当前客户端账号未收录或未知
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="hidden items-center gap-1 text-[11px] text-neutral-500 sm:inline-flex dark:text-neutral-400">
+                  <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                  排序:
+                </span>
+                <div className="inline-flex rounded-lg border border-neutral-200/90 bg-card p-0.5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
+                  {(
+                    [
+                      { id: 'default', label: '默认顺序' },
+                      { id: 'gemini', label: 'Gemini 额度' },
+                      { id: 'claude', label: 'Claude 额度' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      onClick={() => setSortMode(opt.id)}
+                      className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        sortMode === opt.id
+                          ? 'bg-neutral-900 text-white shadow-2xs dark:bg-neutral-100 dark:text-neutral-900'
+                          : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-2.5">
-              {accounts.map((account) => (
-                <AccountRow key={account.id} account={account} />
+            {/* Multi-Account Quota Grid */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {sortedAccounts.map((account) => (
+                <AccountCard
+                  key={account.id}
+                  account={account}
+                  onOpenDetail={(id) => setDetailAccountId(id)}
+                />
               ))}
             </div>
           </div>
         )}
       </main>
 
-      <footer className="border-t border-neutral-200/80 bg-card py-3.5 text-center text-[11px] text-neutral-500 dark:border-neutral-800/80 dark:bg-neutral-900/50 dark:text-neutral-400">
-        <p>
-          CodeTool · Antigravity 多账号管理与配额工具 · 数据保存在 <code className="rounded bg-neutral-100 px-1 py-0.5 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">%LOCALAPPDATA%\CodeTool</code>
-        </p>
-        <p className="mt-1 text-[10px] text-neutral-400/90 dark:text-neutral-500">
-          核心协议与客户端集成移植自 <a href="https://github.com/lbjlaq/Antigravity-Manager" target="_blank" rel="noreferrer" className="underline hover:text-neutral-800 dark:hover:text-neutral-200">Antigravity-Manager</a> · CC BY-NC-SA 4.0 许可证
-        </p>
-      </footer>
-
+      <AccountDetailModal
+        account={detailAccount}
+        onClose={() => setDetailAccountId(null)}
+      />
       <DeleteConfirmModal />
     </div>
   );
