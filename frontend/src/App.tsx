@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { EventsOn } from '../wailsjs/runtime/runtime';
 import { useAccountStore } from './store/useAccountStore';
 import { useThemeStore } from './store/useThemeStore';
 import { Header } from './components/Header';
@@ -12,7 +13,14 @@ import { ArrowDownWideNarrow, Users, UserPlus } from 'lucide-react';
 type SortMode = 'default' | 'gemini' | 'claude';
 
 export const App: React.FC = () => {
-  const { accounts, loading, loadAccounts, captureCurrentAccount } = useAccountStore();
+  const {
+    accounts,
+    loading,
+    loadAccounts,
+    captureCurrentAccount,
+    loadWidgetStatus,
+    setWidgetOpen,
+  } = useAccountStore();
   const initTheme = useThemeStore((s) => s.initTheme);
 
   const [sortMode, setSortMode] = useState<SortMode>('default');
@@ -20,9 +28,20 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadAccounts();
-    const cleanup = initTheme();
-    return cleanup;
-  }, [loadAccounts, initTheme]);
+    loadWidgetStatus();
+    const cleanupTheme = initTheme();
+    const offAccounts = EventsOn('accounts:updated', () => {
+      void useAccountStore.getState().loadAccounts();
+    });
+    const offWidget = EventsOn('widget:status', (open: boolean) => {
+      setWidgetOpen(Boolean(open));
+    });
+    return () => {
+      cleanupTheme();
+      offAccounts();
+      offWidget();
+    };
+  }, [loadAccounts, loadWidgetStatus, initTheme, setWidgetOpen]);
 
   const currentAccount = useMemo(
     () => accounts.find((a) => a.isCurrent) ?? null,

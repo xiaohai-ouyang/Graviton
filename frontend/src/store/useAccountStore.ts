@@ -18,6 +18,7 @@ interface AccountState {
   clientPath: string;
   banner: FeedbackBanner | null;
   expandedIds: Record<string, boolean>;
+  widgetOpen: boolean;
 
   loadAccounts: () => Promise<void>;
   captureCurrentAccount: () => Promise<void>;
@@ -32,6 +33,9 @@ interface AccountState {
   toggleExpand: (id: string) => void;
   setBanner: (banner: FeedbackBanner | null) => void;
   clearBanner: () => void;
+  loadWidgetStatus: () => Promise<void>;
+  toggleWidget: () => Promise<void>;
+  setWidgetOpen: (open: boolean) => void;
 }
 
 export const useAccountStore = create<AccountState>((set, get) => ({
@@ -45,6 +49,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   clientPath: '',
   banner: null,
   expandedIds: {},
+  widgetOpen: false,
 
   loadAccounts: async () => {
     set({ loading: true });
@@ -215,4 +220,18 @@ export const useAccountStore = create<AccountState>((set, get) => ({
 
   setBanner: (banner) => set({ banner }),
   clearBanner: () => set({ banner: null }),
+  loadWidgetStatus: async () => {
+    const open = await api.isWidgetOpen();
+    set({ widgetOpen: open });
+  },
+  toggleWidget: async () => {
+    try {
+      const open = await api.toggleWidget();
+      set({ widgetOpen: open });
+    } catch (e) {
+      const err = parseError(e);
+      set({ banner: { type: 'error', message: `切换悬浮窗失败: ${err.message}` } });
+    }
+  },
+  setWidgetOpen: (open: boolean) => set({ widgetOpen: open }),
 }));

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { api } from '../services/api';
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -56,12 +57,14 @@ export const useThemeStore = create<ThemeState>((set, get) => {
       const resolved = theme === 'system' ? getSystemTheme() : theme;
       applyThemeToDOM(resolved);
       set({ theme, resolvedTheme: resolved });
+      void api.syncTheme(resolved);
     },
     initTheme: () => {
       const theme = getStoredTheme();
       const resolved = theme === 'system' ? getSystemTheme() : theme;
       applyThemeToDOM(resolved);
       set({ theme, resolvedTheme: resolved });
+      void api.syncTheme(resolved);
 
       if (typeof window === 'undefined' || !window.matchMedia) {
         return () => {};
@@ -73,6 +76,7 @@ export const useThemeStore = create<ThemeState>((set, get) => {
           const sysTheme = e.matches ? 'dark' : 'light';
           applyThemeToDOM(sysTheme);
           set({ resolvedTheme: sysTheme });
+          void api.syncTheme(sysTheme);
         }
       };
 

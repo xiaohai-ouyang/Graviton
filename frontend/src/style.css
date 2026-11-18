@@ -108,3 +108,10 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(150, 150, 150, 0.5);
 }
+
+html.widget-mode,
+html.widget-mode body {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden;
+}

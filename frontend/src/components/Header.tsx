@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAccountStore } from '../store/useAccountStore';
-import { UserPlus, RefreshCw, Settings, ShieldCheck } from 'lucide-react';
+import { UserPlus, RefreshCw, Settings, ShieldCheck, PictureInPicture2 } from 'lucide-react';
 import { ClientPathModal } from './ClientPathModal';
+import { AddAccountModal } from './AddAccountModal';
 import { ThemeToggle } from './ThemeToggle';
 
 export const Header: React.FC = () => {
@@ -9,11 +10,13 @@ export const Header: React.FC = () => {
     accounts,
     capturing,
     refreshingAll,
-    captureCurrentAccount,
     refreshAllQuotas,
+    widgetOpen,
+    toggleWidget,
   } = useAccountStore();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   // Check if current account is identified
   const currentAccount = accounts.find((a) => a.isCurrent);
@@ -53,13 +56,13 @@ export const Header: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
-              onClick={captureCurrentAccount}
+              onClick={() => setAddOpen(true)}
               disabled={capturing || refreshingAll}
-              aria-label="收录当前账号"
+              aria-label="添加账号"
               className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              <UserPlus className={`h-3.5 w-3.5 ${capturing ? 'animate-spin' : ''}`} />
-              <span>{capturing ? '正在收录...' : '收录当前账号'}</span>
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>添加账号</span>
             </button>
 
             <button
@@ -70,6 +73,20 @@ export const Header: React.FC = () => {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshingAll ? 'animate-spin' : ''}`} />
               <span>{refreshingAll ? '正在刷新全部...' : '刷新全部'}</span>
+            </button>
+
+            <button
+              onClick={toggleWidget}
+              aria-label="切换桌面悬浮窗"
+              title={widgetOpen ? '关闭桌面悬浮窗' : '开启桌面悬浮窗'}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium shadow-xs transition-colors active:scale-[0.98] ${
+                widgetOpen
+                  ? 'border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/80 dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
+                  : 'border-neutral-200 bg-card text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700'
+              }`}
+            >
+              <PictureInPicture2 className="h-3.5 w-3.5" />
+              <span>{widgetOpen ? '悬浮窗已开' : '悬浮窗'}</span>
             </button>
 
             <ThemeToggle />
@@ -86,6 +103,7 @@ export const Header: React.FC = () => {
         </div>
       </header>
 
+      <AddAccountModal open={addOpen} onClose={() => setAddOpen(false)} />
       <ClientPathModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </>
   );
