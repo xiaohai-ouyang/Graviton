@@ -25,8 +25,9 @@ type StateSnapshot struct {
 	RefreshingAll bool                        `json:"refreshingAll"`
 	RefreshingIDs map[string]bool             `json:"refreshingIds"`
 	SwitchingIDs  map[string]bool             `json:"switchingIds"`
-	LastUpdated   string                      `json:"lastUpdated"`
-	WidgetLocked  bool                        `json:"widgetLocked"`
+	LastUpdated       string                      `json:"lastUpdated"`
+	WidgetLocked      bool                        `json:"widgetLocked"`
+	WidgetAlwaysOnTop bool                        `json:"widgetAlwaysOnTop"`
 }
 
 // Handlers defines callbacks invoked by the local IPC server on behalf of the widget.

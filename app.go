@@ -38,10 +38,11 @@ type App struct {
 	widgetMgr   *widget.Manager
 	trayIcon    *tray.Tray
 
-	mu            sync.Mutex
-	theme         string
-	widgetLocked  bool
-	refreshingAll bool
+	mu                sync.Mutex
+	theme             string
+	widgetLocked      bool
+	widgetAlwaysOnTop bool
+	refreshingAll     bool
 	refreshingIDs map[string]bool
 	switchingIDs  map[string]bool
 	lastUpdated   string
@@ -58,22 +59,25 @@ func NewApp() *App {
 	svc := appservice.NewAppService(sm, nil)
 	theme := "light"
 	widgetLocked := false
+	widgetAlwaysOnTop := false
 	if sm != nil {
 		if sf, _, err := sm.LoadSettings(); err == nil {
 			if sf.Theme != "" {
 				theme = sf.Theme
 			}
 			widgetLocked = sf.WidgetLocked
+			widgetAlwaysOnTop = sf.WidgetAlwaysOnTop
 		}
 	}
 	return &App{
-		service:       svc,
-		storageMgr:    sm,
-		theme:         theme,
-		widgetLocked:  widgetLocked,
-		refreshingIDs: make(map[string]bool),
-		switchingIDs:  make(map[string]bool),
-		stopAuto:      make(chan struct{}),
+		service:           svc,
+		storageMgr:        sm,
+		theme:             theme,
+		widgetLocked:      widgetLocked,
+		widgetAlwaysOnTop: widgetAlwaysOnTop,
+		refreshingIDs:     make(map[string]bool),
+		switchingIDs:      make(map[string]bool),
+		stopAuto:          make(chan struct{}),
 	}
 }
 
@@ -147,11 +151,16 @@ func (a *App) domReady(ctx context.Context) {
 	}
 	widget.ConfigureWidgetWindow(widget.WidgetWindowTitle)
 	if a.storageMgr != nil {
-		if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf.WidgetHasPos {
-			wa := widget.GetWorkArea(widget.WidgetWindowTitle)
-			x, y := sf.WidgetX, sf.WidgetY
-			if x >= wa.Left-20 && x <= wa.Right-40 && y >= wa.Top-20 && y <= wa.Bottom-40 {
-				widget.SetWindowBounds(widget.WidgetWindowTitle, x, y)
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+			if sf.WidgetAlwaysOnTop {
+				runtime.WindowSetAlwaysOnTop(a.ctx, true)
+			}
+			if sf.WidgetHasPos {
+				wa := widget.GetWorkArea(widget.WidgetWindowTitle)
+				x, y := sf.WidgetX, sf.WidgetY
+				if x >= wa.Left-20 && x <= wa.Right-40 && y >= wa.Top-20 && y <= wa.Bottom-40 {
+					widget.SetWindowBounds(widget.WidgetWindowTitle, x, y)
+				}
 			}
 		}
 	}
@@ -293,6 +302,37 @@ func (a *App) ToggleWidget() (bool, error) {
 	return true, nil
 }
 
+// GetWidgetAlwaysOnTop reports whether the floating widget is configured to stay always on top.
+func (a *App) GetWidgetAlwaysOnTop() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.widgetAlwaysOnTop
+}
+
+// SetWidgetAlwaysOnTop updates whether the floating widget stays on top, persists it, and syncs to the widget.
+func (a *App) SetWidgetAlwaysOnTop(alwaysOnTop bool) {
+	a.mu.Lock()
+	a.widgetAlwaysOnTop = alwaysOnTop
+	a.mu.Unlock()
+
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+			sf.WidgetAlwaysOnTop = alwaysOnTop
+			_ = a.storageMgr.SaveSettings(sf)
+		}
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+}
+
+// ApplyWidgetAlwaysOnTop applies the always-on-top window flag on the floating widget process.
+func (a *App) ApplyWidgetAlwaysOnTop(alwaysOnTop bool) {
+	if a.ctx != nil && a.isWidget {
+		runtime.WindowSetAlwaysOnTop(a.ctx, alwaysOnTop)
+	}
+}
+
 // IsWidgetOpen reports whether the floating widget is currently running.
 func (a *App) IsWidgetOpen() bool {
 	if a.widgetMgr == nil {
@@ -378,13 +418,14 @@ func (a *App) buildStateSnapshot() widget.StateSnapshot {
 	}
 
 	return widget.StateSnapshot{
-		Accounts:      accounts,
-		Theme:         a.theme,
-		RefreshingAll: a.refreshingAll,
-		RefreshingIDs: refIDs,
-		SwitchingIDs:  swIDs,
-		LastUpdated:   a.lastUpdated,
-		WidgetLocked:  a.widgetLocked,
+		Accounts:          accounts,
+		Theme:             a.theme,
+		RefreshingAll:     a.refreshingAll,
+		RefreshingIDs:     refIDs,
+		SwitchingIDs:      swIDs,
+		LastUpdated:       a.lastUpdated,
+		WidgetLocked:      a.widgetLocked,
+		WidgetAlwaysOnTop: a.widgetAlwaysOnTop,
 	}
 }
 
