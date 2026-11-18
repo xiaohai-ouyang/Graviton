@@ -120,3 +120,54 @@ func TestOAuth_EnsureFreshToken(t *testing.T) {
 	assert.True(t, wasRefreshed)
 	assert.Equal(t, 2, refreshCalls)
 }
+
+func TestOAuth_BuildAuthURL(t *testing.T) {
+	svc := NewOAuthService(nil)
+	authURL := svc.BuildAuthURL("http://127.0.0.1:54321/oauth-callback", "state-xyz")
+	assert.Contains(t, authURL, AuthEndpoint)
+	assert.Contains(t, authURL, "client_id="+DefaultClientID)
+	assert.Contains(t, authURL, "redirect_uri=http%3A%2F%2F127.0.0.1%3A54321%2Foauth-callback")
+	assert.Contains(t, authURL, "state=state-xyz")
+	assert.Contains(t, authURL, "access_type=offline")
+	assert.Contains(t, authURL, "prompt=consent")
+	assert.Contains(t, authURL, "response_type=code")
+}
+
+func TestOAuth_ExchangeCode_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		err := r.ParseForm()
+		assert.NoError(t, err)
+		assert.Equal(t, "authorization_code", r.Form.Get("grant_type"))
+		assert.Equal(t, "auth-code-123", r.Form.Get("code"))
+		assert.Equal(t, "http://127.0.0.1:9999/oauth-callback", r.Form.Get("redirect_uri"))
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(RefreshTokenResponse{
+			AccessToken:  "exchanged-access",
+			RefreshToken: "exchanged-refresh",
+			ExpiresIn:    3600,
+			TokenType:    "Bearer",
+		})
+	}))
+	defer server.Close()
+
+	svc := NewOAuthService(server.Client())
+	svc.TokenURL = server.URL
+
+	resp, err := svc.ExchangeCode(context.Background(), "auth-code-123", "http://127.0.0.1:9999/oauth-callback")
+	require.NoError(t, err)
+	assert.Equal(t, "exchanged-access", resp.AccessToken)
+	assert.Equal(t, "exchanged-refresh", resp.RefreshToken)
+}
+
+func TestOAuth_BuildCredentialPayload(t *testing.T) {
+	payload := BuildCredentialPayload(&RefreshTokenResponse{
+		AccessToken: "at-1",
+		ExpiresIn:   3600,
+		TokenType:   "",
+	}, "fallback-rt")
+	assert.Equal(t, "consumer", payload.AuthMethod)
+	assert.Equal(t, "Bearer", payload.Token.TokenType)
+	assert.Equal(t, "fallback-rt", payload.Token.RefreshToken)
+	assert.NotEmpty(t, payload.Token.Expiry)
+}

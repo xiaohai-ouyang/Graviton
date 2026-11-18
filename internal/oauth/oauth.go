@@ -17,10 +17,20 @@ import (
 const (
 	DefaultClientID     = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
 	DefaultClientSecret = "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"
+	AuthEndpoint        = "https://accounts.google.com/o/oauth2/v2/auth"
 	TokenEndpoint       = "https://oauth2.googleapis.com/token"
 	UserInfoEndpoint    = "https://www.googleapis.com/oauth2/v2/userinfo"
 	UserAgent           = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Antigravity/44.5.1 Chrome/130.0.6723.137 Electron/33.2.1 Safari/537.36"
 )
+
+// DefaultScopes are the Google OAuth scopes requested by Antigravity.
+var DefaultScopes = []string{
+	"https://www.googleapis.com/auth/cloud-platform",
+	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/userinfo.profile",
+	"https://www.googleapis.com/auth/cclog",
+	"https://www.googleapis.com/auth/experimentsandconfigs",
+}
 
 var (
 	ErrInvalidGrant = errors.New("invalid_grant: 登录已失效，请在客户端重新登录后重新收录")
@@ -57,10 +67,11 @@ type RefreshTokenResponse struct {
 	IDToken      string `json:"id_token,omitempty"`
 }
 
-// OAuthService manages OAuth refresh and userinfo queries.
+// OAuthService manages OAuth authorization, token exchange, refresh, and userinfo queries.
 type OAuthService struct {
 	ClientID     string
 	ClientSecret string
+	AuthURL      string
 	TokenURL     string
 	UserInfoURL  string
 	HTTPClient   *http.Client
@@ -76,10 +87,31 @@ func NewOAuthService(httpClient *http.Client) *OAuthService {
 	return &OAuthService{
 		ClientID:     DefaultClientID,
 		ClientSecret: DefaultClientSecret,
+		AuthURL:      AuthEndpoint,
 		TokenURL:     TokenEndpoint,
 		UserInfoURL:  UserInfoEndpoint,
 		HTTPClient:   httpClient,
 	}
+}
+
+// BuildAuthURL constructs the Google OAuth 2.0 authorization URL for desktop login.
+func (s *OAuthService) BuildAuthURL(redirectURI, state string) string {
+	authBase := s.AuthURL
+	if authBase == "" {
+		authBase = AuthEndpoint
+	}
+	params := url.Values{}
+	params.Set("client_id", s.ClientID)
+	params.Set("redirect_uri", redirectURI)
+	params.Set("response_type", "code")
+	params.Set("scope", strings.Join(DefaultScopes, " "))
+	params.Set("access_type", "offline")
+	params.Set("prompt", "consent")
+	params.Set("include_granted_scopes", "true")
+	if state != "" {
+		params.Set("state", state)
+	}
+	return authBase + "?" + params.Encode()
 }
 
 // FetchUserInfo calls Google UserInfo endpoint with an access token.
@@ -130,22 +162,45 @@ func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (*
 	data.Set("refresh_token", refreshToken)
 	data.Set("grant_type", "refresh_token")
 
+	return s.postTokenForm(ctx, data, "token refresh")
+}
+
+// ExchangeCode exchanges an OAuth authorization code for access and refresh tokens.
+func (s *OAuthService) ExchangeCode(ctx context.Context, code, redirectURI string) (*RefreshTokenResponse, error) {
+	if strings.TrimSpace(code) == "" {
+		return nil, errors.New("cannot exchange code: empty authorization code")
+	}
+	if strings.TrimSpace(redirectURI) == "" {
+		return nil, errors.New("cannot exchange code: empty redirect URI")
+	}
+
+	data := url.Values{}
+	data.Set("client_id", s.ClientID)
+	data.Set("client_secret", s.ClientSecret)
+	data.Set("code", code)
+	data.Set("redirect_uri", redirectURI)
+	data.Set("grant_type", "authorization_code")
+
+	return s.postTokenForm(ctx, data, "code exchange")
+}
+
+func (s *OAuthService) postTokenForm(ctx context.Context, data url.Values, opName string) (*RefreshTokenResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.TokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create refresh token request: %w", err)
+		return nil, fmt.Errorf("failed to create %s request: %w", opName, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("User-Agent", UserAgent)
 
 	resp, err := s.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("token refresh network error: %w", err)
+		return nil, fmt.Errorf("%s network error: %w", opName, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read token refresh response: %w", err)
+		return nil, fmt.Errorf("failed to read %s response: %w", opName, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -153,19 +208,47 @@ func (s *OAuthService) RefreshToken(ctx context.Context, refreshToken string) (*
 		if strings.Contains(bodyStr, "invalid_grant") {
 			return nil, ErrInvalidGrant
 		}
-		return nil, fmt.Errorf("token refresh failed with status %d: %s", resp.StatusCode, bodyStr)
+		return nil, fmt.Errorf("%s failed with status %d: %s", opName, resp.StatusCode, bodyStr)
 	}
 
 	var tokenResp RefreshTokenResponse
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
-		return nil, fmt.Errorf("failed to parse token refresh JSON: %w", err)
+		return nil, fmt.Errorf("failed to parse %s JSON: %w", opName, err)
 	}
 
 	if tokenResp.AccessToken == "" {
-		return nil, errors.New("token refresh response missing access_token")
+		return nil, fmt.Errorf("%s response missing access_token", opName)
 	}
 
 	return &tokenResp, nil
+}
+
+// BuildCredentialPayload constructs a CredentialPayload from an OAuth token response.
+func BuildCredentialPayload(tokenResp *RefreshTokenResponse, fallbackRefreshToken string) *cred.CredentialPayload {
+	refreshToken := strings.TrimSpace(tokenResp.RefreshToken)
+	if refreshToken == "" {
+		refreshToken = strings.TrimSpace(fallbackRefreshToken)
+	}
+	tokenType := strings.TrimSpace(tokenResp.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	var expiry string
+	if tokenResp.ExpiresIn > 0 {
+		expiry = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second).Format(time.RFC3339Nano)
+	}
+	return &cred.CredentialPayload{
+		Token: cred.TokenInfo{
+			AccessToken:  tokenResp.AccessToken,
+			TokenType:    tokenType,
+			RefreshToken: refreshToken,
+			Expiry:       expiry,
+			ExpiresIn:    tokenResp.ExpiresIn,
+		},
+		AuthMethod:   "consumer",
+		IDToken:      tokenResp.IDToken,
+		IDTokenEmail: cred.ExtractEmailFromIDToken(tokenResp.IDToken),
+	}
 }
 
 // EnsureFreshToken checks if token is expired or within skew (5 min). If so, it refreshes it.

@@ -60,12 +60,14 @@ type BatchRefreshResult struct {
 
 // AppService coordinates persistence, credentials, oauth, quota, and switching.
 type AppService struct {
-	storageMgr   *storage.StorageManager
-	oauthSvc     *oauth.OAuthService
-	quotaSvc     *quota.QuotaService
-	switcher     *client.ClientSwitcher
-	opLock       sync.Mutex
-	httpClient   *http.Client
+	storageMgr *storage.StorageManager
+	oauthSvc   *oauth.OAuthService
+	quotaSvc   *quota.QuotaService
+	switcher   *client.ClientSwitcher
+	opLock     sync.Mutex
+	httpClient *http.Client
+	oauthMu    sync.Mutex
+	oauthSess  *oauthLoginSession
 }
 
 // NewAppService creates an AppService with custom or default dependencies.
@@ -173,9 +175,15 @@ func (s *AppService) CaptureCurrentAccount() (*AccountDisplay, error) {
 		}
 		return nil, NewAppError("REFRESH_FAILED", fmt.Sprintf("刷新 Token 失败: %v", err))
 	}
-	credPayload = refreshed
 
-	// 3. Confirm identity via Google UserInfo
+	return s.saveAccountFromCredential(ctx, refreshed, true)
+}
+
+// saveAccountFromCredential confirms identity via UserInfo, deduplicates by email,
+// persists the independent credential, fetches initial quota, and atomically saves accounts.toml.
+// Caller must hold s.opLock.
+func (s *AppService) saveAccountFromCredential(ctx context.Context, credPayload *cred.CredentialPayload, isCurrent bool) (*AccountDisplay, error) {
+	// Confirm identity via Google UserInfo
 	userInfo, err := s.oauthSvc.FetchUserInfo(ctx, credPayload.Token.AccessToken)
 	if err != nil {
 		return nil, NewAppError("USERINFO_FAILED", fmt.Sprintf("确认账号身份失败: %v", err))
@@ -185,7 +193,7 @@ func (s *AppService) CaptureCurrentAccount() (*AccountDisplay, error) {
 	displayName := userInfo.GetDisplayName()
 	credPayload.IDTokenEmail = confirmedEmail
 
-	// 4. Load existing accounts to deduplicate by email
+	// Load existing accounts to deduplicate by email
 	accounts, _, err := s.storageMgr.LoadAccounts()
 	if err != nil {
 		return nil, NewAppError("STORAGE_ERROR", fmt.Sprintf("加载本地账号失败: %v", err))
@@ -207,12 +215,12 @@ func (s *AppService) CaptureCurrentAccount() (*AccountDisplay, error) {
 		isNew = true
 	}
 
-	// 5. Save independent credential first
+	// Save independent credential first
 	if err := cred.WriteAccountCredential(accountID, credPayload); err != nil {
 		return nil, NewAppError("CRED_ERROR", fmt.Sprintf("保存凭据失败: %v", err))
 	}
 
-	// 6. Fetch quota snapshot
+	// Fetch quota snapshot
 	var lastSnap *storage.QuotaSnapshot
 	if existingIndex >= 0 {
 		lastSnap = &accounts[existingIndex].Quota
@@ -247,7 +255,7 @@ func (s *AppService) CaptureCurrentAccount() (*AccountDisplay, error) {
 		accounts = append(accounts, record)
 	}
 
-	// 7. Atomic commit to accounts.toml
+	// Atomic commit to accounts.toml
 	if err := s.storageMgr.SaveAccounts(accounts); err != nil {
 		// Rollback credential if new
 		if isNew {
@@ -256,7 +264,7 @@ func (s *AppService) CaptureCurrentAccount() (*AccountDisplay, error) {
 		return nil, NewAppError("SAVE_FAILED", fmt.Sprintf("保存账号数据失败: %v", err))
 	}
 
-	disp := toDisplay(record, true)
+	disp := toDisplay(record, isCurrent)
 	return &disp, nil
 }
 
