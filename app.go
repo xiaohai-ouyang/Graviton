@@ -5,53 +5,453 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"codetool/internal/appservice"
 	"codetool/internal/client"
 	"codetool/internal/storage"
+	"codetool/internal/tray"
+	"codetool/internal/widget"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+// WidgetConnection holds connection & initial position info for the widget frontend.
+type WidgetConnection struct {
+	Port   int  `json:"port"`
+	Token  string `json:"token"`
+	X      int  `json:"x"`
+	Y      int  `json:"y"`
+	HasPos bool `json:"hasPos"`
+}
 
 // App struct
 type App struct {
 	ctx        context.Context
 	service    *appservice.AppService
 	storageMgr *storage.StorageManager
+
+	isWidget    bool
+	widgetPort  int
+	widgetToken string
+	widgetMgr   *widget.Manager
+	trayIcon    *tray.Tray
+
+	mu            sync.Mutex
+	theme         string
+	widgetLocked  bool
+	refreshingAll bool
+	refreshingIDs map[string]bool
+	switchingIDs  map[string]bool
+	lastUpdated   string
+	stopAuto      chan struct{}
+	quitting      bool
 }
 
-// NewApp creates a new App application struct
+// NewApp creates a new App application struct for the main window.
 func NewApp() *App {
 	sm, err := storage.NewStorageManager("")
 	if err != nil {
 		fmt.Printf("Warning: failed to initialize storage manager: %v\n", err)
 	}
 	svc := appservice.NewAppService(sm, nil)
+	theme := "light"
+	widgetLocked := false
+	if sm != nil {
+		if sf, _, err := sm.LoadSettings(); err == nil {
+			if sf.Theme != "" {
+				theme = sf.Theme
+			}
+			widgetLocked = sf.WidgetLocked
+		}
+	}
 	return &App{
-		service:    svc,
-		storageMgr: sm,
+		service:       svc,
+		storageMgr:    sm,
+		theme:         theme,
+		widgetLocked:  widgetLocked,
+		refreshingIDs: make(map[string]bool),
+		switchingIDs:  make(map[string]bool),
+		stopAuto:      make(chan struct{}),
 	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
+// NewWidgetApp creates an App instance for the floating widget process.
+func NewWidgetApp(port int, token string) *App {
+	sm, _ := storage.NewStorageManager("")
+	return &App{
+		storageMgr:    sm,
+		isWidget:      true,
+		widgetPort:    port,
+		widgetToken:   token,
+		refreshingIDs: make(map[string]bool),
+		switchingIDs:  make(map[string]bool),
+	}
+}
+
+// startup is called when the app starts.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.isWidget {
+		return
+	}
+
+	a.widgetMgr = widget.NewManager(widget.Handlers{
+		GetState: a.buildStateSnapshot,
+		Refresh:  a.handleWidgetRefresh,
+		Switch:   a.handleWidgetSwitch,
+		OpenMain: a.ShowMainWindow,
+		CloseWidget: func() {
+			a.setWidgetEnabledSetting(false)
+			a.widgetMgr.StopWidget()
+			a.emitWidgetStatus(false)
+		},
+		SavePosition: a.saveWidgetPosition,
+		SetLocked:    a.setWidgetLocked,
+		OnWidgetExit: func() {
+			a.emitWidgetStatus(false)
+		},
+	})
+
+	if err := a.widgetMgr.StartServer(); err != nil {
+		fmt.Printf("Warning: failed to start widget IPC server: %v\n", err)
+	}
+
+	a.trayIcon = tray.Start(tray.Callbacks{
+		OnShowMain: a.ShowMainWindow,
+		OnToggleWidget: func() {
+			_, _ = a.ToggleWidget()
+		},
+		OnRefreshAll: func() {
+			_, _ = a.RefreshAllQuotas()
+		},
+		OnQuit: a.QuitApp,
+	})
+
+	a.startAutoRefreshLoop()
+
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf.WidgetEnabled {
+			if err := a.widgetMgr.StartWidget(); err == nil {
+				a.emitWidgetStatus(true)
+			}
+		}
+	}
+}
+
+// domReady is called when the WebView DOM has finished loading.
+func (a *App) domReady(ctx context.Context) {
+	if !a.isWidget {
+		return
+	}
+	widget.ConfigureWidgetWindow(widget.WidgetWindowTitle)
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf.WidgetHasPos {
+			wa := widget.GetWorkArea(widget.WidgetWindowTitle)
+			x, y := sf.WidgetX, sf.WidgetY
+			if x >= wa.Left-20 && x <= wa.Right-40 && y >= wa.Top-20 && y <= wa.Bottom-40 {
+				widget.SetWindowBounds(widget.WidgetWindowTitle, x, y)
+			}
+		}
+	}
+}
+
+// onBeforeClose intercepts window close so the main window hides to the system tray.
+func (a *App) onBeforeClose(ctx context.Context) bool {
+	if a.isWidget {
+		return false
+	}
+	a.mu.Lock()
+	quitting := a.quitting
+	a.mu.Unlock()
+	if quitting {
+		return false
+	}
+	runtime.Hide(ctx)
+	return true
+}
+
+// shutdown cleans up background resources when the app exits.
+func (a *App) shutdown(ctx context.Context) {
+	if a.isWidget {
+		return
+	}
+	select {
+	case <-a.stopAuto:
+	default:
+		close(a.stopAuto)
+	}
+	if a.trayIcon != nil {
+		a.trayIcon.Close()
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.Stop()
+	}
 }
 
 // onSecondInstanceLaunch is invoked when a user launches a second instance.
 func (a *App) onSecondInstanceLaunch(secondInstanceData optionsSecondInstanceData) {
-	if a.ctx != nil {
-		runtime.WindowUnminimise(a.ctx)
-		runtime.Show(a.ctx)
-		runtime.WindowSetAlwaysOnTop(a.ctx, true)
-		runtime.WindowSetAlwaysOnTop(a.ctx, false)
-	}
+	a.ShowMainWindow()
 }
 
 type optionsSecondInstanceData struct {
 	Args             []string
 	WorkingDirectory string
+}
+
+// ShowMainWindow restores and focuses the main application window.
+func (a *App) ShowMainWindow() {
+	if a.ctx == nil || a.isWidget {
+		return
+	}
+	runtime.WindowUnminimise(a.ctx)
+	runtime.Show(a.ctx)
+	runtime.WindowSetAlwaysOnTop(a.ctx, true)
+	runtime.WindowSetAlwaysOnTop(a.ctx, false)
+}
+
+// QuitApp exits the entire application including the tray and floating widget.
+func (a *App) QuitApp() {
+	a.mu.Lock()
+	a.quitting = true
+	a.mu.Unlock()
+	if a.trayIcon != nil {
+		a.trayIcon.Close()
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.Stop()
+	}
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}
+
+// IsWidgetMode reports whether this process is running as the floating widget.
+func (a *App) IsWidgetMode() bool {
+	return a.isWidget
+}
+
+// GetWidgetConnection returns IPC connection details and saved coordinates for the widget.
+func (a *App) GetWidgetConnection() WidgetConnection {
+	conn := WidgetConnection{
+		Port:  a.widgetPort,
+		Token: a.widgetToken,
+	}
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf.WidgetHasPos {
+			conn.X = sf.WidgetX
+			conn.Y = sf.WidgetY
+			conn.HasPos = true
+		}
+	}
+	return conn
+}
+
+// SetWidgetSize resizes the floating widget window.
+func (a *App) SetWidgetSize(width, height int) {
+	if a.ctx != nil && a.isWidget {
+		runtime.WindowSetSize(a.ctx, width, height)
+	}
+}
+
+// GetWidgetWindowBounds returns the current screen coordinates and size of the widget window.
+func (a *App) GetWidgetWindowBounds() widget.WindowBounds {
+	b, _ := widget.GetWindowBounds(widget.WidgetWindowTitle)
+	return b
+}
+
+// SetWidgetPosition moves the widget window to (x, y).
+func (a *App) SetWidgetPosition(x, y int) {
+	if a.isWidget {
+		widget.SetWindowBounds(widget.WidgetWindowTitle, x, y)
+	}
+}
+
+// GetScreenWorkArea returns the usable screen bounds of the monitor containing the widget.
+func (a *App) GetScreenWorkArea() widget.WorkArea {
+	return widget.GetWorkArea(widget.WidgetWindowTitle)
+}
+
+// ToggleWidget toggles the floating widget window on or off.
+func (a *App) ToggleWidget() (bool, error) {
+	if a.widgetMgr == nil {
+		return false, errors.New("widget manager not initialized")
+	}
+	if a.widgetMgr.IsWidgetRunning() {
+		a.setWidgetEnabledSetting(false)
+		a.widgetMgr.StopWidget()
+		a.emitWidgetStatus(false)
+		return false, nil
+	}
+	a.setWidgetEnabledSetting(true)
+	if err := a.widgetMgr.StartWidget(); err != nil {
+		a.setWidgetEnabledSetting(false)
+		return false, err
+	}
+	a.emitWidgetStatus(true)
+	return true, nil
+}
+
+// IsWidgetOpen reports whether the floating widget is currently running.
+func (a *App) IsWidgetOpen() bool {
+	if a.widgetMgr == nil {
+		return false
+	}
+	return a.widgetMgr.IsWidgetRunning()
+}
+
+// SyncTheme updates the resolved theme ("light" or "dark") and syncs it to the widget.
+func (a *App) SyncTheme(theme string) {
+	if theme != "dark" && theme != "light" {
+		return
+	}
+	a.mu.Lock()
+	a.theme = theme
+	a.mu.Unlock()
+
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+			sf.Theme = theme
+			_ = a.storageMgr.SaveSettings(sf)
+		}
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+}
+
+func (a *App) setWidgetEnabledSetting(enabled bool) {
+	if a.storageMgr == nil {
+		return
+	}
+	if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+		sf.WidgetEnabled = enabled
+		_ = a.storageMgr.SaveSettings(sf)
+	}
+}
+
+func (a *App) saveWidgetPosition(x, y int) {
+	if a.storageMgr == nil {
+		return
+	}
+	if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+		sf.WidgetX = x
+		sf.WidgetY = y
+		sf.WidgetHasPos = true
+		_ = a.storageMgr.SaveSettings(sf)
+	}
+}
+
+func (a *App) setWidgetLocked(locked bool) {
+	a.mu.Lock()
+	a.widgetLocked = locked
+	a.mu.Unlock()
+
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+			sf.WidgetLocked = locked
+			_ = a.storageMgr.SaveSettings(sf)
+		}
+	}
+	a.notifyStateChanged()
+}
+
+func (a *App) emitWidgetStatus(open bool) {
+	if a.ctx != nil && !a.isWidget {
+		runtime.EventsEmit(a.ctx, "widget:status", open)
+	}
+}
+
+func (a *App) buildStateSnapshot() widget.StateSnapshot {
+	accounts, _ := a.service.ListAccounts()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	refIDs := make(map[string]bool, len(a.refreshingIDs))
+	for k, v := range a.refreshingIDs {
+		refIDs[k] = v
+	}
+	swIDs := make(map[string]bool, len(a.switchingIDs))
+	for k, v := range a.switchingIDs {
+		swIDs[k] = v
+	}
+
+	return widget.StateSnapshot{
+		Accounts:      accounts,
+		Theme:         a.theme,
+		RefreshingAll: a.refreshingAll,
+		RefreshingIDs: refIDs,
+		SwitchingIDs:  swIDs,
+		LastUpdated:   a.lastUpdated,
+		WidgetLocked:  a.widgetLocked,
+	}
+}
+
+func (a *App) notifyStateChanged() {
+	a.mu.Lock()
+	a.lastUpdated = time.Now().Format(time.RFC3339)
+	a.mu.Unlock()
+
+	if a.ctx != nil && !a.isWidget {
+		runtime.EventsEmit(a.ctx, "accounts:updated", true)
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+}
+
+func (a *App) handleWidgetRefresh(id string) error {
+	if id == "all" {
+		_, err := a.RefreshAllQuotas()
+		return err
+	}
+	if id == "" {
+		accounts, err := a.service.ListAccounts()
+		if err != nil {
+			return err
+		}
+		for _, acc := range accounts {
+			if acc.IsCurrent {
+				id = acc.ID
+				break
+			}
+		}
+		if id == "" {
+			return errors.New("未识别到当前账号")
+		}
+	}
+	_, err := a.RefreshAccountQuota(id)
+	return err
+}
+
+func (a *App) handleWidgetSwitch(id string) error {
+	_, err := a.SwitchAccount(id)
+	return err
+}
+
+func (a *App) startAutoRefreshLoop() {
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-a.stopAuto:
+				return
+			case <-ticker.C:
+				accounts, err := a.service.ListAccounts()
+				if err != nil {
+					continue
+				}
+				for _, acc := range accounts {
+					if acc.IsCurrent {
+						_, _ = a.RefreshAccountQuota(acc.ID)
+						break
+					}
+				}
+			}
+		}
+	}()
 }
 
 // ListAccounts returns all recorded accounts with their quota snapshots and current status.
@@ -61,27 +461,116 @@ func (a *App) ListAccounts() ([]appservice.AccountDisplay, error) {
 
 // CaptureCurrentAccount captures the client's currently logged-in account.
 func (a *App) CaptureCurrentAccount() (*appservice.AccountDisplay, error) {
-	return a.service.CaptureCurrentAccount()
+	res, err := a.service.CaptureCurrentAccount()
+	if err == nil {
+		a.notifyStateChanged()
+	}
+	return res, err
+}
+
+// StartOAuthLogin starts a local OAuth callback listener, opens the system browser, and emits "oauth:completed".
+func (a *App) StartOAuthLogin() (*appservice.OAuthStartResult, error) {
+	res, err := a.service.StartOAuthLogin(func(evt appservice.OAuthCompletionEvent) {
+		if a.ctx != nil {
+			runtime.EventsEmit(a.ctx, "oauth:completed", evt)
+		}
+		if evt.Account != nil {
+			a.notifyStateChanged()
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	if a.ctx != nil {
+		runtime.BrowserOpenURL(a.ctx, res.AuthURL)
+	}
+	return res, nil
+}
+
+// CancelOAuthLogin cancels an active OAuth login session.
+func (a *App) CancelOAuthLogin() {
+	a.service.CancelOAuthLogin()
+}
+
+// CompleteOAuthWithCallbackURL manually completes an active OAuth login using a pasted callback URL.
+func (a *App) CompleteOAuthWithCallbackURL(rawURL string) (*appservice.AccountDisplay, error) {
+	res, err := a.service.CompleteOAuthWithCallbackURL(rawURL)
+	if err == nil {
+		a.notifyStateChanged()
+	}
+	return res, err
+}
+
+// ImportRefreshTokens imports one or more Google OAuth refresh tokens (text or JSON).
+func (a *App) ImportRefreshTokens(rawInput string) (*appservice.BatchImportResult, error) {
+	res, err := a.service.ImportRefreshTokens(rawInput)
+	if err == nil {
+		a.notifyStateChanged()
+	}
+	return res, err
 }
 
 // RefreshAccountQuota updates the quota for a specific account.
 func (a *App) RefreshAccountQuota(id string) (*appservice.AccountDisplay, error) {
-	return a.service.RefreshAccountQuota(id)
+	a.mu.Lock()
+	a.refreshingIDs[id] = true
+	a.mu.Unlock()
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+
+	res, err := a.service.RefreshAccountQuota(id)
+
+	a.mu.Lock()
+	delete(a.refreshingIDs, id)
+	a.mu.Unlock()
+	a.notifyStateChanged()
+	return res, err
 }
 
 // RefreshAllQuotas updates quotas for all accounts with up to 5 concurrent workers.
 func (a *App) RefreshAllQuotas() ([]appservice.BatchRefreshResult, error) {
-	return a.service.RefreshAllQuotas()
+	a.mu.Lock()
+	a.refreshingAll = true
+	a.mu.Unlock()
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+
+	res, err := a.service.RefreshAllQuotas()
+
+	a.mu.Lock()
+	a.refreshingAll = false
+	a.mu.Unlock()
+	a.notifyStateChanged()
+	return res, err
 }
 
 // SwitchAccount switches Antigravity active account.
 func (a *App) SwitchAccount(id string) (*client.SwitchResult, error) {
-	return a.service.SwitchAccount(id)
+	a.mu.Lock()
+	a.switchingIDs[id] = true
+	a.mu.Unlock()
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+
+	res, err := a.service.SwitchAccount(id)
+
+	a.mu.Lock()
+	delete(a.switchingIDs, id)
+	a.mu.Unlock()
+	a.notifyStateChanged()
+	return res, err
 }
 
 // DeleteAccount removes an account from CodeTool storage and deletes its independent credential.
 func (a *App) DeleteAccount(id string) error {
-	return a.service.DeleteAccount(id)
+	err := a.service.DeleteAccount(id)
+	if err == nil {
+		a.notifyStateChanged()
+	}
+	return err
 }
 
 // SelectClientPath opens a native file dialog to choose Antigravity executable, validates and saves it.

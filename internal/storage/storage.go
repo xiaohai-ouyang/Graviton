@@ -74,6 +74,12 @@ type AccountsFile struct {
 type SettingsFile struct {
 	FormatVersion int    `toml:"format_version"`
 	ClientPath    string `toml:"client_path,omitempty"`
+	WidgetEnabled bool   `toml:"widget_enabled,omitempty"`
+	WidgetX       int    `toml:"widget_x,omitempty"`
+	WidgetY       int    `toml:"widget_y,omitempty"`
+	WidgetHasPos  bool   `toml:"widget_has_pos,omitempty"`
+	WidgetLocked  bool   `toml:"widget_locked,omitempty"`
+	Theme         string `toml:"theme,omitempty"`
 }
 
 // StorageManager manages loading and atomic saving of configuration and accounts.
