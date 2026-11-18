@@ -2,7 +2,11 @@ import React from 'react';
 import { useThemeStore, Theme } from '../store/useThemeStore';
 import { Sun, Moon, Monitor } from 'lucide-react';
 
-export const ThemeToggle: React.FC = () => {
+interface ThemeToggleProps {
+  compact?: boolean;
+}
+
+export const ThemeToggle: React.FC<ThemeToggleProps> = ({ compact = false }) => {
   const { theme, resolvedTheme, setTheme } = useThemeStore();
 
   const options: { mode: Theme; label: string; tooltip: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -25,6 +29,25 @@ export const ThemeToggle: React.FC = () => {
       icon: Moon,
     },
   ];
+
+  if (compact) {
+    const currentIndex = options.findIndex((o) => o.mode === theme);
+    const current = options[currentIndex] ?? options[0];
+    const next = options[(currentIndex + 1) % options.length];
+    const Icon = current.icon;
+
+    return (
+      <button
+        type="button"
+        onClick={() => setTheme(next.mode)}
+        title={`${current.tooltip}（点击切换为${next.label}）`}
+        aria-label={`当前${current.label}，点击切换主题`}
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 bg-card text-neutral-600 shadow-2xs transition-colors hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
+      >
+        <Icon className="h-4 w-4" />
+      </button>
+    );
+  }
 
   return (
     <div
