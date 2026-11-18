@@ -56,6 +56,78 @@ export namespace appservice {
 		    return a;
 		}
 	}
+	export class ImportItemResult {
+	    inputLabel: string;
+	    success: boolean;
+	    account?: AccountDisplay;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImportItemResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.inputLabel = source["inputLabel"];
+	        this.success = source["success"];
+	        this.account = this.convertValues(source["account"], AccountDisplay);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BatchImportResult {
+	    total: number;
+	    success: number;
+	    failed: number;
+	    results: ImportItemResult[];
+	
+	    static createFrom(source: any = {}) {
+	        return new BatchImportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total = source["total"];
+	        this.success = source["success"];
+	        this.failed = source["failed"];
+	        this.results = this.convertValues(source["results"], ImportItemResult);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class BatchRefreshResult {
 	    accountId: string;
 	    success: boolean;
@@ -92,6 +164,23 @@ export namespace appservice {
 		    return a;
 		}
 	}
+	
+	export class OAuthStartResult {
+	    authUrl: string;
+	    state: string;
+	    redirectUri: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OAuthStartResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.authUrl = source["authUrl"];
+	        this.state = source["state"];
+	        this.redirectUri = source["redirectUri"];
+	    }
+	}
 
 }
 
@@ -113,6 +202,31 @@ export namespace client {
 	        this.hotSwitched = source["hotSwitched"];
 	        this.clientRelaunched = source["clientRelaunched"];
 	        this.message = source["message"];
+	    }
+	}
+
+}
+
+export namespace main {
+	
+	export class WidgetConnection {
+	    port: number;
+	    token: string;
+	    x: number;
+	    y: number;
+	    hasPos: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new WidgetConnection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.port = source["port"];
+	        this.token = source["token"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.hasPos = source["hasPos"];
 	    }
 	}
 
@@ -193,6 +307,47 @@ export namespace storage {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace widget {
+	
+	export class WindowBounds {
+	    x: number;
+	    y: number;
+	    width: number;
+	    height: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WindowBounds(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.width = source["width"];
+	        this.height = source["height"];
+	    }
+	}
+	export class WorkArea {
+	    left: number;
+	    top: number;
+	    right: number;
+	    bottom: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkArea(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.left = source["left"];
+	        this.top = source["top"];
+	        this.right = source["right"];
+	        this.bottom = source["bottom"];
+	    }
 	}
 
 }
