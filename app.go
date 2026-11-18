@@ -10,6 +10,7 @@ import (
 
 	"codetool/internal/appservice"
 	"codetool/internal/client"
+	"codetool/internal/envmgr"
 	"codetool/internal/storage"
 	"codetool/internal/tray"
 	"codetool/internal/widget"
@@ -37,6 +38,8 @@ type App struct {
 	widgetToken string
 	widgetMgr   *widget.Manager
 	trayIcon    *tray.Tray
+	procMgr     *envmgr.ProcessManager
+	projectsMu  sync.Mutex
 
 	mu                sync.Mutex
 	theme             string
@@ -100,6 +103,19 @@ func (a *App) startup(ctx context.Context) {
 	if a.isWidget {
 		return
 	}
+
+	a.procMgr = envmgr.NewProcessManager(envmgr.RunnerCallbacks{
+		OnStatus: func(state envmgr.ProcessState) {
+			if a.ctx != nil && !a.isWidget {
+				runtime.EventsEmit(a.ctx, "env:process:status", state)
+			}
+		},
+		OnLog: func(entry envmgr.LogEntry) {
+			if a.ctx != nil && !a.isWidget {
+				runtime.EventsEmit(a.ctx, "env:process:log", entry)
+			}
+		},
+	})
 
 	a.widgetMgr = widget.NewManager(widget.Handlers{
 		GetState: a.buildStateSnapshot,
@@ -197,6 +213,9 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.widgetMgr != nil {
 		a.widgetMgr.Stop()
 	}
+	if a.procMgr != nil {
+		a.procMgr.StopAll()
+	}
 }
 
 // onSecondInstanceLaunch is invoked when a user launches a second instance.
@@ -230,6 +249,9 @@ func (a *App) QuitApp() {
 	}
 	if a.widgetMgr != nil {
 		a.widgetMgr.Stop()
+	}
+	if a.procMgr != nil {
+		a.procMgr.StopAll()
 	}
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)

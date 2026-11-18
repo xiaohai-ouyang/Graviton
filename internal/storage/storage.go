@@ -72,15 +72,18 @@ type AccountsFile struct {
 
 // SettingsFile represents the structure of settings.toml.
 type SettingsFile struct {
-	FormatVersion int    `toml:"format_version"`
-	ClientPath    string `toml:"client_path,omitempty"`
-	WidgetEnabled bool   `toml:"widget_enabled,omitempty"`
-	WidgetX       int    `toml:"widget_x,omitempty"`
-	WidgetY       int    `toml:"widget_y,omitempty"`
-	WidgetHasPos  bool   `toml:"widget_has_pos,omitempty"`
+	FormatVersion     int    `toml:"format_version"`
+	ClientPath        string `toml:"client_path,omitempty"`
+	WidgetEnabled     bool   `toml:"widget_enabled,omitempty"`
+	WidgetX           int    `toml:"widget_x,omitempty"`
+	WidgetY           int    `toml:"widget_y,omitempty"`
+	WidgetHasPos      bool   `toml:"widget_has_pos,omitempty"`
 	WidgetLocked      bool   `toml:"widget_locked,omitempty"`
 	WidgetAlwaysOnTop bool   `toml:"widget_always_on_top,omitempty"`
 	Theme             string `toml:"theme,omitempty"`
+	AIEnabled         bool   `toml:"ai_enabled,omitempty"`
+	AIBaseURL         string `toml:"ai_base_url,omitempty"`
+	AIModel           string `toml:"ai_model,omitempty"`
 }
 
 // StorageManager manages loading and atomic saving of configuration and accounts.
