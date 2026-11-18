@@ -1,9 +1,14 @@
 import * as WailsApp from '../../wailsjs/go/main/App';
 import {
   AccountDisplay,
+  AIConfig,
   BatchImportResult,
   BatchRefreshResult,
+  LogEntry,
   OAuthStartResult,
+  ProcessState,
+  ProjectCommand,
+  ProjectRecord,
   SwitchResult,
   ApiError,
 } from '../types';
@@ -199,6 +204,179 @@ export const api = {
       await WailsApp.SyncTheme(theme);
     } catch {
       // Ignore in widget mode or startup
+    }
+  },
+
+  // --- Environment / Project Launcher APIs ---
+  async listProjects(): Promise<ProjectRecord[]> {
+    try {
+      return (await WailsApp.ListProjects()) || [];
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async selectAndImportProject(): Promise<ProjectRecord | null> {
+    try {
+      return await WailsApp.SelectAndImportProject();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async importProjectByPath(path: string): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.ImportProjectByPath(path);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async rescanProject(projectID: string): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.RescanProject(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async analyzeProjectWithAI(projectID: string): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.AnalyzeProjectWithAI(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async deleteProject(projectID: string): Promise<void> {
+    try {
+      await WailsApp.DeleteProject(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async saveProjectCommand(projectID: string, cmd: ProjectCommand): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.SaveProjectCommand(projectID, cmd);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async deleteProjectCommand(projectID: string, commandID: string): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.DeleteProjectCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async togglePinCommand(projectID: string, commandID: string): Promise<ProjectRecord> {
+    try {
+      return await WailsApp.TogglePinCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async startCommand(projectID: string, commandID: string): Promise<void> {
+    try {
+      await WailsApp.StartCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async stopCommand(commandID: string): Promise<void> {
+    try {
+      await WailsApp.StopCommand(commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async restartCommand(projectID: string, commandID: string): Promise<void> {
+    try {
+      await WailsApp.RestartCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async getProcessStates(): Promise<Record<string, ProcessState>> {
+    try {
+      return (await WailsApp.GetProcessStates()) || {};
+    } catch {
+      return {};
+    }
+  },
+
+  async getCommandLogs(commandID: string): Promise<LogEntry[]> {
+    try {
+      return (await WailsApp.GetCommandLogs(commandID)) || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async clearCommandLogs(commandID: string): Promise<void> {
+    try {
+      await WailsApp.ClearCommandLogs(commandID);
+    } catch {
+      // Ignore
+    }
+  },
+
+  async openCommandInTerminal(projectID: string, commandID: string): Promise<void> {
+    try {
+      await WailsApp.OpenCommandInTerminal(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async openProjectFolder(projectID: string): Promise<void> {
+    try {
+      await WailsApp.OpenProjectFolder(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async openProjectTerminal(projectID: string): Promise<void> {
+    try {
+      await WailsApp.OpenProjectTerminal(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async openProjectInClient(projectID: string): Promise<void> {
+    try {
+      await WailsApp.OpenProjectInClient(projectID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async getAIConfig(): Promise<AIConfig> {
+    return WailsApp.GetAIConfig();
+  },
+
+  async saveAIConfig(cfg: AIConfig): Promise<void> {
+    try {
+      await WailsApp.SaveAIConfig(cfg);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async testAIConfig(cfg: AIConfig): Promise<void> {
+    try {
+      await WailsApp.TestAIConfig(cfg);
+    } catch (e) {
+      throw parseError(e);
     }
   },
 };

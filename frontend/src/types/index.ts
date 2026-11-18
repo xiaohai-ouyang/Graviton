@@ -1,4 +1,4 @@
-import { appservice, client, storage } from '../../wailsjs/go/models';
+import { appservice, client, envmgr, storage } from '../../wailsjs/go/models';
 
 export type AccountDisplay = appservice.AccountDisplay;
 export type BatchRefreshResult = appservice.BatchRefreshResult;
@@ -15,6 +15,21 @@ export type SwitchResult = client.SwitchResult;
 export type QuotaGroup = storage.QuotaGroup;
 export type QuotaBucket = storage.QuotaBucket;
 export type ModelQuota = storage.ModelQuota;
+
+export type ProjectRecord = storage.ProjectRecord;
+export type ProjectCommand = storage.ProjectCommand;
+export type LogEntry = envmgr.LogEntry;
+export type AIConfig = envmgr.AIConfig;
+
+export interface ProcessState {
+  projectId: string;
+  commandId: string;
+  status: 'stopped' | 'running' | 'error';
+  pid: number;
+  exitCode: number;
+  startedAt?: string;
+  errorMsg?: string;
+}
 
 export interface ApiError {
   code: string;
