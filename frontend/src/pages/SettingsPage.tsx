@@ -1,14 +1,22 @@
 import React, { useEffect } from 'react';
-import { FolderOpen, MonitorCheck, Palette, Shield } from 'lucide-react';
+import { FolderOpen, Layers, MonitorCheck, Palette, Shield } from 'lucide-react';
 import { useAccountStore } from '../store/useAccountStore';
 import { ThemeToggle } from '../components/ThemeToggle';
 
 export const SettingsPage: React.FC = () => {
-  const { clientPath, loadClientPath, selectClientPath } = useAccountStore();
+  const {
+    clientPath,
+    loadClientPath,
+    selectClientPath,
+    widgetAlwaysOnTop,
+    loadWidgetAlwaysOnTop,
+    setWidgetAlwaysOnTop,
+  } = useAccountStore();
 
   useEffect(() => {
     loadClientPath();
-  }, [loadClientPath]);
+    loadWidgetAlwaysOnTop();
+  }, [loadClientPath, loadWidgetAlwaysOnTop]);
 
   return (
     <>
@@ -83,6 +91,43 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
             <ThemeToggle />
+          </div>
+        </section>
+
+        {/* Floating Widget Card */}
+        <section className="rounded-2xl border border-neutral-200/80 bg-card p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                <Layers className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  悬浮窗
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  控制桌面悬浮窗是否始终置顶于其他窗口之上（关闭后可避免遮挡鼠标点击）
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={widgetAlwaysOnTop}
+              aria-label="悬浮窗置顶"
+              onClick={() => void setWidgetAlwaysOnTop(!widgetAlwaysOnTop)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-hidden ${
+                widgetAlwaysOnTop
+                  ? 'bg-neutral-900 dark:bg-neutral-100'
+                  : 'bg-neutral-200 dark:bg-neutral-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition-transform dark:bg-neutral-900 ${
+                  widgetAlwaysOnTop ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
         </section>
 

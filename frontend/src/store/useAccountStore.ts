@@ -19,6 +19,7 @@ interface AccountState {
   banner: FeedbackBanner | null;
   expandedIds: Record<string, boolean>;
   widgetOpen: boolean;
+  widgetAlwaysOnTop: boolean;
 
   loadAccounts: () => Promise<void>;
   captureCurrentAccount: () => Promise<void>;
@@ -36,6 +37,8 @@ interface AccountState {
   loadWidgetStatus: () => Promise<void>;
   toggleWidget: () => Promise<void>;
   setWidgetOpen: (open: boolean) => void;
+  loadWidgetAlwaysOnTop: () => Promise<void>;
+  setWidgetAlwaysOnTop: (alwaysOnTop: boolean) => Promise<void>;
 }
 
 export const useAccountStore = create<AccountState>((set, get) => ({
@@ -50,6 +53,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   banner: null,
   expandedIds: {},
   widgetOpen: false,
+  widgetAlwaysOnTop: false,
 
   loadAccounts: async () => {
     set({ loading: true });
@@ -234,4 +238,20 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     }
   },
   setWidgetOpen: (open: boolean) => set({ widgetOpen: open }),
+  loadWidgetAlwaysOnTop: async () => {
+    const alwaysOnTop = await api.getWidgetAlwaysOnTop();
+    set({ widgetAlwaysOnTop: alwaysOnTop });
+  },
+  setWidgetAlwaysOnTop: async (alwaysOnTop: boolean) => {
+    set({ widgetAlwaysOnTop: alwaysOnTop });
+    try {
+      await api.setWidgetAlwaysOnTop(alwaysOnTop);
+    } catch (e) {
+      const err = parseError(e);
+      set({
+        widgetAlwaysOnTop: !alwaysOnTop,
+        banner: { type: 'error', message: `保存悬浮窗置顶设置失败: ${err.message}` },
+      });
+    }
+  },
 }));

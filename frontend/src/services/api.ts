@@ -170,6 +170,30 @@ export const api = {
     }
   },
 
+  async getWidgetAlwaysOnTop(): Promise<boolean> {
+    try {
+      return await WailsApp.GetWidgetAlwaysOnTop();
+    } catch {
+      return false;
+    }
+  },
+
+  async setWidgetAlwaysOnTop(alwaysOnTop: boolean): Promise<void> {
+    try {
+      await WailsApp.SetWidgetAlwaysOnTop(alwaysOnTop);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async applyWidgetAlwaysOnTop(alwaysOnTop: boolean): Promise<void> {
+    try {
+      await WailsApp.ApplyWidgetAlwaysOnTop(alwaysOnTop);
+    } catch {
+      // Ignore outside widget mode
+    }
+  },
+
   async syncTheme(theme: string): Promise<void> {
     try {
       await WailsApp.SyncTheme(theme);

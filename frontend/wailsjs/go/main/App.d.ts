@@ -5,6 +5,8 @@ import {widget} from '../models';
 import {main} from '../models';
 import {client} from '../models';
 
+export function ApplyWidgetAlwaysOnTop(arg1:boolean):Promise<void>;
+
 export function CancelOAuthLogin():Promise<void>;
 
 export function CaptureCurrentAccount():Promise<appservice.AccountDisplay>;
@@ -16,6 +18,8 @@ export function DeleteAccount(arg1:string):Promise<void>;
 export function GetClientPath():Promise<string>;
 
 export function GetScreenWorkArea():Promise<widget.WorkArea>;
+
+export function GetWidgetAlwaysOnTop():Promise<boolean>;
 
 export function GetWidgetConnection():Promise<main.WidgetConnection>;
 
@@ -36,6 +40,8 @@ export function RefreshAccountQuota(arg1:string):Promise<appservice.AccountDispl
 export function RefreshAllQuotas():Promise<Array<appservice.BatchRefreshResult>>;
 
 export function SelectClientPath():Promise<string>;
+
+export function SetWidgetAlwaysOnTop(arg1:boolean):Promise<void>;
 
 export function SetWidgetPosition(arg1:number,arg2:number):Promise<void>;
 

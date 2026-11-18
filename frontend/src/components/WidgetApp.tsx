@@ -28,6 +28,7 @@ interface WidgetStateSnapshot {
   switchingIds: Record<string, boolean>;
   lastUpdated: string;
   widgetLocked: boolean;
+  widgetAlwaysOnTop?: boolean;
 }
 
 const WIDGET_WIDTH = 340;
@@ -117,6 +118,13 @@ export const WidgetApp: React.FC = () => {
       root.style.colorScheme = 'light';
     }
   }, [state.theme]);
+
+  // Apply synced always-on-top setting
+  useEffect(() => {
+    if (typeof state.widgetAlwaysOnTop === 'boolean') {
+      void api.applyWidgetAlwaysOnTop(state.widgetAlwaysOnTop);
+    }
+  }, [state.widgetAlwaysOnTop]);
 
   // Connect to main process IPC + SSE
   useEffect(() => {
