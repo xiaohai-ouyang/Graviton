@@ -19,12 +19,10 @@ import (
 
 var (
 	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
-	modshell32  = windows.NewLazySystemDLL("shell32.dll")
 
 	procCreateToolhelp32Snapshot = modkernel32.NewProc("CreateToolhelp32Snapshot")
 	procProcess32FirstW          = modkernel32.NewProc("Process32FirstW")
 	procProcess32NextW           = modkernel32.NewProc("Process32NextW")
-	procCommandLineToArgvW       = modshell32.NewProc("CommandLineToArgvW")
 )
 
 const (
@@ -270,19 +268,18 @@ func ParseCommandLineArgs(cmdLine string) []string {
 		return nil
 	}
 	var numArgs int32
-	r1, _, _ := procCommandLineToArgvW.Call(
-		uintptr(unsafe.Pointer(cmdLinePtr)),
-		uintptr(unsafe.Pointer(&numArgs)),
-	)
-	if r1 == 0 || numArgs <= 1 {
+	argv, err := windows.CommandLineToArgv(cmdLinePtr, &numArgs)
+	if err != nil {
 		return nil
 	}
-	defer windows.LocalFree(windows.Handle(r1))
+	defer windows.LocalFree(windows.Handle(unsafe.Pointer(argv)))
+	if numArgs <= 1 {
+		return nil
+	}
 
-	argPtrs := (*[1 << 20]*uint16)(unsafe.Pointer(r1))[:numArgs:numArgs]
 	var args []string
-	for i := 1; i < int(numArgs); i++ {
-		arg := windows.UTF16PtrToString(argPtrs[i])
+	for i := 1; i < int(numArgs) && i < len(argv); i++ {
+		arg := windows.UTF16ToString(argv[i][:])
 		lower := strings.ToLower(arg)
 		// Filter out internal engine and language server flags (matching upstream)
 		if strings.HasPrefix(lower, "--standalone") ||
