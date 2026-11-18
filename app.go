@@ -430,25 +430,22 @@ func (a *App) handleWidgetSwitch(id string) error {
 	return err
 }
 
+const autoRefreshInterval = 5 * time.Minute
+
 func (a *App) startAutoRefreshLoop() {
+	a.startAutoRefreshLoopWithInterval(autoRefreshInterval)
+}
+
+func (a *App) startAutoRefreshLoopWithInterval(interval time.Duration) {
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-a.stopAuto:
 				return
 			case <-ticker.C:
-				accounts, err := a.service.ListAccounts()
-				if err != nil {
-					continue
-				}
-				for _, acc := range accounts {
-					if acc.IsCurrent {
-						_, _ = a.RefreshAccountQuota(acc.ID)
-						break
-					}
-				}
+				_, _ = a.RefreshAllQuotas()
 			}
 		}
 	}()
@@ -531,6 +528,10 @@ func (a *App) RefreshAccountQuota(id string) (*appservice.AccountDisplay, error)
 // RefreshAllQuotas updates quotas for all accounts with up to 5 concurrent workers.
 func (a *App) RefreshAllQuotas() ([]appservice.BatchRefreshResult, error) {
 	a.mu.Lock()
+	if a.refreshingAll {
+		a.mu.Unlock()
+		return nil, appservice.NewAppError("BUSY", "正在刷新全部账号，请稍候")
+	}
 	a.refreshingAll = true
 	a.mu.Unlock()
 	if a.widgetMgr != nil {
