@@ -156,3 +156,23 @@ func TestScanProject_PythonCustomMainScript(t *testing.T) {
 	assert.True(t, foundRun)
 	assert.True(t, foundInstall)
 }
+
+func TestScanProjectForShell_GitBashPythonVenv(t *testing.T) {
+	dir := t.TempDir()
+	venvScripts := filepath.Join(dir, ".venv", "Scripts")
+	require.NoError(t, os.MkdirAll(venvScripts, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(venvScripts, "python.exe"), []byte(""), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.py"), []byte("print('ok')\n"), 0644))
+
+	bashRes, err := ScanProjectForShell(dir, ShellGitBash)
+	require.NoError(t, err)
+	require.Len(t, bashRes.Commands, 1)
+	assert.Equal(t, "./.venv/Scripts/python.exe app.py", bashRes.Commands[0].Command)
+	assert.Equal(t, ShellDefault, bashRes.Commands[0].Shell)
+
+	psRes, err := ScanProjectForShell(dir, ShellPowerShell)
+	require.NoError(t, err)
+	require.Len(t, psRes.Commands, 1)
+	assert.Equal(t, `.\.venv\Scripts\python.exe app.py`, psRes.Commands[0].Command)
+	assert.Equal(t, ShellDefault, psRes.Commands[0].Shell)
+}

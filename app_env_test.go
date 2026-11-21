@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"graviton/internal/envmgr"
 	"graviton/internal/storage"
 
 	"github.com/stretchr/testify/assert"
@@ -99,4 +100,110 @@ func TestImportProjectByPath_InsertsAfterPinnedProjects(t *testing.T) {
 	assert.False(t, loaded[1].Pinned)
 	assert.Equal(t, "p2", loaded[2].ID)
 	assert.False(t, loaded[2].Pinned)
+}
+
+func TestSaveProjectCommand_PreservesQuotesMultilineAndShell(t *testing.T) {
+	app := newTestApp(t)
+
+	initial := []storage.ProjectRecord{
+		{ID: "p1", Name: "Alpha", Path: `F:\alpha`, Commands: []storage.ProjectCommand{}},
+	}
+	require.NoError(t, app.storageMgr.SaveProjects(initial))
+
+	rawCommand := "  \"C:\\Program Files\\Tool\\app.exe\" --flag \"val\"\r\n$env:FOO = \"bar\"\r\nWrite-Output $env:FOO  "
+	wantCommand := "\"C:\\Program Files\\Tool\\app.exe\" --flag \"val\"\n$env:FOO = \"bar\"\nWrite-Output $env:FOO"
+
+	savedProj, err := app.SaveProjectCommand("p1", storage.ProjectCommand{
+		Name:     "Run PS",
+		Command:  rawCommand,
+		Cwd:      "scripts",
+		Shell:    "PowerShell",
+		Category: "dev",
+		Pinned:   true,
+	})
+	require.NoError(t, err)
+	require.Len(t, savedProj.Commands, 1)
+	assert.Equal(t, wantCommand, savedProj.Commands[0].Command)
+	assert.Equal(t, "powershell", savedProj.Commands[0].Shell)
+
+	_, err = app.SaveProjectCommand("p1", storage.ProjectCommand{
+		Name:     "Run Bash",
+		Command:  "export FOO=bar\necho \"$FOO\"",
+		Shell:    "gitbash",
+		Category: "dev",
+	})
+	require.NoError(t, err)
+
+	_, err = app.SaveProjectCommand("p1", storage.ProjectCommand{
+		Name:     "Run CMD",
+		Command:  `set "FOO=bar" & echo %FOO%`,
+		Shell:    "cmd",
+		Category: "dev",
+	})
+	require.NoError(t, err)
+
+	_, err = app.SaveProjectCommand("p1", storage.ProjectCommand{
+		Name:     "Run Default",
+		Command:  "go test ./...",
+		Shell:    "",
+		Category: "test",
+	})
+	require.NoError(t, err)
+
+	loaded, err := app.ListProjects()
+	require.NoError(t, err)
+	require.Len(t, loaded, 1)
+	require.Len(t, loaded[0].Commands, 4)
+
+	byName := make(map[string]storage.ProjectCommand, len(loaded[0].Commands))
+	for _, c := range loaded[0].Commands {
+		byName[c.Name] = c
+	}
+	assert.Equal(t, wantCommand, byName["Run PS"].Command)
+	assert.Equal(t, "powershell", byName["Run PS"].Shell)
+	assert.Equal(t, "gitbash", byName["Run Bash"].Shell)
+	assert.Equal(t, "cmd", byName["Run CMD"].Shell)
+	assert.Equal(t, "", byName["Run Default"].Shell)
+}
+
+func TestShellConfigPersistence(t *testing.T) {
+	app := newTestApp(t)
+
+	initialEnv := app.GetShellEnvironment()
+	assert.Equal(t, envmgr.ShellPowerShell, initialEnv.Config.DefaultShell)
+	assert.Empty(t, initialEnv.Config.GitBashPath)
+	require.Len(t, initialEnv.Shells, 3)
+	assert.Equal(t, []string{envmgr.ShellPowerShell, envmgr.ShellGitBash, envmgr.ShellCMD}, []string{
+		initialEnv.Shells[0].Shell,
+		initialEnv.Shells[1].Shell,
+		initialEnv.Shells[2].Shell,
+	})
+
+	dummyBash := filepath.Join(t.TempDir(), "bash.exe")
+	require.NoError(t, os.WriteFile(dummyBash, []byte("stub"), 0644))
+
+	updatedEnv, err := app.SaveShellConfig(envmgr.ShellConfig{
+		DefaultShell: "gitbash",
+		GitBashPath:  dummyBash,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, envmgr.ShellGitBash, updatedEnv.Config.DefaultShell)
+	assert.Equal(t, dummyBash, updatedEnv.Config.GitBashPath)
+	assert.Equal(t, envmgr.ShellGitBash, updatedEnv.Shells[1].Shell)
+	assert.True(t, updatedEnv.Shells[1].Available)
+	assert.Equal(t, dummyBash, updatedEnv.Shells[1].Path)
+
+	sf, _, err := app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "gitbash", sf.DefaultShell)
+	assert.Equal(t, dummyBash, sf.GitBashPath)
+
+	resetEnv, err := app.ResetGitBashPath()
+	require.NoError(t, err)
+	assert.Equal(t, envmgr.ShellGitBash, resetEnv.Config.DefaultShell)
+	assert.Empty(t, resetEnv.Config.GitBashPath)
+
+	sfAfterReset, _, err := app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Empty(t, sfAfterReset.GitBashPath)
 }
