@@ -353,6 +353,11 @@ $InstallerDst = Join-Path $DistDir $InstallerName
 Copy-Item -Path $PortableSrc -Destination $PortableDst -Force
 Copy-Item -Path $InstallerSrc -Destination $InstallerDst -Force
 
+$BinPortableDst = Join-Path $BuildBinDir "Graviton-$TagName.exe"
+$BinInstallerDst = Join-Path $BuildBinDir "Graviton-$TagName-installer.exe"
+Copy-Item -Path $PortableSrc -Destination $BinPortableDst -Force
+Copy-Item -Path $InstallerSrc -Destination $BinInstallerDst -Force
+
 $ChecksumLines = New-Object System.Collections.Generic.List[string]
 foreach ($artifactName in @($InstallerName, $PortableName)) {
     $artifactPath = Join-Path $DistDir $artifactName
@@ -412,6 +417,8 @@ Write-Host "Release $TagName built successfully!" -ForegroundColor Green
 Write-Host "Artifacts:" -ForegroundColor Green
 Write-Host "  - $InstallerDst"
 Write-Host "  - $PortableDst"
+Write-Host "  - $BinInstallerDst"
+Write-Host "  - $BinPortableDst"
 Write-Host "  - $ChecksumsPath"
 if (-not $NoGit) {
     Write-Host ""
