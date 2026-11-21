@@ -29,6 +29,7 @@ type ProjectRecord struct {
 	Path       string           `toml:"path" json:"path"`
 	TechStack  []string         `toml:"tech_stack" json:"techStack"`
 	Commands   []ProjectCommand `toml:"commands" json:"commands"`
+	Pinned     bool             `toml:"pinned,omitempty" json:"pinned"`
 	AIAnalyzed bool             `toml:"ai_analyzed,omitempty" json:"aiAnalyzed"`
 	CreatedAt  string           `toml:"created_at" json:"createdAt"`
 	UpdatedAt  string           `toml:"updated_at" json:"updatedAt"`

@@ -24,7 +24,10 @@ func (a *App) ListProjects() ([]storage.ProjectRecord, error) {
 	a.projectsMu.Lock()
 	defer a.projectsMu.Unlock()
 	projects, _, err := a.storageMgr.LoadProjects()
-	return projects, err
+	if err != nil {
+		return nil, err
+	}
+	return normalizeProjectOrder(projects), nil
 }
 
 // SelectAndImportProject opens a directory picker, scans the selected project, saves it,
@@ -97,7 +100,7 @@ func (a *App) ImportProjectByPath(dirPath string) (*storage.ProjectRecord, error
 			CreatedAt: nowStr,
 			UpdatedAt: nowStr,
 		}
-		projects = append([]storage.ProjectRecord{saved}, projects...)
+		projects = insertUnpinnedAtTop(projects, saved)
 	}
 
 	if err := a.storageMgr.SaveProjects(projects); err != nil {
@@ -233,6 +236,69 @@ func (a *App) AnalyzeProjectWithAI(projectID string) (*storage.ProjectRecord, er
 		runtime.EventsEmit(a.ctx, "env:project:updated", updated)
 	}
 	return &updated, nil
+}
+
+// ReorderProjects updates the display order and pinned state of projects atomically.
+func (a *App) ReorderProjects(pinnedIDs, unpinnedIDs []string) ([]storage.ProjectRecord, error) {
+	if a.storageMgr == nil {
+		return nil, errors.New("存储管理器未初始化")
+	}
+
+	a.projectsMu.Lock()
+	defer a.projectsMu.Unlock()
+
+	projects, _, err := a.storageMgr.LoadProjects()
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]storage.ProjectRecord, len(projects))
+	for _, p := range projects {
+		byID[p.ID] = p
+	}
+
+	seen := make(map[string]bool, len(projects))
+	pinnedList := make([]storage.ProjectRecord, 0, len(pinnedIDs))
+	for _, id := range pinnedIDs {
+		if seen[id] {
+			continue
+		}
+		if p, ok := byID[id]; ok {
+			p.Pinned = true
+			pinnedList = append(pinnedList, p)
+			seen[id] = true
+		}
+	}
+
+	unpinnedList := make([]storage.ProjectRecord, 0, len(unpinnedIDs))
+	for _, id := range unpinnedIDs {
+		if seen[id] {
+			continue
+		}
+		if p, ok := byID[id]; ok {
+			p.Pinned = false
+			unpinnedList = append(unpinnedList, p)
+			seen[id] = true
+		}
+	}
+
+	// Preserve any projects not included in either ID slice (e.g. concurrent imports).
+	for _, p := range projects {
+		if seen[p.ID] {
+			continue
+		}
+		if p.Pinned {
+			pinnedList = append(pinnedList, p)
+		} else {
+			unpinnedList = append(unpinnedList, p)
+		}
+	}
+
+	reordered := append(pinnedList, unpinnedList...)
+	if err := a.storageMgr.SaveProjects(reordered); err != nil {
+		return nil, err
+	}
+	return reordered, nil
 }
 
 // DeleteProject removes a project and stops any running commands belonging to it.
@@ -542,6 +608,38 @@ func findProjectIndex(projects []storage.ProjectRecord, projectID string) int {
 		}
 	}
 	return -1
+}
+
+// normalizeProjectOrder stably partitions projects so pinned items always precede unpinned items.
+func normalizeProjectOrder(projects []storage.ProjectRecord) []storage.ProjectRecord {
+	if len(projects) <= 1 {
+		return projects
+	}
+	pinned := make([]storage.ProjectRecord, 0, len(projects))
+	unpinned := make([]storage.ProjectRecord, 0, len(projects))
+	for _, p := range projects {
+		if p.Pinned {
+			pinned = append(pinned, p)
+		} else {
+			unpinned = append(unpinned, p)
+		}
+	}
+	return append(pinned, unpinned...)
+}
+
+// insertUnpinnedAtTop inserts a newly imported (unpinned) project at the top of the unpinned section.
+func insertUnpinnedAtTop(projects []storage.ProjectRecord, proj storage.ProjectRecord) []storage.ProjectRecord {
+	proj.Pinned = false
+	normalized := normalizeProjectOrder(projects)
+	insertIdx := 0
+	for insertIdx < len(normalized) && normalized[insertIdx].Pinned {
+		insertIdx++
+	}
+	out := make([]storage.ProjectRecord, 0, len(normalized)+1)
+	out = append(out, normalized[:insertIdx]...)
+	out = append(out, proj)
+	out = append(out, normalized[insertIdx:]...)
+	return out
 }
 
 // mergeRuleScanWithExisting preserves manual commands and existing command IDs/pins across rescans.
