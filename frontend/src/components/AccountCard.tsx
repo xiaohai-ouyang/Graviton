@@ -1,13 +1,15 @@
 import React from 'react';
 import { AccountDisplay } from '../types';
 import { useAccountStore } from '../store/useAccountStore';
+import { useResetTimeStore } from '../store/useResetTimeStore';
+import { useNowTick } from '../hooks/useNowTick';
 import {
   formatBucketLabel,
   formatRelativeTime,
-  formatResetTime,
   getQuotaBarColor,
   getQuotaTextColor,
 } from '../utils/quota';
+import { ResetTimeText } from './ResetTimeText';
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -24,6 +26,8 @@ interface AccountCardProps {
 
 export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail }) => {
   const { refreshingIds, switchingIds, refreshAccountQuota, switchAccount } = useAccountStore();
+  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const nowMs = useNowTick();
 
   const isRefreshing = Boolean(refreshingIds[account.id]);
   const isSwitching = Boolean(switchingIds[account.id]);
@@ -83,7 +87,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
               )}
               <span className="flex shrink-0 items-center gap-1" title={account.lastRefreshedAt}>
                 <Clock className="h-2.5 w-2.5" />
-                {formatRelativeTime(account.lastRefreshedAt)}
+                {formatRelativeTime(account.lastRefreshedAt, nowMs)}
               </span>
             </div>
           </div>
@@ -159,9 +163,13 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
                             </span>
                             <div className="flex items-baseline gap-2">
                               {b.resetTime && (
-                                <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
-                                  {formatResetTime(b.resetTime)} 重置
-                                </span>
+                                <ResetTimeText
+                                  resetTime={b.resetTime}
+                                  format={resetTimeFormat}
+                                  nowMs={nowMs}
+                                  absoluteStyle="suffix"
+                                  className="text-[10px] text-neutral-400 dark:text-neutral-500"
+                                />
                               )}
                               <span
                                 className={`font-mono text-sm font-bold tabular-nums ${getQuotaTextColor(
@@ -215,7 +223,12 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
               <span>重置时间</span>
-              <span>{formatResetTime(account.resetTime)}</span>
+              <ResetTimeText
+                resetTime={account.resetTime}
+                format={resetTimeFormat}
+                nowMs={nowMs}
+                absoluteStyle="bare"
+              />
             </div>
           </div>
         )}

@@ -209,6 +209,14 @@ export const api = {
     }
   },
 
+  async syncResetTimeFormat(format: 'countdown' | 'absolute'): Promise<void> {
+    try {
+      await WailsApp.SyncResetTimeFormat(format);
+    } catch {
+      // Ignore in widget mode or startup
+    }
+  },
+
   // --- Environment / Project Launcher APIs ---
   async listProjects(): Promise<ProjectRecord[]> {
     try {

@@ -7,6 +7,7 @@ import { BatchRefreshResult } from './types';
 import { useAccountStore } from './store/useAccountStore';
 import { useAppInfoStore } from './store/useAppInfoStore';
 import { useMotionStore } from './store/useMotionStore';
+import { useResetTimeStore } from './store/useResetTimeStore';
 import { useThemeStore } from './store/useThemeStore';
 import { Sidebar } from './components/Sidebar';
 import { FeedbackBanner } from './components/FeedbackBanner';
@@ -50,6 +51,7 @@ export const App: React.FC = () => {
   const loadAppInfo = useAppInfoStore((s) => s.loadAppInfo);
   const initTheme = useThemeStore((s) => s.initTheme);
   const initMotion = useMotionStore((s) => s.initMotion);
+  const initResetTimeFormat = useResetTimeStore((s) => s.initResetTimeFormat);
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export const App: React.FC = () => {
     void loadAppInfo();
     const cleanupTheme = initTheme();
     const cleanupMotion = initMotion();
+    const cleanupResetTimeFormat = initResetTimeFormat();
     const offAccounts = EventsOn('accounts:updated', () => {
       void useAccountStore.getState().loadAccounts();
     });
@@ -70,11 +73,20 @@ export const App: React.FC = () => {
     return () => {
       cleanupTheme();
       cleanupMotion();
+      cleanupResetTimeFormat();
       offAccounts();
       offQuotaProgress();
       offWidget();
     };
-  }, [loadAccounts, loadWidgetStatus, loadAppInfo, initTheme, initMotion, setWidgetOpen]);
+  }, [
+    loadAccounts,
+    loadWidgetStatus,
+    loadAppInfo,
+    initTheme,
+    initMotion,
+    initResetTimeFormat,
+    setWidgetOpen,
+  ]);
 
   return (
     <MotionConfig reducedMotion={shouldAnimate ? 'never' : 'always'}>

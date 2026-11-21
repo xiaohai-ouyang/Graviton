@@ -22,7 +22,9 @@ import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useEnvStore } from '../store/useEnvStore';
 import { useMotionStore } from '../store/useMotionStore';
+import { useResetTimeStore } from '../store/useResetTimeStore';
 import { MotionToggle } from '../components/MotionToggle';
+import { ResetTimeModeToggle } from '../components/ResetTimeModeToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
 import {
   ChangeItemRow,
@@ -43,6 +45,7 @@ export const SettingsPage: React.FC = () => {
   const { aiConfig, loadAIConfig, saveAIConfig, testAIConfig } = useEnvStore();
   const { appInfo, changelog, loadAppInfo, openChangelog } = useAppInfoStore();
   const { motionMode, shouldAnimate, autoReason } = useMotionStore();
+  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
   const [aiForm, setAiForm] = useState<AIConfig>({
     enabled: false,
     baseUrl: 'https://api.openai.com/v1',
@@ -161,6 +164,25 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
             <MotionToggle />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                <Clock className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  重置时间格式
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {resetTimeFormat === 'countdown'
+                    ? '显示距离重置的剩余倒计时（如“还有6天5小时重置”），悬停可查看精确时间'
+                    : '显示具体重置时间点（如“11月29日 06:38 重置”），悬停可查看剩余倒计时'}
+                </p>
+              </div>
+            </div>
+            <ResetTimeModeToggle />
           </div>
         </section>
 

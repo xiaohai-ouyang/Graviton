@@ -2,13 +2,15 @@ import React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { AccountDisplay } from '../types';
 import { useAccountStore } from '../store/useAccountStore';
+import { useResetTimeStore } from '../store/useResetTimeStore';
+import { useNowTick } from '../hooks/useNowTick';
 import {
   formatBucketLabel,
   formatRelativeTime,
-  formatResetTime,
   getQuotaBarColor,
   getQuotaTextColor,
 } from '../utils/quota';
+import { ResetTimeText } from './ResetTimeText';
 import {
   ArrowRightLeft,
   Clock,
@@ -36,6 +38,8 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
     confirmDeleteAccount,
   } = useAccountStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const nowMs = useNowTick();
 
   const open = Boolean(account);
   if (!account) return null;
@@ -110,10 +114,10 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                   {account.name && account.name !== account.email && <span>{account.name}</span>}
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
-                    上次刷新: {formatRelativeTime(account.lastRefreshedAt)}
+                    上次刷新: {formatRelativeTime(account.lastRefreshedAt, nowMs)}
                   </span>
                   {account.lastSwitchedAt && (
-                    <span>最近切换: {formatRelativeTime(account.lastSwitchedAt)}</span>
+                    <span>最近切换: {formatRelativeTime(account.lastSwitchedAt, nowMs)}</span>
                   )}
                 </div>
               </div>
@@ -182,7 +186,12 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                                 {b.resetTime && (
                                   <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
                                     <Clock className="h-2.5 w-2.5 shrink-0" />
-                                    <span>重置：{formatResetTime(b.resetTime)}</span>
+                                    <ResetTimeText
+                                      resetTime={b.resetTime}
+                                      format={resetTimeFormat}
+                                      nowMs={nowMs}
+                                      absoluteStyle="prefix"
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -228,7 +237,12 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                         </div>
                         {m.resetTime && (
                           <div className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                            重置: {formatResetTime(m.resetTime)}
+                            <ResetTimeText
+                              resetTime={m.resetTime}
+                              format={resetTimeFormat}
+                              nowMs={nowMs}
+                              absoluteStyle="prefix"
+                            />
                           </div>
                         )}
                       </div>

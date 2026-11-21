@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountDisplay, QuotaGroup } from '../types';
 import { api } from '../services/api';
+import { useNowTick } from '../hooks/useNowTick';
 import {
   formatRelativeTime,
-  formatResetTime,
+  formatResetDisplay,
   getGroupEffectivePct,
   getQuotaBarColor,
   getQuotaTextColor,
+  ResetTimeFormat,
 } from '../utils/quota';
 import {
   ArrowRightLeft,
@@ -29,24 +31,10 @@ interface WidgetStateSnapshot {
   lastUpdated: string;
   widgetLocked: boolean;
   widgetAlwaysOnTop?: boolean;
+  resetTimeFormat?: ResetTimeFormat;
 }
 
 const WIDGET_WIDTH = 340;
-
-function formatCountdown(resetTime?: string): string {
-  if (!resetTime) return '未知';
-  const d = new Date(resetTime);
-  if (isNaN(d.getTime())) return resetTime;
-  const diffMs = d.getTime() - Date.now();
-  if (diffMs <= 0) return '即将重置';
-  const totalMin = Math.floor(diffMs / 60000);
-  const days = Math.floor(totalMin / 1440);
-  const hours = Math.floor((totalMin % 1440) / 60);
-  const mins = totalMin % 60;
-  if (days > 0) return `${days}天${hours}时`;
-  if (hours > 0) return `${hours}时${mins}分`;
-  return `${mins}分钟`;
-}
 
 function findGroup(account: AccountDisplay, keyword: string): QuotaGroup | undefined {
   const lower = keyword.toLowerCase();
@@ -98,6 +86,9 @@ export const WidgetApp: React.FC = () => {
   });
   const [expanded, setExpanded] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const nowMs = useNowTick();
+  const resetTimeFormat: ResetTimeFormat =
+    state.resetTimeFormat === 'absolute' ? 'absolute' : 'countdown';
 
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -296,6 +287,22 @@ export const WidgetApp: React.FC = () => {
                 const group = findGroup(currentAccount, key);
                 const summary = getBucketSummary(group);
                 const isUnknown = pct < 0;
+                const fiveHourDisplay =
+                  summary.fiveHourPct !== null
+                    ? formatResetDisplay(summary.fiveHourReset, resetTimeFormat, {
+                        nowMs,
+                        compact: true,
+                        absoluteStyle: 'bare',
+                      })
+                    : null;
+                const weeklyDisplay =
+                  summary.weeklyPct !== null
+                    ? formatResetDisplay(summary.weeklyReset, resetTimeFormat, {
+                        nowMs,
+                        compact: true,
+                        absoluteStyle: 'bare',
+                      })
+                    : null;
 
                 return (
                   <div
@@ -319,17 +326,20 @@ export const WidgetApp: React.FC = () => {
                       />
                     </div>
                     <div className="mt-1 flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400">
-                      <span className="inline-flex items-center gap-1">
+                      <span
+                        className="inline-flex items-center gap-1"
+                        title={fiveHourDisplay?.tooltip}
+                      >
                         <Clock className="h-2.5 w-2.5" />
                         5h:{' '}
-                        {summary.fiveHourPct !== null
-                          ? `${summary.fiveHourPct}% (${formatCountdown(summary.fiveHourReset)})`
+                        {summary.fiveHourPct !== null && fiveHourDisplay
+                          ? `${summary.fiveHourPct}% (${fiveHourDisplay.text})`
                           : '未知'}
                       </span>
-                      <span>
+                      <span title={weeklyDisplay?.tooltip}>
                         Weekly:{' '}
-                        {summary.weeklyPct !== null
-                          ? `${summary.weeklyPct}% (${formatResetTime(summary.weeklyReset)})`
+                        {summary.weeklyPct !== null && weeklyDisplay
+                          ? `${summary.weeklyPct}% (${weeklyDisplay.text})`
                           : '未知'}
                       </span>
                     </div>
@@ -338,7 +348,7 @@ export const WidgetApp: React.FC = () => {
               })}
 
               <div className="flex items-center justify-between pt-0.5 text-[10px] text-neutral-400 dark:text-neutral-500">
-                <span>上次刷新: {formatRelativeTime(currentAccount.lastRefreshedAt)}</span>
+                <span>上次刷新: {formatRelativeTime(currentAccount.lastRefreshedAt, nowMs)}</span>
                 <button
                   onClick={() => setExpanded((v) => !v)}
                   className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-neutral-600 transition-colors hover:bg-neutral-200/60 dark:text-neutral-300 dark:hover:bg-neutral-800"

@@ -1,12 +1,13 @@
 import { AccountDisplay, QuotaGroup } from '../types';
 
-export function formatRelativeTime(isoStr?: string): string {
+export type ResetTimeFormat = 'countdown' | 'absolute';
+
+export function formatRelativeTime(isoStr?: string, nowMs = Date.now()): string {
   if (!isoStr) return '从未';
   try {
     const d = new Date(isoStr);
     if (isNaN(d.getTime())) return isoStr;
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+    const diffSec = Math.floor((nowMs - d.getTime()) / 1000);
 
     if (diffSec < 60) return '刚刚';
     if (diffSec < 3600) return `${Math.floor(diffSec / 60)} 分钟前`;
@@ -22,12 +23,12 @@ export function formatRelativeTime(isoStr?: string): string {
   }
 }
 
-export function formatResetTime(resetTime?: string): string {
+export function formatResetTime(resetTime?: string, nowMs = Date.now()): string {
   if (!resetTime) return '未知';
   try {
     const d = new Date(resetTime);
     if (isNaN(d.getTime())) return resetTime;
-    const now = new Date();
+    const now = new Date(nowMs);
     const isToday = d.toDateString() === now.toDateString();
 
     const hours = String(d.getHours()).padStart(2, '0');
@@ -38,6 +39,85 @@ export function formatResetTime(resetTime?: string): string {
   } catch {
     return resetTime;
   }
+}
+
+export function formatResetCountdown(
+  resetTime?: string,
+  nowMs = Date.now(),
+  compact = false
+): string {
+  if (!resetTime) return '未知';
+  const d = new Date(resetTime);
+  if (isNaN(d.getTime())) return resetTime;
+
+  const diffMs = d.getTime() - nowMs;
+  if (diffMs <= 0) return '已重置';
+
+  const totalMin = Math.floor(diffMs / 60000);
+  if (totalMin < 1) return '即将重置';
+
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+
+  if (days > 0) {
+    if (compact) {
+      return hours > 0 ? `${days}天${hours}时` : `${days}天`;
+    }
+    return hours > 0 ? `还有${days}天${hours}小时重置` : `还有${days}天重置`;
+  }
+
+  if (hours > 0) {
+    if (compact) {
+      return mins > 0 ? `${hours}时${mins}分` : `${hours}小时`;
+    }
+    return mins > 0 ? `还有${hours}小时${mins}分钟重置` : `还有${hours}小时重置`;
+  }
+
+  return compact ? `${mins}分钟` : `还有${mins}分钟重置`;
+}
+
+export function formatResetDisplay(
+  resetTime: string | undefined,
+  format: ResetTimeFormat,
+  options?: {
+    nowMs?: number;
+    compact?: boolean;
+    absoluteStyle?: 'suffix' | 'prefix' | 'bare';
+  }
+): { text: string; tooltip?: string } {
+  const nowMs = options?.nowMs ?? Date.now();
+  const compact = options?.compact ?? false;
+  const absoluteStyle = options?.absoluteStyle ?? 'bare';
+
+  if (!resetTime) return { text: '未知' };
+  const d = new Date(resetTime);
+  if (isNaN(d.getTime())) return { text: resetTime };
+
+  const absBase = formatResetTime(resetTime, nowMs);
+  const countdownText = formatResetCountdown(resetTime, nowMs, compact);
+  const countdownFull = compact
+    ? formatResetCountdown(resetTime, nowMs, false)
+    : countdownText;
+
+  if (format === 'countdown') {
+    return {
+      text: countdownText,
+      tooltip: `重置时间：${absBase}`,
+    };
+  }
+
+  let text = absBase;
+  if (absoluteStyle === 'suffix') {
+    text = `${absBase} 重置`;
+  } else if (absoluteStyle === 'prefix') {
+    text = `重置：${absBase}`;
+  }
+
+  return {
+    text,
+    tooltip: countdownFull,
+  };
 }
 
 export function formatBucketLabel(label?: string): string {
