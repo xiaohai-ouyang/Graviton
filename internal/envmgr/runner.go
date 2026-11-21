@@ -18,6 +18,32 @@ import (
 
 const maxLogLines = 1000
 
+// NormalizeCommandText standardizes line endings to LF and trims outer whitespace while preserving multi-line bodies.
+func NormalizeCommandText(commandLine string) string {
+	normalized := strings.ReplaceAll(commandLine, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	return strings.TrimSpace(normalized)
+}
+
+func shellDisplayTag(shell string) string {
+	switch shell {
+	case ShellPowerShell:
+		return "PowerShell"
+	case ShellGitBash:
+		return "Git Bash"
+	default:
+		return "CMD"
+	}
+}
+
+func formatStartLogLine(dir, commandLine, shell string, pid int) string {
+	tag := shellDisplayTag(shell)
+	if strings.Contains(commandLine, "\n") {
+		return fmt.Sprintf("> [%s] [%s] (PID: %d)\n%s", dir, tag, pid, commandLine)
+	}
+	return fmt.Sprintf("> [%s] [%s] %s (PID: %d)", dir, tag, commandLine, pid)
+}
+
 var ansiEscapeRe = regexp.MustCompile("\x1b(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^\\x07\\x1b]*(?:\\x07|\x1b\\\\)|[@-Z\\\\-_])")
 
 // ProcessStatus represents the lifecycle state of a managed command.
@@ -92,11 +118,12 @@ func ResolveCwd(projectRoot, cwd string) string {
 }
 
 // StartCommand starts a command in the background and streams stdout/stderr.
-func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, commandLine string) error {
-	commandLine = strings.TrimSpace(commandLine)
+func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, commandLine, shell string, shellCfg ShellConfig) error {
+	commandLine = NormalizeCommandText(commandLine)
 	if commandLine == "" {
 		return errors.New("命令内容不能为空")
 	}
+	resolvedShell := ResolveEffectiveShell(shell, shellCfg.DefaultShell)
 
 	pm.mu.Lock()
 	if existing, ok := pm.procs[commandID]; ok && existing.state.Status == StatusRunning {
@@ -105,20 +132,32 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 	}
 
 	resolvedDir := ResolveCwd(projectRoot, cwd)
-	cmd := buildShellCommand(resolvedDir, commandLine)
+	cmd, cleanup, err := buildShellCommand(resolvedDir, commandLine, resolvedShell, shellCfg)
+	if err != nil {
+		pm.mu.Unlock()
+		return fmt.Errorf("构造命令失败: %w", err)
+	}
+	runCleanup := func() {
+		if cleanup != nil {
+			cleanup()
+		}
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		runCleanup()
 		pm.mu.Unlock()
 		return fmt.Errorf("创建标准输出管道失败: %w", err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		runCleanup()
 		pm.mu.Unlock()
 		return fmt.Errorf("创建错误输出管道失败: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		runCleanup()
 		pm.mu.Unlock()
 		return fmt.Errorf("启动命令失败: %w", err)
 	}
@@ -144,7 +183,7 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 		ProjectID: projectID,
 		CommandID: commandID,
 		Stream:    "system",
-		Line:      fmt.Sprintf("> [%s] %s (PID: %d)", resolvedDir, commandLine, cmd.Process.Pid),
+		Line:      formatStartLogLine(resolvedDir, commandLine, resolvedShell, cmd.Process.Pid),
 		Timestamp: time.Now().Format("15:04:05"),
 	})
 	pm.emitStatus(mp.state)
@@ -163,6 +202,7 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 	go func() {
 		wg.Wait()
 		waitErr := cmd.Wait()
+		runCleanup()
 
 		pm.mu.Lock()
 		exitCode := 0

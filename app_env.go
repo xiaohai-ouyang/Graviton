@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -58,7 +59,8 @@ func (a *App) ImportProjectByPath(dirPath string) (*storage.ProjectRecord, error
 		return nil, fmt.Errorf("无效的项目路径: %w", err)
 	}
 
-	scanRes, err := envmgr.ScanProject(absPath)
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	scanRes, err := envmgr.ScanProjectForShell(absPath, shellCfg.DefaultShell)
 	if err != nil {
 		return nil, fmt.Errorf("扫描项目目录失败: %w", err)
 	}
@@ -144,7 +146,8 @@ func (a *App) RescanProject(projectID string) (*storage.ProjectRecord, error) {
 	proj := projects[idx]
 	a.projectsMu.Unlock()
 
-	scanRes, err := envmgr.ScanProject(proj.Path)
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	scanRes, err := envmgr.ScanProjectForShell(proj.Path, shellCfg.DefaultShell)
 	if err != nil {
 		return nil, fmt.Errorf("重新扫描项目失败: %w", err)
 	}
@@ -208,7 +211,8 @@ func (a *App) AnalyzeProjectWithAI(projectID string) (*storage.ProjectRecord, er
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
 	defer cancel()
 
-	refined, err := envmgr.AnalyzeProjectWithAI(ctx, aiCfg, projSnapshot)
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	refined, err := envmgr.AnalyzeProjectWithAI(ctx, aiCfg, projSnapshot, shellCfg.DefaultShell)
 	if err != nil {
 		return nil, err
 	}
@@ -355,8 +359,9 @@ func (a *App) SaveProjectCommand(projectID string, cmd storage.ProjectCommand) (
 	}
 
 	cmd.Name = strings.TrimSpace(cmd.Name)
-	cmd.Command = strings.TrimSpace(cmd.Command)
+	cmd.Command = envmgr.NormalizeCommandText(cmd.Command)
 	cmd.Cwd = strings.TrimSpace(cmd.Cwd)
+	cmd.Shell = envmgr.NormalizeShellOverride(cmd.Shell)
 	if cmd.Category == "" {
 		cmd.Category = "other"
 	}
@@ -465,7 +470,8 @@ func (a *App) StartCommand(projectID, commandID string) error {
 	if err != nil {
 		return err
 	}
-	return a.procMgr.StartCommand(proj.ID, cmd.ID, proj.Path, cmd.Cwd, cmd.Command)
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	return a.procMgr.StartCommand(proj.ID, cmd.ID, proj.Path, cmd.Cwd, cmd.Command, cmd.Shell, shellCfg)
 }
 
 // StopCommand stops a running managed process tree.
@@ -515,7 +521,8 @@ func (a *App) OpenCommandInTerminal(projectID, commandID string) error {
 		return err
 	}
 	dir := envmgr.ResolveCwd(proj.Path, cmd.Cwd)
-	return envmgr.OpenInExternalTerminal(dir, cmd.Command)
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	return envmgr.OpenInExternalTerminal(dir, cmd.Command, cmd.Shell, shellCfg)
 }
 
 // OpenProjectFolder opens the project root directory in Explorer.
@@ -533,7 +540,8 @@ func (a *App) OpenProjectTerminal(projectID string) error {
 	if err != nil {
 		return err
 	}
-	return envmgr.OpenInExternalTerminal(proj.Path, "")
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	return envmgr.OpenInExternalTerminal(proj.Path, "", "", shellCfg)
 }
 
 // OpenProjectInClient launches Antigravity (or configured client) with the project directory.
@@ -568,6 +576,70 @@ func (a *App) TestAIConfig(cfg envmgr.AIConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return envmgr.TestAIConfig(ctx, cfg)
+}
+
+// GetShellEnvironment returns the global shell preferences and detected shell runtimes.
+func (a *App) GetShellEnvironment() envmgr.ShellEnvironmentInfo {
+	return envmgr.GetShellEnvironment(a.storageMgr)
+}
+
+// SaveShellConfig saves the global shell preferences and returns the refreshed runtime info.
+func (a *App) SaveShellConfig(cfg envmgr.ShellConfig) (envmgr.ShellEnvironmentInfo, error) {
+	if a.storageMgr == nil {
+		return envmgr.ShellEnvironmentInfo{}, errors.New("存储管理器未初始化")
+	}
+	if err := envmgr.SaveShellConfig(a.storageMgr, cfg); err != nil {
+		return envmgr.ShellEnvironmentInfo{}, err
+	}
+	return envmgr.GetShellEnvironment(a.storageMgr), nil
+}
+
+// SelectGitBashPath opens a native file dialog to choose bash.exe, validates and saves it.
+func (a *App) SelectGitBashPath() (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("应用上下文未就绪")
+	}
+	if a.storageMgr == nil {
+		return "", errors.New("存储管理器未初始化")
+	}
+	selected, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择 Git Bash 可执行文件 (bash.exe)",
+		Filters: []runtime.FileFilter{
+			{
+				DisplayName: "可执行文件 (*.exe)",
+				Pattern:     "*.exe",
+			},
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("打开文件选择器失败: %w", err)
+	}
+	if strings.TrimSpace(selected) == "" {
+		return "", nil
+	}
+	info, statErr := os.Stat(selected)
+	if statErr != nil || info.IsDir() {
+		return "", errors.New("所选文件不存在或不是有效的可执行文件")
+	}
+	cfg := envmgr.LoadShellConfig(a.storageMgr)
+	cfg.GitBashPath = selected
+	if err := envmgr.SaveShellConfig(a.storageMgr, cfg); err != nil {
+		return "", fmt.Errorf("保存 Git Bash 路径设置失败: %w", err)
+	}
+	return selected, nil
+}
+
+// ResetGitBashPath clears the manual Git Bash path override so automatic detection is used.
+func (a *App) ResetGitBashPath() (envmgr.ShellEnvironmentInfo, error) {
+	if a.storageMgr == nil {
+		return envmgr.ShellEnvironmentInfo{}, errors.New("存储管理器未初始化")
+	}
+	cfg := envmgr.LoadShellConfig(a.storageMgr)
+	cfg.GitBashPath = ""
+	if err := envmgr.SaveShellConfig(a.storageMgr, cfg); err != nil {
+		return envmgr.ShellEnvironmentInfo{}, err
+	}
+	return envmgr.GetShellEnvironment(a.storageMgr), nil
 }
 
 func (a *App) findProject(projectID string) (*storage.ProjectRecord, error) {
@@ -670,6 +742,7 @@ func mergeRuleScanWithExisting(existing, scanned []storage.ProjectCommand) []sto
 		if prev, ok := existingByKey[key]; ok {
 			s.ID = prev.ID
 			s.Pinned = prev.Pinned
+			s.Shell = prev.Shell
 			if prev.Source == "ai" {
 				s.Name = prev.Name
 				s.Source = "ai"

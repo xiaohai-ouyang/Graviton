@@ -86,6 +86,8 @@ type SettingsFile struct {
 	AIEnabled         bool   `toml:"ai_enabled,omitempty"`
 	AIBaseURL         string `toml:"ai_base_url,omitempty"`
 	AIModel           string `toml:"ai_model,omitempty"`
+	DefaultShell      string `toml:"default_shell,omitempty"`
+	GitBashPath       string `toml:"git_bash_path,omitempty"`
 }
 
 // StorageManager manages loading and atomic saving of configuration and accounts.

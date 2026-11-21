@@ -47,8 +47,15 @@ var skipDirNames = map[string]bool{
 }
 
 // ScanProject scans rootPath and common first-level subdirectories (and apps/*)
-// to extract tech stack tags and executable dev/build/test commands.
+// using the default PowerShell-compatible command style.
 func ScanProject(rootPath string) (*ScanResult, error) {
+	return ScanProjectForShell(rootPath, ShellPowerShell)
+}
+
+// ScanProjectForShell scans rootPath and common first-level subdirectories (and apps/*)
+// to extract tech stack tags and executable dev/build/test commands tailored for defaultShell.
+func ScanProjectForShell(rootPath, defaultShell string) (*ScanResult, error) {
+	targetShell := NormalizeDefaultShell(defaultShell)
 	absRoot, err := filepath.Abs(rootPath)
 	if err != nil {
 		return nil, err
@@ -79,7 +86,7 @@ func ScanProject(rootPath string) (*ScanResult, error) {
 		rootHasWorkspaces = pkg.Workspaces != nil
 	}
 
-	scanSingleDir(absRoot, "", true, rootHasWails, addStack, &res.Commands)
+	scanSingleDir(absRoot, "", true, rootHasWails, targetShell, addStack, &res.Commands)
 
 	// Scan common first-level subdirectories
 	for _, sub := range commonSubDirs {
@@ -87,7 +94,7 @@ func ScanProject(rootPath string) (*ScanResult, error) {
 		if dirExists(subPath) {
 			// If root is Wails or a monorepo with workspaces, keep sub-project commands unpinned by default
 			pinSub := !rootHasWails && !rootHasWorkspaces
-			scanSingleDir(subPath, sub, pinSub, false, addStack, &res.Commands)
+			scanSingleDir(subPath, sub, pinSub, false, targetShell, addStack, &res.Commands)
 		}
 	}
 
@@ -101,7 +108,7 @@ func ScanProject(rootPath string) (*ScanResult, error) {
 					continue
 				}
 				rel := filepath.ToSlash(filepath.Join("apps", ent.Name()))
-				scanSingleDir(filepath.Join(appsDir, ent.Name()), rel, true, false, addStack, &res.Commands)
+				scanSingleDir(filepath.Join(appsDir, ent.Name()), rel, true, false, targetShell, addStack, &res.Commands)
 			}
 		}
 	}
@@ -117,6 +124,7 @@ func scanSingleDir(
 	relCwd string,
 	allowPin bool,
 	isWailsRoot bool,
+	targetShell string,
 	addStack func(string),
 	cmds *[]storage.ProjectCommand,
 ) {
@@ -199,7 +207,7 @@ func scanSingleDir(
 	}
 
 	// 6. Python
-	scanPythonDir(dirPath, relCwd, allowPin, subLabel, addStack, cmds)
+	scanPythonDir(dirPath, relCwd, allowPin, subLabel, targetShell, addStack, cmds)
 
 	// 7. Makefile (root only)
 	if isRoot && fileExists(filepath.Join(dirPath, "Makefile")) {
@@ -227,6 +235,7 @@ func scanPythonDir(
 	relCwd string,
 	allowPin bool,
 	subLabel string,
+	targetShell string,
 	addStack func(string),
 	cmds *[]storage.ProjectCommand,
 ) {
@@ -247,7 +256,7 @@ func scanPythonDir(
 		}
 	}
 
-	venvRunner := detectPythonVenv(dirPath)
+	venvRunner := detectPythonVenv(dirPath, targetShell)
 	hasManage := fileExists(filepath.Join(dirPath, "manage.py"))
 
 	standardEntries := []string{"main.py", "app.py", "run.py", "server.py", "start.py"}
@@ -364,9 +373,12 @@ func scanPythonDir(
 	}
 }
 
-func detectPythonVenv(dirPath string) string {
+func detectPythonVenv(dirPath, targetShell string) string {
 	for _, name := range []string{".venv", "venv", "env"} {
 		if fileExists(filepath.Join(dirPath, name, "Scripts", "python.exe")) {
+			if targetShell == ShellGitBash {
+				return "./" + name + "/Scripts/python.exe"
+			}
 			return ".\\" + name + "\\Scripts\\python.exe"
 		}
 		if fileExists(filepath.Join(dirPath, name, "bin", "python")) {

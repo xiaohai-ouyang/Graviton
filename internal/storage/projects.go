@@ -16,6 +16,7 @@ type ProjectCommand struct {
 	Name       string `toml:"name" json:"name"`
 	Command    string `toml:"command" json:"command"`
 	Cwd        string `toml:"cwd,omitempty" json:"cwd"`
+	Shell      string `toml:"shell,omitempty" json:"shell,omitempty"`
 	Category   string `toml:"category" json:"category"`
 	Pinned     bool   `toml:"pinned" json:"pinned"`
 	Source     string `toml:"source" json:"source"`
