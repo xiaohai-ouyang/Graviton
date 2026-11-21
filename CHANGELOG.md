@@ -4,6 +4,21 @@
 
 本项目遵循语义化版本规范（正式版 `X.Y.Z` / 候选版 `X.Y.Z-rc.N`）。此文件由根目录 [changelog.json](./changelog.json) 自动生成。
 
+## [v0.1.0-rc.6] - 2026-11-22 (RC 候选版) · Windows 多 Shell 执行引擎与命令引号修复
+
+> 修复 Windows 下 cmd /c 双引号错误转义问题，默认优先使用 PowerShell，并新增 Git Bash / CMD 多 Shell 切换、多行脚本执行与 AI 语法自动适配。
+
+### 新增
+
+- Windows 命令执行环境默认优先使用 PowerShell（自动优先 pwsh 7，回退 Windows PowerShell 5.1），并支持全局与单条指令粒度切换 PowerShell / Git Bash / CMD
+- 新增设置页「命令执行环境（Shell）」配置卡：支持切换全局默认 Shell、实时展示各环境可用状态，以及 Git Bash 自动探测（自动过滤 WSL System32\bash.exe）与手动路径指定/重置
+- 指令编辑弹窗升级为多行脚本编辑器（支持 Ctrl/Cmd+Enter 快捷保存与按 Shell 动态示例提示），项目卡片按需展示覆写环境角标，终端面板常显当前生效 Shell 标签与提示符
+- 项目静态扫描与轻量 AI 指令优化同步适配全局默认 Shell：自动转换 Python 虚拟环境路径格式，并在 AI 优化时按目标 Shell 自动翻译 PowerShell / Git Bash / CMD 语法
+
+### 修复
+
+- 修复 Windows cmd /c 执行带双引号命令（如含空格路径、set "FOO=bar"）时被二次转义为 \" 导致报错或静默失效的问题，改用 /S /C 原样透传并支持多行批处理（.cmd）顺序执行
+
 ## [v0.1.0-rc.5] - 2026-11-22 (RC 候选版) · 倒计时重置显示、自适应动效与环境终端拖拽布局
 
 > 新增额度重置倒计时显示与设置切换、自适应界面过渡动效，以及环境页可拖拽分栏与终端头部自适应折叠。
