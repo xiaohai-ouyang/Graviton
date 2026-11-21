@@ -12,9 +12,11 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { api, parseError } from '../services/api';
 import { useAccountStore } from '../store/useAccountStore';
+import { useMotionStore } from '../store/useMotionStore';
 import { BatchImportResult, OAuthCompletionEvent, OAuthStartResult } from '../types';
 
 interface AddAccountModalProps {
@@ -26,6 +28,7 @@ type AddTab = 'oauth' | 'token' | 'capture';
 
 export const AddAccountModal: React.FC<AddAccountModalProps> = ({ open, onClose }) => {
   const { loadAccounts, captureCurrentAccount, capturing, setBanner } = useAccountStore();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   const [activeTab, setActiveTab] = useState<AddTab>('oauth');
 
@@ -170,8 +173,25 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({ open, onClose 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-card p-6 shadow-xl animate-in zoom-in-95 fade-in-0 duration-150 dark:border-neutral-800 dark:bg-neutral-900">
+        <Dialog.Overlay asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0 } : false}
+            animate={{ opacity: 1 }}
+            transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+          />
+        </Dialog.Overlay>
+        <Dialog.Content asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={
+              shouldAnimate
+                ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
+            className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-card p-6 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+          >
           <div className="flex items-center justify-between border-b border-neutral-100 pb-4 dark:border-neutral-800">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
@@ -200,18 +220,40 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({ open, onClose 
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  className={`relative inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
                     active
-                      ? 'bg-card text-neutral-900 shadow-xs dark:bg-neutral-900 dark:text-neutral-100'
+                      ? 'text-neutral-900 dark:text-neutral-100'
                       : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
                   }`}
                 >
-                  {tab.icon}
-                  <span>{tab.label}</span>
+                  {active && (
+                    <motion.span
+                      layoutId={shouldAnimate ? 'add-account-tab-pill' : undefined}
+                      transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                      className="inset-0 absolute rounded-md bg-card shadow-xs dark:bg-neutral-900"
+                    />
+                  )}
+                  <span className="relative z-10 inline-flex items-center gap-1.5">
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                  </span>
                 </button>
               );
             })}
           </div>
+
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={shouldAnimate ? { opacity: 0, y: 3 } : false}
+              animate={{ opacity: 1, y: 0 }}
+              exit={shouldAnimate ? { opacity: 0, y: -3 } : { opacity: 1 }}
+              transition={
+                shouldAnimate
+                  ? { duration: 0.13, ease: [0.22, 1, 0.36, 1] }
+                  : { duration: 0 }
+              }
+            >
 
           {/* Tab 1: Browser OAuth */}
           {activeTab === 'oauth' && (
@@ -397,6 +439,9 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({ open, onClose 
               </button>
             </div>
           )}
+            </motion.div>
+          </AnimatePresence>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

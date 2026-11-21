@@ -19,6 +19,8 @@ import {
   X,
   AlertCircle,
 } from 'lucide-react';
+import { motion } from 'motion/react';
+import { useMotionStore } from '../store/useMotionStore';
 
 interface AccountDetailModalProps {
   account: AccountDisplay | null;
@@ -33,6 +35,7 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
     switchAccount,
     confirmDeleteAccount,
   } = useAccountStore();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   const open = Boolean(account);
   if (!account) return null;
@@ -51,8 +54,25 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-40 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-neutral-200 bg-card shadow-2xl animate-in zoom-in-95 fade-in-0 duration-150 dark:border-neutral-800 dark:bg-neutral-900">
+        <Dialog.Overlay asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0 } : false}
+            animate={{ opacity: 1 }}
+            transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
+            className="fixed inset-0 z-40 bg-black/45 backdrop-blur-xs"
+          />
+        </Dialog.Overlay>
+        <Dialog.Content asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={
+              shouldAnimate
+                ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
+            className="fixed left-1/2 top-1/2 z-40 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-2xl border border-neutral-200 bg-card shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+          >
           {/* Modal Header */}
           <div className="flex items-start justify-between gap-4 border-b border-neutral-200/80 px-6 py-4 dark:border-neutral-800">
             <div className="flex min-w-0 items-center gap-3">
@@ -262,6 +282,7 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
               </button>
             </div>
           </div>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

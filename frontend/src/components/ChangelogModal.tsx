@@ -1,7 +1,9 @@
 import React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Calendar, FileClock, GitCommitHorizontal, X } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useAppInfoStore } from '../store/useAppInfoStore';
+import { useMotionStore } from '../store/useMotionStore';
 import { ChangelogChange } from '../types';
 
 export const CHANNEL_META: Record<
@@ -80,6 +82,7 @@ export const ChangeItemRow: React.FC<{ change: ChangelogChange }> = ({
 export const ChangelogModal: React.FC = () => {
   const { appInfo, changelog, changelogOpen, setChangelogOpen } =
     useAppInfoStore();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   const channelMeta =
     CHANNEL_META[appInfo?.channel || 'dev'] || CHANNEL_META.dev;
@@ -87,8 +90,25 @@ export const ChangelogModal: React.FC = () => {
   return (
     <Dialog.Root open={changelogOpen} onOpenChange={setChangelogOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs animate-in fade-in-0 duration-150" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[82vh] w-[92vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-card shadow-xl animate-in zoom-in-95 fade-in-0 duration-150 dark:border-neutral-800 dark:bg-neutral-900">
+        <Dialog.Overlay asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0 } : false}
+            animate={{ opacity: 1 }}
+            transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+          />
+        </Dialog.Overlay>
+        <Dialog.Content asChild>
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={
+              shouldAnimate
+                ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
+            className="fixed left-1/2 top-1/2 z-50 flex max-h-[82vh] w-[92vw] max-w-2xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-card shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+          >
           {/* Header */}
           <div className="flex items-center justify-between gap-3 border-b border-neutral-200/80 px-5 py-4 dark:border-neutral-800">
             <div className="flex items-center gap-2.5">
@@ -200,6 +220,7 @@ export const ChangelogModal: React.FC = () => {
               })
             )}
           </div>
+          </motion.div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

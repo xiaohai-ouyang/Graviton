@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { useThemeStore, Theme } from '../store/useThemeStore';
+import { useMotionStore } from '../store/useMotionStore';
 import { Sun, Moon, Monitor } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface ThemeToggleProps {
   compact?: boolean;
@@ -8,6 +10,8 @@ interface ThemeToggleProps {
 
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ compact = false }) => {
   const { theme, resolvedTheme, setTheme } = useThemeStore();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const instanceId = useId();
 
   const options: { mode: Theme; label: string; tooltip: string; icon: React.ComponentType<{ className?: string }> }[] = [
     {
@@ -66,13 +70,20 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ compact = false }) => 
             title={tooltip}
             aria-label={label}
             onClick={() => setTheme(mode)}
-            className={`flex h-7 w-7 items-center justify-center rounded-md transition-all ${
+            className={`relative flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
               isActive
-                ? 'bg-card text-card-foreground shadow-2xs dark:bg-neutral-800 dark:text-neutral-50 font-semibold'
+                ? 'font-semibold text-card-foreground dark:text-neutral-50'
                 : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
             }`}
           >
-            <Icon className="h-3.5 w-3.5" />
+            {isActive && (
+              <motion.span
+                layoutId={shouldAnimate ? `theme-pill-${instanceId}` : undefined}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="inset-0 absolute rounded-md bg-card shadow-2xs dark:bg-neutral-800"
+              />
+            )}
+            <Icon className="relative z-10 h-3.5 w-3.5" />
             <span className="sr-only">{label}</span>
           </button>
         );

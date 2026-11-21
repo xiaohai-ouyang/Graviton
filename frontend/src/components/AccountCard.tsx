@@ -34,7 +34,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
 
   return (
     <div
-      className={`group/card flex flex-col rounded-2xl border bg-card transition-all duration-150 dark:bg-neutral-900 ${
+      className={`group/card flex w-full flex-col rounded-2xl border bg-card transition-all duration-150 dark:bg-neutral-900 ${
         account.isCurrent
           ? 'border-emerald-500/80 ring-1 ring-emerald-500/30 shadow-sm dark:border-emerald-500/60 dark:ring-emerald-500/20'
           : 'border-neutral-200/90 shadow-xs hover:border-neutral-300 dark:border-neutral-800 dark:hover:border-neutral-700'

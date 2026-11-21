@@ -7,8 +7,10 @@ import {
   Settings,
   ShieldCheck,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { ThemeToggle } from './ThemeToggle';
 import { useAppInfoStore } from '../store/useAppInfoStore';
+import { useMotionStore } from '../store/useMotionStore';
 
 const NAV_ITEMS = [
   { to: '/quota', label: '额度', icon: Gauge },
@@ -18,6 +20,7 @@ const NAV_ITEMS = [
 export const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { appInfo, openChangelog } = useAppInfoStore();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   return (
     <aside
@@ -64,17 +67,28 @@ export const Sidebar: React.FC = () => {
             to={to}
             title={collapsed ? label : undefined}
             className={({ isActive }) =>
-              `flex items-center rounded-lg text-xs font-medium transition-colors ${
+              `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
                 collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
               } ${
                 isActive
-                  ? 'bg-neutral-900 text-white shadow-xs dark:bg-neutral-100 dark:text-neutral-900'
+                  ? 'text-white dark:text-neutral-900'
                   : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
               }`
             }
           >
-            <Icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="truncate">{label}</span>}
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.span
+                    layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                    className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+                  />
+                )}
+                <Icon className="relative z-10 h-4 w-4 shrink-0" />
+                {!collapsed && <span className="relative z-10 truncate">{label}</span>}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>

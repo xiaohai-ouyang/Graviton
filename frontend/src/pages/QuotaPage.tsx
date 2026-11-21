@@ -6,7 +6,9 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useAccountStore } from '../store/useAccountStore';
+import { useMotionStore } from '../store/useMotionStore';
 import { getGroupEffectivePct } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
 import { AccountDetailModal } from '../components/AccountDetailModal';
@@ -31,6 +33,7 @@ export const QuotaPage: React.FC = () => {
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [detailAccountId, setDetailAccountId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   const currentAccount = useMemo(
     () => accounts.find((a) => a.isCurrent) ?? null,
@@ -181,32 +184,57 @@ export const QuotaPage: React.FC = () => {
                       { id: 'gemini', label: 'Gemini 额度' },
                       { id: 'claude', label: 'Claude 额度' },
                     ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.id}
-                      onClick={() => setSortMode(opt.id)}
-                      className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                        sortMode === opt.id
-                          ? 'bg-neutral-900 text-white shadow-2xs dark:bg-neutral-100 dark:text-neutral-900'
-                          : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+                  ).map((opt) => {
+                    const isActive = sortMode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => setSortMode(opt.id)}
+                        className={`relative rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                          isActive
+                            ? 'text-white dark:text-neutral-900'
+                            : 'text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.span
+                            layoutId={shouldAnimate ? 'quota-sort-pill' : undefined}
+                            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                            className="inset-0 absolute rounded-md bg-neutral-900 shadow-2xs dark:bg-neutral-100"
+                          />
+                        )}
+                        <span className="relative z-10">{opt.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
             {/* Multi-Account Quota Grid */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {sortedAccounts.map((account) => (
-                <AccountCard
-                  key={account.id}
-                  account={account}
-                  onOpenDetail={(id) => setDetailAccountId(id)}
-                />
-              ))}
+              <AnimatePresence initial={false}>
+                {sortedAccounts.map((account) => (
+                  <motion.div
+                    key={account.id}
+                    layout={shouldAnimate ? 'position' : false}
+                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={shouldAnimate ? { opacity: 0, scale: 0.96 } : { opacity: 0 }}
+                    transition={
+                      shouldAnimate
+                        ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                        : { duration: 0 }
+                    }
+                    className="flex"
+                  >
+                    <AccountCard
+                      account={account}
+                      onOpenDetail={(id) => setDetailAccountId(id)}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
         )}

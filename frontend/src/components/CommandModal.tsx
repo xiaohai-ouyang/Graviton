@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useMotionStore } from '../store/useMotionStore';
 import { ProjectCommand } from '../types';
 
 interface CommandModalProps {
@@ -25,6 +27,8 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
   const [pinned, setPinned] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+
   useEffect(() => {
     if (!open) return;
     if (initial) {
@@ -41,8 +45,6 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
       setPinned(true);
     }
   }, [open, initial]);
-
-  if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,8 +65,26 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs">
-      <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-card p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900">
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={shouldAnimate ? { opacity: 0 } : false}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
+        >
+          <motion.div
+            initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : { opacity: 0 }}
+            transition={
+              shouldAnimate
+                ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
+            className="w-full max-w-md rounded-2xl border border-neutral-200 bg-card p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+          >
         <div className="flex items-center justify-between border-b border-neutral-100 pb-3 dark:border-neutral-800">
           <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
             {initial ? '编辑指令' : '新增自定义指令'}
@@ -166,7 +186,9 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
             </button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

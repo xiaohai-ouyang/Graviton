@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAccountStore } from '../store/useAccountStore';
+import { useMotionStore } from '../store/useMotionStore';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 export const FeedbackBanner: React.FC = () => {
   const { banner, clearBanner } = useAccountStore();
-  const shouldReduceMotion = useReducedMotion();
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
   const [hovered, setHovered] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -34,10 +35,10 @@ export const FeedbackBanner: React.FC = () => {
         {banner && (
           <motion.div
             key={`${banner.type}:${banner.message}`}
-            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -12, scale: 0.96 }}
+            initial={shouldAnimate ? { opacity: 0, y: -12, scale: 0.96 } : { opacity: 0 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
+            exit={shouldAnimate ? { opacity: 0, y: -8, scale: 0.96 } : { opacity: 0 }}
+            transition={shouldAnimate ? { duration: 0.18, ease: 'easeOut' } : { duration: 0 }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             className={`pointer-events-auto flex min-w-[260px] items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg backdrop-blur-md ${
