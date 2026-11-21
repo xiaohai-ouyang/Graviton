@@ -268,7 +268,13 @@ func buildProjectContextForAI(proj storage.ProjectRecord) string {
 
 	appendSnippet("package.json", "package.json", 2500)
 	appendSnippet("wails.json", "wails.json", 1000)
+	appendSnippet("pyproject.toml", "pyproject.toml", 1500)
+	appendSnippet("requirements.txt", "requirements.txt", 1000)
 	appendSnippet("README.md", "README.md", 2500)
+
+	if venv := detectPythonVenv(proj.Path); venv != "" {
+		sb.WriteString(fmt.Sprintf("检测到本地 Python 虚拟环境: %s\n\n", venv))
+	}
 
 	sb.WriteString("--- 本地规则已提取的候选指令 ---\n")
 	for _, c := range proj.Commands {

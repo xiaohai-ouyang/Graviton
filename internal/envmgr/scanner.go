@@ -199,23 +199,7 @@ func scanSingleDir(
 	}
 
 	// 6. Python
-	if fileExists(filepath.Join(dirPath, "pyproject.toml")) || fileExists(filepath.Join(dirPath, "requirements.txt")) {
-		addStack("Python")
-		pyRunner := "python"
-		if fileExists(filepath.Join(dirPath, "uv.lock")) {
-			pyRunner = "uv run python"
-			addStack("uv")
-		} else if fileExists(filepath.Join(dirPath, "poetry.lock")) {
-			pyRunner = "poetry run python"
-		}
-		if fileExists(filepath.Join(dirPath, "manage.py")) {
-			*cmds = append(*cmds, newRuleCommand(withSubPrefix("启动 Django 服务", subLabel), pyRunner+" manage.py runserver", relCwd, "dev", allowPin, subLabel))
-		} else if fileExists(filepath.Join(dirPath, "main.py")) {
-			*cmds = append(*cmds, newRuleCommand(withSubPrefix("启动 Python 应用", subLabel), pyRunner+" main.py", relCwd, "dev", allowPin, subLabel))
-		} else if fileExists(filepath.Join(dirPath, "app.py")) {
-			*cmds = append(*cmds, newRuleCommand(withSubPrefix("启动 Python 应用", subLabel), pyRunner+" app.py", relCwd, "dev", allowPin, subLabel))
-		}
-	}
+	scanPythonDir(dirPath, relCwd, allowPin, subLabel, addStack, cmds)
 
 	// 7. Makefile (root only)
 	if isRoot && fileExists(filepath.Join(dirPath, "Makefile")) {
@@ -236,6 +220,232 @@ func scanSingleDir(
 			}
 		}
 	}
+}
+
+func scanPythonDir(
+	dirPath string,
+	relCwd string,
+	allowPin bool,
+	subLabel string,
+	addStack func(string),
+	cmds *[]storage.ProjectCommand,
+) {
+	hasManifest := false
+	for _, mf := range []string{
+		"pyproject.toml",
+		"requirements.txt",
+		"setup.py",
+		"setup.cfg",
+		"Pipfile",
+		"environment.yml",
+		"uv.lock",
+		"poetry.lock",
+	} {
+		if fileExists(filepath.Join(dirPath, mf)) {
+			hasManifest = true
+			break
+		}
+	}
+
+	venvRunner := detectPythonVenv(dirPath)
+	hasManage := fileExists(filepath.Join(dirPath, "manage.py"))
+
+	standardEntries := []string{"main.py", "app.py", "run.py", "server.py", "start.py"}
+	foundEntries := make([]string, 0, 2)
+	for _, entry := range standardEntries {
+		if fileExists(filepath.Join(dirPath, entry)) {
+			foundEntries = append(foundEntries, entry)
+		}
+	}
+
+	if !hasManifest && venvRunner == "" && !hasManage && len(foundEntries) == 0 {
+		return
+	}
+
+	addStack("Python")
+
+	pyRunner := "python"
+	hasUV := fileExists(filepath.Join(dirPath, "uv.lock"))
+	hasPoetry := fileExists(filepath.Join(dirPath, "poetry.lock"))
+	hasPipfile := fileExists(filepath.Join(dirPath, "Pipfile.lock")) || fileExists(filepath.Join(dirPath, "Pipfile"))
+	switch {
+	case hasUV:
+		pyRunner = "uv run python"
+		addStack("uv")
+	case hasPoetry:
+		pyRunner = "poetry run python"
+		addStack("Poetry")
+	case hasPipfile:
+		pyRunner = "pipenv run python"
+	case venvRunner != "":
+		pyRunner = venvRunner
+	}
+
+	primaryPinned := allowPin
+	if hasManage {
+		addStack("Django")
+		*cmds = append(*cmds, newRuleCommand(
+			withSubPrefix("启动 Django 服务", subLabel),
+			pyRunner+" manage.py runserver",
+			relCwd,
+			"dev",
+			primaryPinned,
+			subLabel,
+		))
+		primaryPinned = false
+	}
+
+	if len(foundEntries) > 0 {
+		for idx, entry := range foundEntries {
+			label, cmdStr, fw := buildPythonEntryCommand(dirPath, pyRunner, entry)
+			if fw != "" {
+				addStack(fw)
+			}
+			pinned := primaryPinned && idx == 0
+			*cmds = append(*cmds, newRuleCommand(
+				withSubPrefix(label, subLabel),
+				cmdStr,
+				relCwd,
+				"dev",
+				pinned,
+				subLabel,
+			))
+			// Keep at most 2 standard entrypoints to avoid clutter
+			if idx >= 1 {
+				break
+			}
+		}
+	} else if !hasManage {
+		if script := findSinglePythonMainScript(dirPath); script != "" {
+			label, cmdStr, fw := buildPythonEntryCommand(dirPath, pyRunner, script)
+			if fw != "" {
+				addStack(fw)
+			}
+			*cmds = append(*cmds, newRuleCommand(
+				withSubPrefix(label, subLabel),
+				cmdStr,
+				relCwd,
+				"dev",
+				primaryPinned,
+				subLabel,
+			))
+		}
+	}
+
+	if hasUV {
+		*cmds = append(*cmds, newRuleCommand(
+			withSubPrefix("同步依赖", subLabel),
+			"uv sync",
+			relCwd,
+			"other",
+			false,
+			subLabel,
+		))
+	} else if fileExists(filepath.Join(dirPath, "requirements.txt")) {
+		*cmds = append(*cmds, newRuleCommand(
+			withSubPrefix("安装依赖", subLabel),
+			pyRunner+" -m pip install -r requirements.txt",
+			relCwd,
+			"other",
+			false,
+			subLabel,
+		))
+	}
+
+	if fileExists(filepath.Join(dirPath, "pytest.ini")) || dirExists(filepath.Join(dirPath, "tests")) {
+		*cmds = append(*cmds, newRuleCommand(
+			withSubPrefix("运行测试", subLabel),
+			pyRunner+" -m pytest",
+			relCwd,
+			"test",
+			false,
+			subLabel,
+		))
+	}
+}
+
+func detectPythonVenv(dirPath string) string {
+	for _, name := range []string{".venv", "venv", "env"} {
+		if fileExists(filepath.Join(dirPath, name, "Scripts", "python.exe")) {
+			return ".\\" + name + "\\Scripts\\python.exe"
+		}
+		if fileExists(filepath.Join(dirPath, name, "bin", "python")) {
+			return "./" + name + "/bin/python"
+		}
+	}
+	return ""
+}
+
+func buildPythonEntryCommand(dirPath, pyRunner, entry string) (label, command, framework string) {
+	content := readFileTailOrHead(filepath.Join(dirPath, entry), 16384)
+	lower := strings.ToLower(content)
+
+	hasMainGuard := strings.Contains(content, "__name__") && strings.Contains(content, "__main__")
+	hasStreamlit := strings.Contains(lower, "import streamlit") || strings.Contains(lower, "from streamlit")
+	hasFastAPI := strings.Contains(content, "FastAPI(") || strings.Contains(lower, "from fastapi")
+	hasFlask := strings.Contains(content, "Flask(") || strings.Contains(lower, "from flask") || strings.Contains(lower, "import flask")
+	hasGradio := strings.Contains(lower, "import gradio") || strings.Contains(lower, "from gradio")
+	hasUvicornRun := strings.Contains(lower, "uvicorn.run")
+
+	switch {
+	case hasStreamlit:
+		return "启动 Streamlit 应用", pyRunner + " -m streamlit run " + entry, "Streamlit"
+	case hasFastAPI && !hasMainGuard && !hasUvicornRun:
+		stem := strings.TrimSuffix(entry, ".py")
+		return "启动 FastAPI 服务", pyRunner + " -m uvicorn " + stem + ":app --reload", "FastAPI"
+	case hasFastAPI:
+		return "启动 FastAPI 服务", pyRunner + " " + entry, "FastAPI"
+	case hasFlask:
+		return "启动 Flask 服务", pyRunner + " " + entry, "Flask"
+	case hasGradio:
+		return "启动 Gradio 应用", pyRunner + " " + entry, "Gradio"
+	default:
+		return "启动 Python 应用", pyRunner + " " + entry, ""
+	}
+}
+
+func findSinglePythonMainScript(dirPath string) string {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return ""
+	}
+	var candidates []string
+	for _, ent := range entries {
+		if ent.IsDir() {
+			continue
+		}
+		name := ent.Name()
+		lower := strings.ToLower(name)
+		if !strings.HasSuffix(lower, ".py") ||
+			strings.HasPrefix(lower, "_") ||
+			strings.HasPrefix(lower, "test_") ||
+			strings.HasSuffix(lower, "_test.py") ||
+			lower == "setup.py" ||
+			lower == "conftest.py" {
+			continue
+		}
+		head := readFileTailOrHead(filepath.Join(dirPath, name), 65536)
+		if strings.Contains(head, "__name__") && strings.Contains(head, "__main__") {
+			candidates = append(candidates, name)
+		}
+	}
+	if len(candidates) == 1 {
+		return candidates[0]
+	}
+	return ""
+}
+
+func readFileTailOrHead(p string, maxBytes int) string {
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	if len(data) <= maxBytes {
+		return string(data)
+	}
+	// Check both head and tail since `if __name__ == "__main__":` is usually at the bottom
+	half := maxBytes / 2
+	return string(data[:half]) + "\n" + string(data[len(data)-half:])
 }
 
 func detectPackageManager(dirPath string, pkg packageJSON) string {
