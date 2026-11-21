@@ -388,11 +388,12 @@ foreach ($t in $TypeHeaders.Keys) {
         $ReleaseNotesLines.Add("")
     }
 }
-$ReleaseNotesLines.Add("### 下载说明")
+$ReleaseNotesLines.Add("### 下载与防篡改验真")
 $ReleaseNotesLines.Add("")
 $ReleaseNotesLines.Add("- **标准安装包（推荐）**：``$InstallerName``（自动检测 WebView2 并创建快捷方式）")
 $ReleaseNotesLines.Add("- **免安装便携版**：``$PortableName``（单文件直接运行，无需安装）")
-$ReleaseNotesLines.Add('- **校验文件**：`SHA256SUMS.txt`（可通过 `Get-FileHash <文件名> -Algorithm SHA256` 校验完整性）')
+$ReleaseNotesLines.Add('- **SHA-256 校验**：`SHA256SUMS.txt`（运行 `Get-FileHash <文件名> -Algorithm SHA256` 核对）')
+$ReleaseNotesLines.Add("- **SLSA 构建来源验真**：``gh attestation verify $InstallerName --repo xiaohai-ouyang/Graviton``")
 $ReleaseNotesPath = Join-Path $DistDir "RELEASE_NOTES.md"
 Write-Utf8NoBom $ReleaseNotesPath (($ReleaseNotesLines -join "`n").TrimEnd() + "`n")
 

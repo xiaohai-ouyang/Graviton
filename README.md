@@ -23,6 +23,17 @@
 - `Graviton-v<版本>-windows-amd64-portable.exe`：免安装单文件便携版（开箱即用）
 - `SHA256SUMS.txt`：可执行文件 SHA-256 校验和
 
+#### 产物防篡改验真
+所有 GitHub Release 产物均由公开 CI 自动构建并签发 **GitHub SLSA 构建来源证明（Artifact Attestation）**。下载后可通过以下命令验证安装包确由本仓库源码直接编译、未被二次打包篡改（详见 [SECURITY.md](./SECURITY.md)）：
+
+```powershell
+# 密码学验证构建来源（需安装 gh CLI）
+gh attestation verify Graviton-v<版本>-windows-amd64-installer.exe --repo xiaohai-ouyang/Graviton
+
+# 或核对 SHA-256 校验和（与 Release 附件 SHA256SUMS.txt 比对）
+Get-FileHash .\Graviton-v<版本>-windows-amd64-installer.exe -Algorithm SHA256
+```
+
 ---
 
 ## 1. 技术栈与架构设计
