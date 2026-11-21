@@ -1,6 +1,22 @@
 {
   "releases": [
     {
+      "version": "0.1.0-rc.4",
+      "date": "2026-11-21",
+      "title": "修复 CI 全新环境构建顺序",
+      "summary": "修复全新检出环境及 GitHub Actions Runner 下前端编译与 Go 测试执行顺序，实现全自动云端打包发布闭环。",
+      "changes": [
+        {
+          "type": "fix",
+          "text": "调整 scripts/release.ps1 执行顺序：先运行前端 pnpm build 生成 frontend/dist，再执行 go test ./...，避免干净检出环境下 //go:embed 报目录缺失"
+        },
+        {
+          "type": "fix",
+          "text": "增强 GitHub Actions release.yml 的 Wails CLI 与 NSIS PATH 环境注册与版本自检，确保云端自动构建并发布双 EXE 附件稳定通过"
+        }
+      ]
+    },
+    {
       "version": "0.1.0-rc.3",
       "date": "2026-11-21",
       "title": "公开预发布渠道标识完善",

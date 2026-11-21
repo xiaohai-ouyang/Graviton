@@ -4,6 +4,15 @@
 
 本项目遵循语义化版本规范（正式版 `X.Y.Z` / 候选版 `X.Y.Z-rc.N`）。此文件由根目录 [changelog.json](./changelog.json) 自动生成。
 
+## [v0.1.0-rc.4] - 2026-11-21 (RC 候选版) · 修复 CI 全新环境构建顺序
+
+> 修复全新检出环境及 GitHub Actions Runner 下前端编译与 Go 测试执行顺序，实现全自动云端打包发布闭环。
+
+### 修复
+
+- 调整 scripts/release.ps1 执行顺序：先运行前端 pnpm build 生成 frontend/dist，再执行 go test ./...，避免干净检出环境下 //go:embed 报目录缺失
+- 增强 GitHub Actions release.yml 的 Wails CLI 与 NSIS PATH 环境注册与版本自检，确保云端自动构建并发布双 EXE 附件稳定通过
+
 ## [v0.1.0-rc.3] - 2026-11-21 (RC 候选版) · 公开预发布渠道标识完善
 
 > 面向公开仓库完善正式版与 RC 候选测试版的全方位区分，补充开源许可证与自动化 Release 说明。

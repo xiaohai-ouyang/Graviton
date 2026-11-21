@@ -73,11 +73,25 @@ jobs:
 
       - name: Install Wails CLI
         shell: pwsh
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+          $goBin = Join-Path (go env GOPATH) "bin"
+          if (Test-Path $goBin) {
+            $goBin | Out-File -FilePath $env:GITHUB_PATH -Append
+            $env:PATH = "$goBin;$env:PATH"
+          }
+          wails version
 
       - name: Install NSIS
         shell: pwsh
-        run: choco install nsis --no-progress -y
+        run: |
+          choco install nsis --no-progress -y
+          $nsisDir = "C:\Program Files (x86)\NSIS"
+          if (Test-Path $nsisDir) {
+            $nsisDir | Out-File -FilePath $env:GITHUB_PATH -Append
+            $env:PATH = "$nsisDir;$env:PATH"
+          }
+          makensis /VERSION
 
       - name: Install frontend dependencies
         shell: pwsh

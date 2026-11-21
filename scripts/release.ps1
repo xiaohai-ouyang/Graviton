@@ -275,14 +275,14 @@ if ($SyncOnly) {
     exit 0
 }
 
-# 6. Run tests & frontend type-check
+# 6. Build frontend first (required for Go //go:embed all:frontend/dist on clean checkouts), then run Go tests
+Write-Step "Checking frontend TypeScript & production build (pnpm build)"
+Invoke-Checked -FilePath "pnpm" -Arguments @("build") -WorkingDirectory (Join-Path $RepoRoot "frontend")
+
 if (-not $SkipTests) {
     Write-Step "Running Go test suite (go test ./...)"
     Invoke-Checked -FilePath "go" -Arguments @("test", "./...")
 }
-
-Write-Step "Checking frontend TypeScript & production build (pnpm build)"
-Invoke-Checked -FilePath "pnpm" -Arguments @("build") -WorkingDirectory (Join-Path $RepoRoot "frontend")
 
 # 7. Commit release metadata before wails build so binary Commit SHA matches release commit
 if (-not $NoGit) {
