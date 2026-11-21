@@ -169,8 +169,8 @@ func (t *Tray) run() {
 	defer runtime.UnlockOSThread()
 
 	hInst, _, _ := procGetModuleHandleW.Call(0)
-	className, _ := windows.UTF16PtrFromString("CodeToolTrayWindowClass")
-	winTitle, _ := windows.UTF16PtrFromString("CodeToolTray")
+	className, _ := windows.UTF16PtrFromString("GravitonTrayWindowClass")
+	winTitle, _ := windows.UTF16PtrFromString("GravitonTray")
 
 	wndProc := syscall.NewCallback(func(hwnd uintptr, uMsg uint32, wParam, lParam uintptr) uintptr {
 		switch uMsg {
@@ -244,7 +244,7 @@ func (t *Tray) run() {
 			uCallbackMessage: wmTrayIcon,
 			hIcon:            hIcon,
 		}
-		tipUTF16, _ := windows.UTF16FromString("CodeTool - Antigravity 额度管理")
+		tipUTF16, _ := windows.UTF16FromString("Graviton - Antigravity 额度管理")
 		copy(nid.szTip[:], tipUTF16)
 		_, _, _ = procShellNotifyIconW.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
 	}
@@ -273,7 +273,7 @@ func (t *Tray) showContextMenu(hwnd uintptr) {
 	appendMenuItem(hMenu, mfString, cmdToggleWidget, "显示 / 隐藏悬浮窗")
 	appendMenuItem(hMenu, mfString, cmdRefreshAll, "刷新全部额度")
 	appendMenuItem(hMenu, mfSeparator, 0, "")
-	appendMenuItem(hMenu, mfString, cmdQuit, "退出 CodeTool")
+	appendMenuItem(hMenu, mfString, cmdQuit, "退出 Graviton")
 
 	var pt point
 	_, _, _ = procGetCursorPos.Call(uintptr(unsafe.Pointer(&pt)))

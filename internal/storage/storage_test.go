@@ -142,3 +142,41 @@ func TestStorage_SettingsLifecycle(t *testing.T) {
 	assert.Empty(t, report)
 	assert.Equal(t, `C:\Custom\Antigravity\Antigravity.exe`, loaded.ClientPath)
 }
+
+func TestStorage_MigrateLegacyCodeToolDir(t *testing.T) {
+	tempRoot := t.TempDir()
+	legacyDir := filepath.Join(tempRoot, LegacyAppDirName)
+	newDir := filepath.Join(tempRoot, AppDirName)
+	require.NoError(t, os.MkdirAll(legacyDir, 0755))
+	require.NoError(t, os.MkdirAll(newDir, 0755))
+
+	legacySM, err := NewStorageManager(legacyDir)
+	require.NoError(t, err)
+	require.NoError(t, legacySM.SaveAccounts([]AccountRecord{
+		{ID: "acc-legacy", Email: "legacy@example.com", Name: "Legacy"},
+	}))
+	require.NoError(t, legacySM.SaveSettings(&SettingsFile{
+		FormatVersion: CurrentFormatVersion,
+		Theme:         "dark",
+	}))
+
+	// Existing settings.toml in newDir must NOT be overwritten
+	newSM, err := NewStorageManager(newDir)
+	require.NoError(t, err)
+	require.NoError(t, newSM.SaveSettings(&SettingsFile{
+		FormatVersion: CurrentFormatVersion,
+		Theme:         "light",
+	}))
+
+	newSM.migrateLegacyFiles(legacyDir)
+
+	accounts, report, err := newSM.LoadAccounts()
+	require.NoError(t, err)
+	assert.Empty(t, report)
+	require.Len(t, accounts, 1)
+	assert.Equal(t, "acc-legacy", accounts[0].ID)
+
+	sf, _, err := newSM.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "light", sf.Theme)
+}

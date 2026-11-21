@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    CodeTool automated versioning, changelog generation, build, and release script.
+    Graviton automated versioning, changelog generation, build, and release script.
 
 .DESCRIPTION
     Single Source of Truth: root VERSION + changelog.json.
@@ -323,7 +323,7 @@ try {
     Pop-Location
 }
 $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-$LdFlags = "-s -w -X codetool/internal/buildinfo.Version=$Version -X codetool/internal/buildinfo.Commit=$CommitSha -X codetool/internal/buildinfo.BuildTime=$BuildTime"
+$LdFlags = "-s -w -X graviton/internal/buildinfo.Version=$Version -X graviton/internal/buildinfo.Commit=$CommitSha -X graviton/internal/buildinfo.BuildTime=$BuildTime"
 
 Write-Step "Building Wails app + NSIS installer (Version=$Version, Commit=$CommitSha, BuildTime=$BuildTime)"
 Invoke-Checked -FilePath "wails" -Arguments @("build", "-nsis", "-ldflags", $LdFlags)
@@ -331,22 +331,22 @@ Invoke-Checked -FilePath "wails" -Arguments @("build", "-nsis", "-ldflags", $LdF
 # 9. Archive release artifacts and compute SHA-256 checksums
 Write-Step "Archiving artifacts to dist/$TagName/"
 $BuildBinDir = Join-Path $RepoRoot "build\bin"
-$PortableSrc = Join-Path $BuildBinDir "CodeTool.exe"
+$PortableSrc = Join-Path $BuildBinDir "Graviton.exe"
 if (-not (Test-Path $PortableSrc)) {
     throw "Expected portable binary not found at $PortableSrc"
 }
 
-$InstallerCandidates = @(Get-ChildItem -Path $BuildBinDir -Filter "*-installer.exe" | Sort-Object LastWriteTime -Descending)
+$InstallerCandidates = @(Get-ChildItem -Path $BuildBinDir -Filter "graviton-*-installer.exe" | Sort-Object LastWriteTime -Descending)
 if ($InstallerCandidates.Count -eq 0) {
-    throw "Expected NSIS installer (*-installer.exe) not found in $BuildBinDir"
+    throw "Expected NSIS installer (graviton-*-installer.exe) not found in $BuildBinDir"
 }
 $InstallerSrc = $InstallerCandidates[0].FullName
 
 $DistDir = Join-Path $RepoRoot "dist\$TagName"
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
-$PortableName = "CodeTool-$TagName-windows-amd64-portable.exe"
-$InstallerName = "CodeTool-$TagName-windows-amd64-installer.exe"
+$PortableName = "Graviton-$TagName-windows-amd64-portable.exe"
+$InstallerName = "Graviton-$TagName-windows-amd64-installer.exe"
 $PortableDst = Join-Path $DistDir $PortableName
 $InstallerDst = Join-Path $DistDir $InstallerName
 

@@ -9,7 +9,7 @@ import (
 )
 
 func TestCredential_Lifecycle(t *testing.T) {
-	testTarget := "CodeTool/Antigravity/test-unit-account-123"
+	testTarget := "Graviton/Antigravity/test-unit-account-123"
 	defer func() {
 		_ = DeleteCredential(testTarget)
 	}()

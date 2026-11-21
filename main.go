@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"codetool/internal/widget"
+	"graviton/internal/widget"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -73,7 +73,7 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:             "CodeTool",
+		Title:             "Graviton",
 		Width:             1000,
 		Height:            720,
 		MinWidth:          760,
@@ -81,7 +81,7 @@ func main() {
 		Frameless:         false,
 		HideWindowOnClose: true,
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId: "codetool-single-instance-lock-4b3eef5b",
+			UniqueId: "graviton-single-instance-lock-4b3eef5b",
 			OnSecondInstanceLaunch: func(data options.SecondInstanceData) {
 				app.onSecondInstanceLaunch(optionsSecondInstanceData{
 					Args:             data.Args,

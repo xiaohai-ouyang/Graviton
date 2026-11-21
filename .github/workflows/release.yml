@@ -128,7 +128,7 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CodeTool-${{ steps.meta.outputs.tag }}-windows-amd64
+          name: Graviton-${{ steps.meta.outputs.tag }}-windows-amd64
           path: dist/${{ steps.meta.outputs.tag }}/*
 
       - name: Publish GitHub Release
@@ -136,7 +136,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: CodeTool ${{ steps.meta.outputs.tag }}
+          name: Graviton ${{ steps.meta.outputs.tag }}
           body_path: release-notes.md
           prerelease: ${{ steps.meta.outputs.prerelease }}
           files: dist/${{ steps.meta.outputs.tag }}/*

@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"codetool/internal/appservice"
+	"graviton/internal/appservice"
 )
 
-const WidgetWindowTitle = "CodeTool Widget"
+const WidgetWindowTitle = "Graviton Widget"
 
 // StateSnapshot is the shared state synchronized between the main app and the floating widget.
 type StateSnapshot struct {

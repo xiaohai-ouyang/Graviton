@@ -13,13 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"codetool/internal/cred"
-	"codetool/internal/storage"
+	"graviton/internal/cred"
+	"graviton/internal/storage"
 
 	"github.com/google/uuid"
 )
 
-const aiCredTarget = "CodeTool/AI/OpenAICompat"
+const (
+	aiCredTarget       = "Graviton/AI/OpenAICompat"
+	legacyAICredTarget = "CodeTool/AI/OpenAICompat"
+)
 
 // AIConfig holds settings for the optional OpenAI-compatible lightweight assistant.
 type AIConfig struct {
@@ -48,6 +51,9 @@ func LoadAIConfig(sm *storage.StorageManager) AIConfig {
 	}
 	if raw, err := cred.ReadRaw(aiCredTarget); err == nil {
 		cfg.APIKey = string(raw)
+	} else if legacyRaw, legacyErr := cred.ReadRaw(legacyAICredTarget); legacyErr == nil {
+		cfg.APIKey = string(legacyRaw)
+		_ = cred.WriteRaw(aiCredTarget, "openai-compat", legacyRaw)
 	}
 	return cfg
 }
@@ -71,6 +77,7 @@ func SaveAIConfig(sm *storage.StorageManager, cfg AIConfig) error {
 	key := strings.TrimSpace(cfg.APIKey)
 	if key == "" {
 		_ = cred.DeleteCredential(aiCredTarget)
+		_ = cred.DeleteCredential(legacyAICredTarget)
 		return nil
 	}
 	return cred.WriteRaw(aiCredTarget, "openai-compat", []byte(key))

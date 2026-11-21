@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"codetool/internal/client"
-	"codetool/internal/envmgr"
-	"codetool/internal/storage"
+	"graviton/internal/client"
+	"graviton/internal/envmgr"
+	"graviton/internal/storage"
 
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2/pkg/runtime"

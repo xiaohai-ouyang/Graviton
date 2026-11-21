@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"codetool/internal/appservice"
-	"codetool/internal/client"
-	"codetool/internal/envmgr"
-	"codetool/internal/storage"
-	"codetool/internal/tray"
-	"codetool/internal/widget"
+	"graviton/internal/appservice"
+	"graviton/internal/client"
+	"graviton/internal/envmgr"
+	"graviton/internal/storage"
+	"graviton/internal/tray"
+	"graviton/internal/widget"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"codetool/internal/cred"
-	"codetool/internal/oauth"
-	"codetool/internal/storage"
+	"graviton/internal/cred"
+	"graviton/internal/oauth"
+	"graviton/internal/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

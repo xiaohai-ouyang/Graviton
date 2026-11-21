@@ -8,11 +8,14 @@ const notify = (type: 'success' | 'error' | 'info', message: string) => {
   useAccountStore.getState().setBanner({ type, message });
 };
 
-const COLLAPSED_STORAGE_KEY = 'codetool_env_collapsed_projects';
+const COLLAPSED_STORAGE_KEY = 'graviton_env_collapsed_projects';
+const LEGACY_COLLAPSED_STORAGE_KEY = 'codetool_env_collapsed_projects';
 
 function loadCollapsedProjects(): Record<string, boolean> {
   try {
-    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    const raw =
+      localStorage.getItem(COLLAPSED_STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_COLLAPSED_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {

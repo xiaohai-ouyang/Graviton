@@ -384,7 +384,7 @@ export const AddAccountModal: React.FC<AddAccountModalProps> = ({ open, onClose 
           {activeTab === 'capture' && (
             <div className="mt-4 space-y-4">
               <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                自动读取本机 Antigravity 客户端当前已登录的账号凭据（支持新版系统凭据库与旧版数据库）并收录到 CodeTool。
+                自动读取本机 Antigravity 客户端当前已登录的账号凭据（支持新版系统凭据库与旧版数据库）并收录到 Graviton。
               </p>
               <button
                 type="button"

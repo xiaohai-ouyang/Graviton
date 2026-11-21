@@ -316,11 +316,11 @@ export const SettingsPage: React.FC = () => {
             <li>
               账号与额度持久化于{' '}
               <code className="rounded bg-neutral-200/70 px-1.5 py-0.5 text-[11px] text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
-                %LOCALAPPDATA%\CodeTool
+                %LOCALAPPDATA%\Graviton
               </code>
             </li>
             <li>敏感 Token 仅保存在本机 Windows 凭据管理器，不会上传至第三方服务器</li>
-            <li>首版原生支持 Antigravity 经典桌面版热切号与重启</li>
+            <li>纯粹合规、轻量原生：仅提供额度查询、账号导入与本地切号，绝不包含反代功能</li>
           </ul>
         </section>
 

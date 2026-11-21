@@ -446,7 +446,7 @@ export const EnvironmentPage: React.FC = () => {
                 type="text"
                 value={pathInput}
                 onChange={(e) => setPathInput(e.target.value)}
-                placeholder="粘贴项目路径回车导入，如 F:\CodeProject\CodeTool"
+                placeholder="粘贴项目路径回车导入，如 D:\Projects\Graviton"
                 className="w-64 rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
               />
             </form>

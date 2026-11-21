@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"codetool/internal/cred"
+	"graviton/internal/cred"
 )
 
 // SwitchResult contains the outcome of an account switch.

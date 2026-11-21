@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	TargetPrefixCodeTool   = "CodeTool/Antigravity/"
-	TargetGeminiAntigravity = "gemini:antigravity"
-	DefaultUserName        = "antigravity"
+	TargetPrefixGraviton       = "Graviton/Antigravity/"
+	LegacyTargetPrefixCodeTool = "CodeTool/Antigravity/"
+	TargetGeminiAntigravity    = "gemini:antigravity"
+	DefaultUserName            = "antigravity"
 )
 
 // ErrNotFound indicates the credential was not found.
@@ -37,9 +38,14 @@ type CredentialPayload struct {
 	OAuthClientKey string    `json:"oauth_client_key,omitempty"`
 }
 
-// BuildCodeToolTarget returns the target string for a CodeTool managed account.
-func BuildCodeToolTarget(accountID string) string {
-	return TargetPrefixCodeTool + accountID
+// BuildAccountTarget returns the target string for a Graviton managed account.
+func BuildAccountTarget(accountID string) string {
+	return TargetPrefixGraviton + accountID
+}
+
+// BuildLegacyCodeToolTarget returns the legacy CodeTool credential target string.
+func BuildLegacyCodeToolTarget(accountID string) string {
+	return LegacyTargetPrefixCodeTool + accountID
 }
 
 // ParseExpiry parses RFC3339 expiry string or returns zero time.
@@ -66,23 +72,40 @@ func (c *CredentialPayload) NeedsRefresh(skew time.Duration) bool {
 	return time.Now().Add(skew).After(t)
 }
 
-// ReadAccountCredential reads the independent credential for a CodeTool account.
+// ReadAccountCredential reads the independent credential for a Graviton account,
+// transparently falling back to legacy CodeTool credentials and migrating on hit.
 func ReadAccountCredential(accountID string) (*CredentialPayload, error) {
-	return ReadCredential(BuildCodeToolTarget(accountID))
+	payload, err := ReadCredential(BuildAccountTarget(accountID))
+	if err == nil || !errors.Is(err, ErrNotFound) {
+		return payload, err
+	}
+	legacyPayload, legacyErr := ReadCredential(BuildLegacyCodeToolTarget(accountID))
+	if legacyErr != nil {
+		return nil, err
+	}
+	// Best-effort copy to new Graviton namespace for future reads
+	_ = WriteAccountCredential(accountID, legacyPayload)
+	return legacyPayload, nil
 }
 
-// WriteAccountCredential writes the independent credential for a CodeTool account.
+// WriteAccountCredential writes the independent credential for a Graviton account.
 func WriteAccountCredential(accountID string, payload *CredentialPayload) error {
 	userName := payload.IDTokenEmail
 	if userName == "" {
 		userName = DefaultUserName
 	}
-	return WriteCredential(BuildCodeToolTarget(accountID), userName, payload)
+	return WriteCredential(BuildAccountTarget(accountID), userName, payload)
 }
 
-// DeleteAccountCredential deletes the independent credential for a CodeTool account.
+// DeleteAccountCredential deletes the independent credential for a Graviton account
+// as well as any legacy CodeTool credential entry.
 func DeleteAccountCredential(accountID string) error {
-	return DeleteCredential(BuildCodeToolTarget(accountID))
+	err := DeleteCredential(BuildAccountTarget(accountID))
+	legacyErr := DeleteCredential(BuildLegacyCodeToolTarget(accountID))
+	if errors.Is(err, ErrNotFound) && legacyErr == nil {
+		return nil
+	}
+	return err
 }
 
 // ReadClientCredential reads the active Antigravity credential (gemini:antigravity).

@@ -1,20 +1,20 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "codetool",
-  "outputfilename": "CodeTool",
+  "name": "graviton",
+  "outputfilename": "Graviton",
   "frontend:install": "pnpm install",
   "frontend:build": "pnpm build",
   "frontend:dev:watcher": "pnpm dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "CodeTool",
-    "email": "dev@codetool.local"
+    "name": "Graviton",
+    "email": "dev@graviton.local"
   },
   "info": {
-    "companyName": "CodeTool",
-    "productName": "CodeTool",
+    "companyName": "Graviton",
+    "productName": "Graviton",
     "productVersion": "0.1.0",
-    "copyright": "Copyright © 2026 CodeTool",
-    "comments": "Antigravity 账号管理、额度监控与本地开发环境工具"
+    "copyright": "Copyright © 2026 Graviton",
+    "comments": "轻量级 Antigravity 多账号管理、额度监控与本地开发环境工具"
   }
 }

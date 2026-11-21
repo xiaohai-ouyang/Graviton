@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>CodeTool · Antigravity 管理器</title>
+    <title>Graviton · Antigravity 轻量管理器</title>
     <script>
       (function() {
         try {
-          var theme = localStorage.getItem('codetool_theme') || 'system';
+          var theme = localStorage.getItem('graviton_theme') || localStorage.getItem('codetool_theme') || 'system';
           var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
           var root = document.documentElement;
           if (isDark) {

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"codetool/internal/appservice"
-	"codetool/internal/storage"
+	"graviton/internal/appservice"
+	"graviton/internal/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

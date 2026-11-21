@@ -105,7 +105,8 @@ func IsAntigravityMainProcess(p ProcessInfo, myPID uint32) bool {
 	path := strings.ToLower(p.ExePath)
 
 	// Exclude self and manager tools
-	if strings.Contains(name, "codetool") || strings.Contains(path, "codetool") {
+	if strings.Contains(name, "graviton") || strings.Contains(path, "graviton") ||
+		strings.Contains(name, "codetool") || strings.Contains(path, "codetool") {
 		return false
 	}
 	if strings.Contains(name, "antigravity-tools") || strings.Contains(path, "antigravity-tools") {

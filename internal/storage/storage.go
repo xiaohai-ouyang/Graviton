@@ -14,7 +14,8 @@ const (
 	CurrentFormatVersion = 1
 	AccountsFileName     = "accounts.toml"
 	SettingsFileName     = "settings.toml"
-	AppDirName           = "CodeTool"
+	AppDirName           = "Graviton"
+	LegacyAppDirName     = "CodeTool"
 )
 
 // QuotaBucket represents a single quota bucket/window (e.g. 5h window or weekly).
@@ -92,21 +93,54 @@ type StorageManager struct {
 }
 
 // NewStorageManager creates a StorageManager using the specified base directory.
-// If baseDir is empty, it defaults to %LOCALAPPDATA%\CodeTool.
+// If baseDir is empty, it defaults to %LOCALAPPDATA%\Graviton and seamlessly migrates
+// any legacy %LOCALAPPDATA%\CodeTool data files if the new directory does not have them yet.
 func NewStorageManager(baseDir string) (*StorageManager, error) {
+	migrateFromLegacy := false
+	legacyDir := ""
 	if baseDir == "" {
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData == "" {
 			return nil, errors.New("LOCALAPPDATA environment variable is empty")
 		}
 		baseDir = filepath.Join(localAppData, AppDirName)
+		legacyDir = filepath.Join(localAppData, LegacyAppDirName)
+		migrateFromLegacy = true
 	}
 
 	if err := os.MkdirAll(baseDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory %s: %w", baseDir, err)
 	}
 
-	return &StorageManager{baseDir: baseDir}, nil
+	sm := &StorageManager{baseDir: baseDir}
+	if migrateFromLegacy {
+		sm.migrateLegacyFiles(legacyDir)
+	}
+
+	return sm, nil
+}
+
+// migrateLegacyFiles copies core TOML data files from legacy %LOCALAPPDATA%\CodeTool
+// into %LOCALAPPDATA%\Graviton without overwriting existing files in the target directory.
+func (sm *StorageManager) migrateLegacyFiles(legacyDir string) {
+	if legacyDir == "" || legacyDir == sm.baseDir {
+		return
+	}
+	if _, err := os.Stat(legacyDir); err != nil {
+		return
+	}
+	for _, name := range []string{AccountsFileName, SettingsFileName, ProjectsFileName} {
+		dst := filepath.Join(sm.baseDir, name)
+		if _, err := os.Stat(dst); err == nil {
+			continue
+		}
+		src := filepath.Join(legacyDir, name)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			continue
+		}
+		_ = sm.atomicWrite(dst, data)
+	}
 }
 
 // BaseDir returns the root storage directory.

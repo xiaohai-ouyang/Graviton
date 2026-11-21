@@ -1,11 +1,13 @@
-# CodeTool · Antigravity 多账号管理与额度监控工具
+# Graviton · 轻量级 Antigravity 额度查询与多账号管理工具
 
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Wails v2](https://img.shields.io/badge/Wails-v2.17+-DF1A29?style=flat)](https://wails.io/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react)](https://react.dev/)
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC_BY--NC--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-CodeTool 是一款专为 Windows 桌面打造的 Antigravity 账号管理与额度监控工具。用户可以一键收录本机已登录的 Antigravity 账号，在多个账号之间无缝切换，并分别查看各模型组及计费窗口的剩余额度与重置时间。
+**Graviton** 是一款专为 Windows 桌面打造的**轻量、纯粹合规**的 Antigravity 额度查询与多账号管理工具（同时内置轻量本地开发环境托管与桌面悬浮窗）。你可以一键收录本机已登录账号、通过 OAuth 或 Refresh Token 导入账号、无缝热切换客户端账号，并实时监控各模型组及计费窗口的剩余额度与重置时间。
+
+> **定位说明**：与 [Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 相比，Graviton **严格不包含任何反向代理（反代）功能**（遵守 Antigravity 使用规范），专注本地账号切换、导入与配额查询，并基于 Go + Wails 原生架构实现更低的体积与内存占用。
 
 ---
 
@@ -26,14 +28,14 @@ CodeTool 是一款专为 Windows 桌面打造的 Antigravity 账号管理与额�
 
 ## 2. 数据存储位置
 
-- **数据根目录**：`%LOCALAPPDATA%\CodeTool`
-- **账号列表文件**：`%LOCALAPPDATA%\CodeTool\accounts.toml`
+- **数据根目录**：`%LOCALAPPDATA%\Graviton`（首次启动会自动兼容迁移旧版 `%LOCALAPPDATA%\CodeTool` 数据文件）
+- **账号列表文件**：`%LOCALAPPDATA%\Graviton\accounts.toml`
   - 保存格式版本（`format_version`）、账号 ID、邮箱、显示名称、创建时间、最近切换记录以及最新额度快照（分组窗口、模型列表、总剩余比例、重置时间）。
   - 账号严格按照收录顺序展示。
-- **设置文件**：`%LOCALAPPDATA%\CodeTool\settings.toml`
-  - 保存客户端自定义覆盖路径（`client_path`）等配置。
+- **设置文件**：`%LOCALAPPDATA%\Graviton\settings.toml`
+  - 保存客户端自定义覆盖路径（`client_path`）、悬浮窗与可选 AI 助手配置。
 - **系统凭据库**：
-  - 各收录账号独立凭据：`CodeTool/Antigravity/<account-id>`
+  - 各收录账号独立凭据：`Graviton/Antigravity/<account-id>`（自动兼容读取并迁移旧版 `CodeTool/Antigravity/<account-id>`）
   - 现代客户端（≥ 2.0.0）当前激活凭据：`gemini:antigravity`
 - **旧版客户端本地数据库**：
   - `%APPDATA%\Antigravity\User\globalStorage\state.vscdb`
@@ -118,8 +120,8 @@ cd ..
 ```
 
 归档产物位于 `dist\v<版本>\`：
-- Windows 安装程序：`dist\v<版本>\CodeTool-v<版本>-windows-amd64-installer.exe`
-- 便携可执行文件：`dist\v<版本>\CodeTool-v<版本>-windows-amd64-portable.exe`
+- Windows 安装程序：`dist\v<版本>\Graviton-v<版本>-windows-amd64-installer.exe`
+- 便携可执行文件：`dist\v<版本>\Graviton-v<版本>-windows-amd64-portable.exe`
 - 完整性校验文件：`dist\v<版本>\SHA256SUMS.txt`
 
 ---
@@ -127,7 +129,7 @@ cd ..
 ## 6. 版本规范、更新日志与发包流程
 
 ### 6.1 版本号语义（SemVer 双通道）
-CodeTool 采用 **正式版（`X.Y.Z`）+ 候选版（`X.Y.Z-rc.N`）** 双通道语义化版本规范：
+Graviton 采用 **正式版（`X.Y.Z`）+ 候选版（`X.Y.Z-rc.N`）** 双通道语义化版本规范：
 
 | 格式示例 | 含义与适用场景 |
 | --- | --- |

@@ -60,7 +60,7 @@ type ChangelogFile struct {
 	Releases []ChangelogRelease `json:"releases"`
 }
 
-// ParseVersion validates a CodeTool SemVer string (X.Y.Z or X.Y.Z-rc.N)
+// ParseVersion validates a Graviton SemVer string (X.Y.Z or X.Y.Z-rc.N)
 // and returns the 3-part Windows numeric version and release channel.
 func ParseVersion(v string) (numeric string, channel string, err error) {
 	trimmed := strings.TrimSpace(v)

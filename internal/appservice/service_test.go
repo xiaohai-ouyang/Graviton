@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"codetool/internal/cred"
-	"codetool/internal/quota"
-	"codetool/internal/storage"
+	"graviton/internal/cred"
+	"graviton/internal/quota"
+	"graviton/internal/storage"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

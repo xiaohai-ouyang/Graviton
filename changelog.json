@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "version": "0.1.0-rc.2",
+      "date": "2026-11-21",
+      "title": "正式更名为 Graviton",
+      "summary": "项目正式定名为 Graviton：轻量、纯粹合规的 Antigravity 额度查询、账号导入与多账号热切工具（严格不含反代功能），并内置旧版数据与凭据无损迁移。",
+      "changes": [
+        {
+          "type": "change",
+          "text": "品牌正式更名为 Graviton：统一更新窗口标题、系统托盘、侧边栏、OAuth 回调页、Windows 安装包及发包产物命名（Graviton-v*.exe）"
+        },
+        {
+          "type": "feat",
+          "text": "无损平滑迁移：启动时自动兼容迁移旧版 %LOCALAPPDATA%\\CodeTool 数据目录、Windows 凭据管理器条目及前端主题/折叠偏好，不丢失已收录账号与项目"
+        },
+        {
+          "type": "change",
+          "text": "明确轻量合规定位：专注 Antigravity 额度查询、多账号导入与热切号及轻量环境托管，绝不含反代功能"
+        }
+      ]
+    },
+    {
       "version": "0.1.0-rc.1",
       "date": "2026-11-21",
       "title": "首个功能完备候选版",

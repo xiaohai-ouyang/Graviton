@@ -3,7 +3,7 @@ package main
 import (
 	_ "embed"
 
-	"codetool/internal/buildinfo"
+	"graviton/internal/buildinfo"
 )
 
 //go:embed VERSION

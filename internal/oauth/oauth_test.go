@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"codetool/internal/cred"
+	"graviton/internal/cred"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

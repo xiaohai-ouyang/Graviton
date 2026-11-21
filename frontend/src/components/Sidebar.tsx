@@ -46,10 +46,10 @@ export const Sidebar: React.FC = () => {
           {!collapsed && (
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-                CodeTool
+                Graviton
               </h1>
               <p className="truncate text-[10px] font-medium text-neutral-500 dark:text-neutral-400">
-                Antigravity 管理器
+                Antigravity 轻量管理
               </p>
             </div>
           )}
@@ -119,7 +119,7 @@ export const Sidebar: React.FC = () => {
           <button
             type="button"
             onClick={openChangelog}
-            title={`CodeTool v${appInfo.version} — 点击查看更新日志`}
+            title={`Graviton v${appInfo.version} — 点击查看更新日志`}
             className={`flex items-center rounded-lg text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100 ${
               collapsed
                 ? 'h-8 w-9 justify-center'

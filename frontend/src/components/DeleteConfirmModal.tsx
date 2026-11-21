@@ -25,7 +25,7 @@ export const DeleteConfirmModal: React.FC = () => {
                 即将删除账号 <strong className="font-semibold text-neutral-800 dark:text-neutral-200">{deletingAccount?.email}</strong> 的收录记录及其独立凭据。
                 <br /><br />
                 <span className="text-neutral-500 dark:text-neutral-400">
-                  注意：此操作作用范围仅为 <strong>CodeTool 本地记录</strong>，绝不会影响 Antigravity 客户端中当前正在使用的登录状态。
+                  注意：此操作作用范围仅为 <strong>Graviton 本地记录</strong>，绝不会影响 Antigravity 客户端中当前正在使用的登录状态。
                 </span>
               </Dialog.Description>
             </div>

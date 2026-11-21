@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"codetool/internal/oauth"
+	"graviton/internal/oauth"
 )
 
 const oauthLoginTimeout = 5 * time.Minute
@@ -147,7 +147,7 @@ func (s *AppService) StartOAuthLogin(onComplete func(OAuthCompletionEvent)) (*OA
 
 		gotState := strings.TrimSpace(q.Get("state"))
 		if gotState != sess.state {
-			writeOAuthCallbackHTML(w, false, "授权校验失败", "OAuth state 不匹配，请返回 CodeTool 重试。")
+			writeOAuthCallbackHTML(w, false, "授权校验失败", "OAuth state 不匹配，请返回 Graviton 重试。")
 			return
 		}
 
@@ -157,7 +157,7 @@ func (s *AppService) StartOAuthLogin(onComplete func(OAuthCompletionEvent)) (*OA
 			return
 		}
 
-		writeOAuthCallbackHTML(w, true, "授权成功", "已收到 Google 授权，正在同步账号信息与配额。您可以关闭此页面返回 CodeTool。")
+		writeOAuthCallbackHTML(w, true, "授权成功", "已收到 Google 授权，正在同步账号信息与配额。您可以关闭此页面返回 Graviton。")
 
 		if sess.markClosed() {
 			s.clearOAuthSession(sess)
@@ -564,7 +564,7 @@ func writeOAuthCallbackHTML(w http.ResponseWriter, success bool, title, detail s
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>%s - CodeTool</title>
+  <title>%s - Graviton</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
     .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 420px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4); }

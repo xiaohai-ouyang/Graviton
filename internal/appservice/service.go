@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"codetool/internal/client"
-	"codetool/internal/cred"
-	"codetool/internal/oauth"
-	"codetool/internal/quota"
-	"codetool/internal/storage"
+	"graviton/internal/client"
+	"graviton/internal/cred"
+	"graviton/internal/oauth"
+	"graviton/internal/quota"
+	"graviton/internal/storage"
 
 	"github.com/google/uuid"
 )

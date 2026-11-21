@@ -12,7 +12,9 @@ interface ThemeState {
 
 function getStoredTheme(): Theme {
   try {
-    const saved = localStorage.getItem('codetool_theme');
+    const saved =
+      localStorage.getItem('graviton_theme') ||
+      localStorage.getItem('codetool_theme');
     if (saved === 'system' || saved === 'light' || saved === 'dark') {
       return saved;
     }
@@ -50,7 +52,7 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     resolvedTheme: initialResolved,
     setTheme: (theme: Theme) => {
       try {
-        localStorage.setItem('codetool_theme', theme);
+        localStorage.setItem('graviton_theme', theme);
       } catch {
         // Ignored
       }
