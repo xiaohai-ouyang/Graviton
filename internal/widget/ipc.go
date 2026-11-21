@@ -28,6 +28,7 @@ type StateSnapshot struct {
 	LastUpdated       string                      `json:"lastUpdated"`
 	WidgetLocked      bool                        `json:"widgetLocked"`
 	WidgetAlwaysOnTop bool                        `json:"widgetAlwaysOnTop"`
+	ResetTimeFormat   string                      `json:"resetTimeFormat,omitempty"`
 }
 
 // Handlers defines callbacks invoked by the local IPC server on behalf of the widget.

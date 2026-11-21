@@ -43,6 +43,7 @@ type App struct {
 
 	mu                sync.Mutex
 	theme             string
+	resetTimeFormat   string
 	widgetLocked      bool
 	widgetAlwaysOnTop bool
 	refreshingAll     bool
@@ -61,12 +62,16 @@ func NewApp() *App {
 	}
 	svc := appservice.NewAppService(sm, nil)
 	theme := "light"
+	resetTimeFormat := "countdown"
 	widgetLocked := false
 	widgetAlwaysOnTop := false
 	if sm != nil {
 		if sf, _, err := sm.LoadSettings(); err == nil {
 			if sf.Theme != "" {
 				theme = sf.Theme
+			}
+			if sf.ResetTimeFormat == "countdown" || sf.ResetTimeFormat == "absolute" {
+				resetTimeFormat = sf.ResetTimeFormat
 			}
 			widgetLocked = sf.WidgetLocked
 			widgetAlwaysOnTop = sf.WidgetAlwaysOnTop
@@ -76,6 +81,7 @@ func NewApp() *App {
 		service:           svc,
 		storageMgr:        sm,
 		theme:             theme,
+		resetTimeFormat:   resetTimeFormat,
 		widgetLocked:      widgetLocked,
 		widgetAlwaysOnTop: widgetAlwaysOnTop,
 		refreshingIDs:     make(map[string]bool),
@@ -384,6 +390,26 @@ func (a *App) SyncTheme(theme string) {
 	}
 }
 
+// SyncResetTimeFormat updates the reset time display format ("countdown" or "absolute") and syncs it to the widget.
+func (a *App) SyncResetTimeFormat(format string) {
+	if format != "countdown" && format != "absolute" {
+		return
+	}
+	a.mu.Lock()
+	a.resetTimeFormat = format
+	a.mu.Unlock()
+
+	if a.storageMgr != nil {
+		if sf, _, err := a.storageMgr.LoadSettings(); err == nil {
+			sf.ResetTimeFormat = format
+			_ = a.storageMgr.SaveSettings(sf)
+		}
+	}
+	if a.widgetMgr != nil {
+		a.widgetMgr.BroadcastState()
+	}
+}
+
 func (a *App) setWidgetEnabledSetting(enabled bool) {
 	if a.storageMgr == nil {
 		return
@@ -440,6 +466,11 @@ func (a *App) buildStateSnapshot() widget.StateSnapshot {
 		swIDs[k] = v
 	}
 
+	resetFormat := a.resetTimeFormat
+	if resetFormat == "" {
+		resetFormat = "countdown"
+	}
+
 	return widget.StateSnapshot{
 		Accounts:          accounts,
 		Theme:             a.theme,
@@ -449,6 +480,7 @@ func (a *App) buildStateSnapshot() widget.StateSnapshot {
 		LastUpdated:       a.lastUpdated,
 		WidgetLocked:      a.widgetLocked,
 		WidgetAlwaysOnTop: a.widgetAlwaysOnTop,
+		ResetTimeFormat:   resetFormat,
 	}
 }
 

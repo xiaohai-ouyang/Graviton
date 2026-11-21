@@ -190,6 +190,10 @@ export function SwitchAccount(arg1) {
   return window['go']['main']['App']['SwitchAccount'](arg1);
 }
 
+export function SyncResetTimeFormat(arg1) {
+  return window['go']['main']['App']['SyncResetTimeFormat'](arg1);
+}
+
 export function SyncTheme(arg1) {
   return window['go']['main']['App']['SyncTheme'](arg1);
 }

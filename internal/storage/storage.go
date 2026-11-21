@@ -82,6 +82,7 @@ type SettingsFile struct {
 	WidgetLocked      bool   `toml:"widget_locked,omitempty"`
 	WidgetAlwaysOnTop bool   `toml:"widget_always_on_top,omitempty"`
 	Theme             string `toml:"theme,omitempty"`
+	ResetTimeFormat   string `toml:"reset_time_format,omitempty"`
 	AIEnabled         bool   `toml:"ai_enabled,omitempty"`
 	AIBaseURL         string `toml:"ai_base_url,omitempty"`
 	AIModel           string `toml:"ai_model,omitempty"`

@@ -102,6 +102,8 @@ export function StopCommand(arg1:string):Promise<void>;
 
 export function SwitchAccount(arg1:string):Promise<client.SwitchResult>;
 
+export function SyncResetTimeFormat(arg1:string):Promise<void>;
+
 export function SyncTheme(arg1:string):Promise<void>;
 
 export function TestAIConfig(arg1:envmgr.AIConfig):Promise<void>;

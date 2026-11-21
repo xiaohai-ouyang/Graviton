@@ -54,3 +54,30 @@ func TestRefreshAllQuotas_RejectsConcurrentRefresh(t *testing.T) {
 	assert.True(t, app.refreshingAll)
 	app.mu.Unlock()
 }
+
+func TestSyncResetTimeFormat_PersistsAndValidates(t *testing.T) {
+	app := newTestApp(t)
+
+	// Default snapshot should fall back to "countdown"
+	assert.Equal(t, "countdown", app.buildStateSnapshot().ResetTimeFormat)
+
+	app.SyncResetTimeFormat("absolute")
+	assert.Equal(t, "absolute", app.buildStateSnapshot().ResetTimeFormat)
+
+	sf, _, err := app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "absolute", sf.ResetTimeFormat)
+
+	// Invalid values are ignored without mutating state or stored config
+	app.SyncResetTimeFormat("invalid")
+	assert.Equal(t, "absolute", app.buildStateSnapshot().ResetTimeFormat)
+	sf, _, err = app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "absolute", sf.ResetTimeFormat)
+
+	app.SyncResetTimeFormat("countdown")
+	assert.Equal(t, "countdown", app.buildStateSnapshot().ResetTimeFormat)
+	sf, _, err = app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, "countdown", sf.ResetTimeFormat)
+}
