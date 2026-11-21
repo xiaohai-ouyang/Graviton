@@ -9,6 +9,20 @@
 
 > **定位说明**：与 [Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 相比，Graviton **严格不包含任何反向代理（反代）功能**（遵守 Antigravity 使用规范），专注本地账号切换、导入与配额查询，并基于 Go + Wails 原生架构实现更低的体积与内存占用。
 
+### 下载与版本渠道说明
+
+请前往 GitHub **Releases** 页面下载对应版本：
+
+| 渠道 | GitHub 标签 | 版本号格式 | 适用人群与特征 |
+| --- | --- | --- | --- |
+| **正式版（Stable）** | `Latest` | `vX.Y.Z`（如 `v0.1.0`） | 推荐大多数用户日常稳定使用；应用窗口标题为 `Graviton` |
+| **候选测试版（RC）** | `Pre-release` | `vX.Y.Z-rc.N`（如 `v0.1.0-rc.3`） | 正式发布前的功能冻结验收版，适合提前体验与反馈；窗口标题带 `(RC)` 标识，侧边栏与设置页显示 `RC 候选版` 徽章 |
+
+每个版本均同时提供：
+- `Graviton-v<版本>-windows-amd64-installer.exe`：标准 Windows 安装包（自动检测 WebView2 运行时并创建快捷方式）
+- `Graviton-v<版本>-windows-amd64-portable.exe`：免安装单文件便携版（开箱即用）
+- `SHA256SUMS.txt`：可执行文件 SHA-256 校验和
+
 ---
 
 ## 1. 技术栈与架构设计

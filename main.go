@@ -70,10 +70,11 @@ func main() {
 
 	// Create an instance of the app structure
 	app := NewApp()
+	windowTitle := app.GetAppInfo().WindowTitle("Graviton")
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:             "Graviton",
+		Title:             windowTitle,
 		Width:             1000,
 		Height:            720,
 		MinWidth:          760,

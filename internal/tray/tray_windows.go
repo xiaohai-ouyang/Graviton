@@ -115,6 +115,7 @@ type notifyIconDataW struct {
 
 // Callbacks defines actions triggered from the Windows system tray.
 type Callbacks struct {
+	Tooltip        string
 	OnShowMain     func()
 	OnToggleWidget func()
 	OnRefreshAll   func()
@@ -244,7 +245,11 @@ func (t *Tray) run() {
 			uCallbackMessage: wmTrayIcon,
 			hIcon:            hIcon,
 		}
-		tipUTF16, _ := windows.UTF16FromString("Graviton - Antigravity 额度管理")
+		tooltip := t.cb.Tooltip
+		if tooltip == "" {
+			tooltip = "Graviton - Antigravity 额度管理"
+		}
+		tipUTF16, _ := windows.UTF16FromString(tooltip)
 		copy(nid.szTip[:], tipUTF16)
 		_, _, _ = procShellNotifyIconW.Call(nimAdd, uintptr(unsafe.Pointer(&nid)))
 	}

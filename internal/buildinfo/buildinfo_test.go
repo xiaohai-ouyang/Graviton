@@ -72,6 +72,20 @@ func TestCurrent(t *testing.T) {
 	assert.Equal(t, ChannelStable, info.Channel)
 }
 
+func TestAppInfoWindowTitleAndTrayTooltip(t *testing.T) {
+	stable := AppInfo{Version: "0.1.0", Channel: ChannelStable}
+	assert.Equal(t, "Graviton", stable.WindowTitle("Graviton"))
+	assert.Equal(t, "Graviton - Antigravity 额度管理", stable.TrayTooltip("Graviton"))
+
+	rc := AppInfo{Version: "0.1.0-rc.3", Channel: ChannelRC}
+	assert.Equal(t, "Graviton v0.1.0-rc.3 (RC)", rc.WindowTitle("Graviton"))
+	assert.Equal(t, "Graviton v0.1.0-rc.3 (RC) - Antigravity 额度管理", rc.TrayTooltip("Graviton"))
+
+	dev := AppInfo{Version: "0.1.0-rc.3", Channel: ChannelDev}
+	assert.Equal(t, "Graviton (Dev)", dev.WindowTitle("Graviton"))
+	assert.Equal(t, "Graviton (Dev) - Antigravity 额度管理", dev.TrayTooltip("Graviton"))
+}
+
 func TestRepoVersionAndChangelogInSync(t *testing.T) {
 	root := filepath.Join("..", "..")
 

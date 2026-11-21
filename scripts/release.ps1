@@ -362,6 +362,40 @@ foreach ($artifactName in @($InstallerName, $PortableName)) {
 $ChecksumsPath = Join-Path $DistDir "SHA256SUMS.txt"
 Write-Utf8NoBom $ChecksumsPath (($ChecksumLines -join "`n") + "`n")
 
+# Generate formatted GitHub Release notes (with clear Pre-release notice for RC builds)
+$ReleaseNotesLines = New-Object System.Collections.Generic.List[string]
+if ($Channel -eq "rc") {
+    $ReleaseNotesLines.Add("> [!NOTE]")
+    $ReleaseNotesLines.Add('> 当前版本为 **RC 发布候选版（Pre-release）**，用于正式版发布前的提前体验与验收测试。如追求长期稳定使用，请优先下载标记为 `Latest` 的正式版。')
+    $ReleaseNotesLines.Add("")
+}
+if ($null -ne $TargetRelease.title -and -not [string]::IsNullOrWhiteSpace([string]$TargetRelease.title)) {
+    $ReleaseNotesLines.Add("## $($TargetRelease.title)")
+    $ReleaseNotesLines.Add("")
+}
+if ($null -ne $TargetRelease.summary -and -not [string]::IsNullOrWhiteSpace([string]$TargetRelease.summary)) {
+    $ReleaseNotesLines.Add(([string]$TargetRelease.summary).Trim())
+    $ReleaseNotesLines.Add("")
+}
+foreach ($t in $TypeHeaders.Keys) {
+    $items = @($TargetRelease.changes | Where-Object { ([string]$_.type).Trim() -eq $t })
+    if ($items.Count -gt 0) {
+        $ReleaseNotesLines.Add("### $($TypeHeaders[$t])")
+        $ReleaseNotesLines.Add("")
+        foreach ($item in $items) {
+            $ReleaseNotesLines.Add("- $(([string]$item.text).Trim())")
+        }
+        $ReleaseNotesLines.Add("")
+    }
+}
+$ReleaseNotesLines.Add("### 下载说明")
+$ReleaseNotesLines.Add("")
+$ReleaseNotesLines.Add("- **标准安装包（推荐）**：``$InstallerName``（自动检测 WebView2 并创建快捷方式）")
+$ReleaseNotesLines.Add("- **免安装便携版**：``$PortableName``（单文件直接运行，无需安装）")
+$ReleaseNotesLines.Add('- **校验文件**：`SHA256SUMS.txt`（可通过 `Get-FileHash <文件名> -Algorithm SHA256` 校验完整性）')
+$ReleaseNotesPath = Join-Path $DistDir "RELEASE_NOTES.md"
+Write-Utf8NoBom $ReleaseNotesPath (($ReleaseNotesLines -join "`n").TrimEnd() + "`n")
+
 # 10. Create annotated Git tag (no auto-push)
 if (-not $NoGit) {
     Write-Step "Creating annotated Git tag $TagName"

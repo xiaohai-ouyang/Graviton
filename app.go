@@ -139,6 +139,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.trayIcon = tray.Start(tray.Callbacks{
+		Tooltip:    a.GetAppInfo().TrayTooltip("Graviton"),
 		OnShowMain: a.ShowMainWindow,
 		OnToggleWidget: func() {
 			_, _ = a.ToggleWidget()

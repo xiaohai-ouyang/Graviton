@@ -104,6 +104,31 @@ func Current(embeddedVersion string) AppInfo {
 	}
 }
 
+// WindowTitle returns the main window title reflecting the release channel.
+// Stable builds show the clean appName; RC/dev builds include a clear channel indicator.
+func (a AppInfo) WindowTitle(appName string) string {
+	switch a.Channel {
+	case ChannelRC:
+		return fmt.Sprintf("%s v%s (RC)", appName, a.Version)
+	case ChannelDev:
+		return fmt.Sprintf("%s (Dev)", appName)
+	default:
+		return appName
+	}
+}
+
+// TrayTooltip returns the Windows system tray hover tooltip reflecting the release channel.
+func (a AppInfo) TrayTooltip(appName string) string {
+	switch a.Channel {
+	case ChannelRC:
+		return fmt.Sprintf("%s v%s (RC) - Antigravity 额度管理", appName, a.Version)
+	case ChannelDev:
+		return fmt.Sprintf("%s (Dev) - Antigravity 额度管理", appName)
+	default:
+		return fmt.Sprintf("%s - Antigravity 额度管理", appName)
+	}
+}
+
 // ParseChangelog parses and validates changelog.json bytes into typed release entries.
 func ParseChangelog(raw []byte) ([]ChangelogRelease, error) {
 	var cf ChangelogFile
