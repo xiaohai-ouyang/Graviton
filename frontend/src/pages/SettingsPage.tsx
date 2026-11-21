@@ -15,10 +15,14 @@ import {
   Palette,
   Shield,
   Sparkles,
+  WandSparkles,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useEnvStore } from '../store/useEnvStore';
+import { useMotionStore } from '../store/useMotionStore';
+import { MotionToggle } from '../components/MotionToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
 import {
   ChangeItemRow,
@@ -38,6 +42,7 @@ export const SettingsPage: React.FC = () => {
 
   const { aiConfig, loadAIConfig, saveAIConfig, testAIConfig } = useEnvStore();
   const { appInfo, changelog, loadAppInfo, openChangelog } = useAppInfoStore();
+  const { motionMode, shouldAnimate, autoReason } = useMotionStore();
   const [aiForm, setAiForm] = useState<AIConfig>({
     enabled: false,
     baseUrl: 'https://api.openai.com/v1',
@@ -135,6 +140,27 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
             <ThemeToggle />
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                <WandSparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  过渡动效
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {motionMode === 'auto'
+                    ? autoReason
+                    : motionMode === 'full'
+                    ? '已开启页面切换、列表展开收缩与排序过渡效果'
+                    : '已关闭界面过渡效果，采用零延迟即时响应'}
+                </p>
+              </div>
+            </div>
+            <MotionToggle />
           </div>
         </section>
 
@@ -449,23 +475,38 @@ export const SettingsPage: React.FC = () => {
                       </div>
                     </button>
 
-                    {isExpanded && (
-                      <div className="border-t border-neutral-200/70 px-3.5 py-3 dark:border-neutral-800">
-                        {release.summary && (
-                          <p className="mb-2.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
-                            {release.summary}
-                          </p>
-                        )}
-                        <ul className="space-y-1.5">
-                          {release.changes.map((c, idx) => (
-                            <ChangeItemRow
-                              key={`${release.version}-settings-${idx}`}
-                              change={c}
-                            />
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="content"
+                          initial={shouldAnimate ? { height: 0, opacity: 0 } : false}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={shouldAnimate ? { height: 0, opacity: 0 } : { opacity: 0 }}
+                          transition={
+                            shouldAnimate
+                              ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                              : { duration: 0 }
+                          }
+                          className="overflow-hidden"
+                        >
+                          <div className="border-t border-neutral-200/70 px-3.5 py-3 dark:border-neutral-800">
+                            {release.summary && (
+                              <p className="mb-2.5 text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+                                {release.summary}
+                              </p>
+                            )}
+                            <ul className="space-y-1.5">
+                              {release.changes.map((c, idx) => (
+                                <ChangeItemRow
+                                  key={`${release.version}-settings-${idx}`}
+                                  change={c}
+                                />
+                              ))}
+                            </ul>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 );
               })}

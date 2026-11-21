@@ -115,3 +115,14 @@ html.widget-mode body {
   background-color: transparent !important;
   overflow: hidden;
 }
+
+html.motion-off *,
+html.motion-off *::before,
+html.motion-off *::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+}
+
+html.motion-off .animate-spin {
+  animation-duration: 1s !important;
+}
