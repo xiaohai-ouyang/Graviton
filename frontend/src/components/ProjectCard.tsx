@@ -21,8 +21,10 @@ import {
   Trash2,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { useEnvStore } from '../store/useEnvStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { ProcessState, ProjectCommand, ProjectRecord } from '../types';
+import { SHELL_META, normalizeDefaultShell, normalizeShellOverride } from '../utils/shell';
 
 export interface ProjectCardProps {
   project: ProjectRecord;
@@ -108,6 +110,9 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
   };
 
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const defaultShell = normalizeDefaultShell(
+    useEnvStore((s) => s.shellEnv?.config.defaultShell)
+  );
   const canAnimate = shouldAnimate && !isDragging;
 
   const coreCommands = project.commands.filter((c) => c.pinned);
@@ -123,6 +128,11 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
     const state = processStates[cmd.id];
     const isRunning = state?.status === 'running';
     const isSelected = activeCommandId === cmd.id;
+    const shellOverride = normalizeShellOverride(cmd.shell);
+    const overrideMeta =
+      shellOverride !== '' && shellOverride !== defaultShell
+        ? SHELL_META[shellOverride]
+        : null;
 
     return (
       <div
@@ -140,6 +150,13 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
               <span className="truncate text-xs font-medium text-neutral-900 dark:text-neutral-100">
                 {cmd.name}
               </span>
+              {overrideMeta && (
+                <span
+                  className={`shrink-0 rounded px-1 py-0.2 font-mono text-[10px] font-medium ${overrideMeta.badgeClass}`}
+                >
+                  {overrideMeta.shortLabel}
+                </span>
+              )}
               {cmd.cwd && (
                 <span className="shrink-0 rounded bg-neutral-200/80 px-1 py-0.2 font-mono text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
                   {cmd.cwd}
@@ -152,7 +169,7 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
               side="top"
               align="start"
               sideOffset={6}
-              className="z-50 max-w-xs break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              className="z-50 max-w-xs whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
             >
               {cmd.command}
             </Tooltip.Content>

@@ -14,6 +14,11 @@ import {
 import { useEnvStore } from '../store/useEnvStore';
 import { useAccountStore } from '../store/useAccountStore';
 import { LogEntry, ProcessState, ProjectCommand, ProjectRecord } from '../types';
+import {
+  SHELL_META,
+  normalizeDefaultShell,
+  resolveEffectiveShell,
+} from '../utils/shell';
 
 // Progressive label-collapse thresholds based on TerminalPane's own width,
 // with hysteresis bands so dragging the split divider never flickers.
@@ -149,6 +154,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
     activeLogTarget,
     logsByCmd,
     processStates,
+    shellEnv,
     startCommand,
     stopCommand,
     restartCommand,
@@ -238,6 +244,18 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
   const procState = command ? processStates[command.id] : undefined;
   const isRunning = procState?.status === 'running';
   const badge = getStatusBadge(procState);
+  const defaultShell = normalizeDefaultShell(shellEnv?.config.defaultShell);
+  const effectiveShell = resolveEffectiveShell(command?.shell, defaultShell);
+  const shellMeta = SHELL_META[effectiveShell];
+  const commandLines = useMemo(
+    () => (command ? command.command.split(/\r?\n/) : []),
+    [command]
+  );
+  const commandPreview = command
+    ? commandLines.length > 1
+      ? `${commandLines[0]} … (+${commandLines.length - 1} 行)`
+      : command.command
+    : '';
 
   useEffect(() => {
     setAutoScroll(true);
@@ -319,11 +337,30 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
             </span>
           </div>
 
-          <div className="mt-1 flex items-center gap-2 font-mono text-xs text-neutral-500 dark:text-neutral-400">
-            <span className="truncate">
-              $ {command.command}
-              {command.cwd ? `  (in ${command.cwd})` : ''}
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">
+            <span
+              className={`shrink-0 rounded px-1 py-0.2 text-[10px] font-medium ${shellMeta.badgeClass}`}
+            >
+              {shellMeta.shortLabel}
             </span>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className="truncate">
+                  {shellMeta.prompt} {commandPreview}
+                  {command.cwd ? `  (in ${command.cwd})` : ''}
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Portal>
+                <Tooltip.Content
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  className="z-50 max-w-md whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                >
+                  {command.command}
+                </Tooltip.Content>
+              </Tooltip.Portal>
+            </Tooltip.Root>
           </div>
         </div>
 

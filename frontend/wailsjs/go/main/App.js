@@ -66,6 +66,10 @@ export function GetScreenWorkArea() {
   return window['go']['main']['App']['GetScreenWorkArea']();
 }
 
+export function GetShellEnvironment() {
+  return window['go']['main']['App']['GetShellEnvironment']();
+}
+
 export function GetWidgetAlwaysOnTop() {
   return window['go']['main']['App']['GetWidgetAlwaysOnTop']();
 }
@@ -138,6 +142,10 @@ export function RescanProject(arg1) {
   return window['go']['main']['App']['RescanProject'](arg1);
 }
 
+export function ResetGitBashPath() {
+  return window['go']['main']['App']['ResetGitBashPath']();
+}
+
 export function RestartCommand(arg1, arg2) {
   return window['go']['main']['App']['RestartCommand'](arg1, arg2);
 }
@@ -150,12 +158,20 @@ export function SaveProjectCommand(arg1, arg2) {
   return window['go']['main']['App']['SaveProjectCommand'](arg1, arg2);
 }
 
+export function SaveShellConfig(arg1) {
+  return window['go']['main']['App']['SaveShellConfig'](arg1);
+}
+
 export function SelectAndImportProject() {
   return window['go']['main']['App']['SelectAndImportProject']();
 }
 
 export function SelectClientPath() {
   return window['go']['main']['App']['SelectClientPath']();
+}
+
+export function SelectGitBashPath() {
+  return window['go']['main']['App']['SelectGitBashPath']();
 }
 
 export function SetWidgetAlwaysOnTop(arg1) {

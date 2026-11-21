@@ -40,6 +40,8 @@ export function GetProcessStates():Promise<Record<string, envmgr.ProcessState>>;
 
 export function GetScreenWorkArea():Promise<widget.WorkArea>;
 
+export function GetShellEnvironment():Promise<envmgr.ShellEnvironmentInfo>;
+
 export function GetWidgetAlwaysOnTop():Promise<boolean>;
 
 export function GetWidgetConnection():Promise<main.WidgetConnection>;
@@ -76,15 +78,21 @@ export function ReorderProjects(arg1:Array<string>,arg2:Array<string>):Promise<A
 
 export function RescanProject(arg1:string):Promise<storage.ProjectRecord>;
 
+export function ResetGitBashPath():Promise<envmgr.ShellEnvironmentInfo>;
+
 export function RestartCommand(arg1:string,arg2:string):Promise<void>;
 
 export function SaveAIConfig(arg1:envmgr.AIConfig):Promise<void>;
 
 export function SaveProjectCommand(arg1:string,arg2:storage.ProjectCommand):Promise<storage.ProjectRecord>;
 
+export function SaveShellConfig(arg1:envmgr.ShellConfig):Promise<envmgr.ShellEnvironmentInfo>;
+
 export function SelectAndImportProject():Promise<storage.ProjectRecord>;
 
 export function SelectClientPath():Promise<string>;
+
+export function SelectGitBashPath():Promise<string>;
 
 export function SetWidgetAlwaysOnTop(arg1:boolean):Promise<void>;
 

@@ -1,7 +1,15 @@
 import { create } from 'zustand';
 import { EventsOn } from '../../wailsjs/runtime/runtime';
 import { api, parseError } from '../services/api';
-import { AIConfig, LogEntry, ProcessState, ProjectCommand, ProjectRecord } from '../types';
+import {
+  AIConfig,
+  LogEntry,
+  ProcessState,
+  ProjectCommand,
+  ProjectRecord,
+  ShellConfig,
+  ShellEnvironmentInfo,
+} from '../types';
 import { useAccountStore } from './useAccountStore';
 
 const notify = (type: 'success' | 'error' | 'info', message: string) => {
@@ -62,6 +70,7 @@ interface EnvState {
   activeLogTarget: { projectId: string; commandId: string } | null;
   aiAnalyzingIds: Record<string, boolean>;
   aiConfig: AIConfig | null;
+  shellEnv: ShellEnvironmentInfo | null;
   collapsedProjects: Record<string, boolean>;
   initialized: boolean;
 
@@ -97,6 +106,11 @@ interface EnvState {
   loadAIConfig: () => Promise<void>;
   saveAIConfig: (cfg: AIConfig) => Promise<boolean>;
   testAIConfig: (cfg: AIConfig) => Promise<boolean>;
+
+  loadShellEnvironment: () => Promise<void>;
+  saveShellConfig: (cfg: ShellConfig) => Promise<boolean>;
+  selectGitBashPath: () => Promise<void>;
+  resetGitBashPath: () => Promise<void>;
 }
 
 export const useEnvStore = create<EnvState>((set, get) => ({
@@ -108,6 +122,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   activeLogTarget: null,
   aiAnalyzingIds: {},
   aiConfig: null,
+  shellEnv: null,
   collapsedProjects: loadCollapsedProjects(),
   initialized: false,
 
@@ -116,6 +131,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       set({ initialized: true });
       void get().loadProjects();
       void get().loadAIConfig();
+      void get().loadShellEnvironment();
       void api.getProcessStates().then((states) => {
         set({ processStates: states });
       });
@@ -535,6 +551,48 @@ export const useEnvStore = create<EnvState>((set, get) => ({
     } catch (e) {
       notify('error', parseError(e).message);
       return false;
+    }
+  },
+
+  loadShellEnvironment: async () => {
+    try {
+      const shellEnv = await api.getShellEnvironment();
+      set({ shellEnv });
+    } catch {
+      // Ignore
+    }
+  },
+
+  saveShellConfig: async (cfg: ShellConfig) => {
+    try {
+      const shellEnv = await api.saveShellConfig(cfg);
+      set({ shellEnv });
+      notify('success', '默认 Shell 配置已保存');
+      return true;
+    } catch (e) {
+      notify('error', parseError(e).message);
+      return false;
+    }
+  },
+
+  selectGitBashPath: async () => {
+    try {
+      const selected = await api.selectGitBashPath();
+      if (!selected) return;
+      await get().loadShellEnvironment();
+      notify('success', 'Git Bash 路径已保存');
+    } catch (e) {
+      notify('error', parseError(e).message);
+    }
+  },
+
+  resetGitBashPath: async () => {
+    try {
+      const shellEnv = await api.resetGitBashPath();
+      set({ shellEnv });
+      notify('info', '已恢复自动探测 Git Bash');
+    } catch (e) {
+      notify('error', parseError(e).message);
     }
   },
 }));

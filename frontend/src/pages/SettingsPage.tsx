@@ -13,8 +13,10 @@ import {
   Loader2,
   MonitorCheck,
   Palette,
+  RotateCcw,
   Shield,
   Sparkles,
+  Terminal,
   WandSparkles,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -30,7 +32,8 @@ import {
   ChangeItemRow,
   CHANNEL_META,
 } from '../components/ChangelogModal';
-import { AIConfig } from '../types';
+import { AIConfig, ShellAvailability } from '../types';
+import { SHELL_META, SHELL_ORDER, normalizeDefaultShell } from '../utils/shell';
 
 export const SettingsPage: React.FC = () => {
   const {
@@ -42,7 +45,17 @@ export const SettingsPage: React.FC = () => {
     setWidgetAlwaysOnTop,
   } = useAccountStore();
 
-  const { aiConfig, loadAIConfig, saveAIConfig, testAIConfig } = useEnvStore();
+  const {
+    aiConfig,
+    loadAIConfig,
+    saveAIConfig,
+    testAIConfig,
+    shellEnv,
+    loadShellEnvironment,
+    saveShellConfig,
+    selectGitBashPath,
+    resetGitBashPath,
+  } = useEnvStore();
   const { appInfo, changelog, loadAppInfo, openChangelog } = useAppInfoStore();
   const { motionMode, shouldAnimate, autoReason } = useMotionStore();
   const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
@@ -55,14 +68,24 @@ export const SettingsPage: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [testingAI, setTestingAI] = useState(false);
   const [savingAI, setSavingAI] = useState(false);
+  const [savingShell, setSavingShell] = useState(false);
   const [expandedReleases, setExpandedReleases] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadClientPath();
     loadWidgetAlwaysOnTop();
     void loadAIConfig();
+    void loadShellEnvironment();
     void loadAppInfo();
-  }, [loadClientPath, loadWidgetAlwaysOnTop, loadAIConfig, loadAppInfo]);
+  }, [loadClientPath, loadWidgetAlwaysOnTop, loadAIConfig, loadShellEnvironment, loadAppInfo]);
+
+  const currentDefaultShell = normalizeDefaultShell(shellEnv?.config.defaultShell);
+  const customGitBashPath = shellEnv?.config.gitBashPath || '';
+  const shellsByKey: Record<string, ShellAvailability> = {};
+  for (const item of shellEnv?.shells || []) {
+    shellsByKey[item.shell] = item;
+  }
+  const gitBashInfo = shellsByKey['gitbash'];
 
   useEffect(() => {
     if (aiConfig) {
@@ -123,6 +146,153 @@ export const SettingsPage: React.FC = () => {
                 <span>浏览...</span>
               </button>
             </div>
+          </div>
+        </section>
+
+        {/* Shell Environment Card */}
+        <section className="rounded-2xl border border-neutral-200/80 bg-card p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
+                <Terminal className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  命令执行环境（Shell）
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Windows 默认优先使用 PowerShell；未单独指定环境的指令（含扫描与 AI 优化指令）均跟随全局默认。
+                </p>
+              </div>
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="默认执行 Shell 切换"
+              className="inline-flex items-center rounded-lg border border-neutral-200 bg-neutral-100/90 p-0.5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/90"
+            >
+              {SHELL_ORDER.map((shellKey) => {
+                const isActive = currentDefaultShell === shellKey;
+                const info = shellsByKey[shellKey];
+                const meta = SHELL_META[shellKey];
+                return (
+                  <button
+                    key={shellKey}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    disabled={savingShell}
+                    title={info?.detail || meta.label}
+                    onClick={async () => {
+                      if (isActive || savingShell) return;
+                      setSavingShell(true);
+                      await saveShellConfig({
+                        defaultShell: shellKey,
+                        gitBashPath: customGitBashPath,
+                      });
+                      setSavingShell(false);
+                    }}
+                    className={`relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ${
+                      isActive
+                        ? 'font-semibold text-neutral-900 dark:text-neutral-50'
+                        : 'font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.span
+                        layoutId={shouldAnimate ? 'default-shell-active-pill' : undefined}
+                        transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                        className="absolute inset-0 rounded-md bg-card shadow-2xs dark:bg-neutral-800"
+                      />
+                    )}
+                    <span className="relative z-10 inline-flex items-center gap-1.5">
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          info?.available ?? true
+                            ? 'bg-emerald-500 dark:bg-emerald-400'
+                            : 'bg-amber-500 dark:bg-amber-400'
+                        }`}
+                      />
+                      <span>{meta.label}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {shellEnv?.shells && shellEnv.shells.length > 0 && (
+            <div className="mt-3.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {shellEnv.shells.map((item) => (
+                <div
+                  key={item.shell}
+                  className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-800/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        item.available
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                          : 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                      }`}
+                    >
+                      {item.available ? '可用' : '未就绪'}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-neutral-500 dark:text-neutral-400" title={item.path || item.detail}>
+                    {item.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-800">
+            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              Git Bash 可执行文件路径（bash.exe，可选）
+            </label>
+            <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+              默认自动探测本机 Git for Windows 安装路径与 PATH（自动排除 WSL System32\bash.exe）；若安装在非标准位置可在此指定。
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={
+                  customGitBashPath ||
+                  (gitBashInfo?.available && gitBashInfo.path
+                    ? `自动探测 (${gitBashInfo.path})`
+                    : '自动探测 (未检测到可用的 Git Bash)')
+                }
+                className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-800 focus:outline-hidden dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+              />
+              <button
+                type="button"
+                onClick={() => void selectGitBashPath()}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                <span>浏览...</span>
+              </button>
+              {customGitBashPath && (
+                <button
+                  type="button"
+                  onClick={() => void resetGitBashPath()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3 py-2 text-xs font-medium text-neutral-600 shadow-xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>恢复自动</span>
+                </button>
+              )}
+            </div>
+            {gitBashInfo && !gitBashInfo.available && (
+              <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                当前状态：{gitBashInfo.detail}。如需执行 Git Bash 指令，请安装 Git for Windows 或手动选择 Git\bin\bash.exe。
+              </p>
+            )}
           </div>
         </section>
 

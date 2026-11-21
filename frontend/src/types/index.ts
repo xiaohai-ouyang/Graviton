@@ -24,6 +24,9 @@ export type ProjectRecord = storage.ProjectRecord;
 export type ProjectCommand = storage.ProjectCommand;
 export type LogEntry = envmgr.LogEntry;
 export type AIConfig = envmgr.AIConfig;
+export type ShellConfig = envmgr.ShellConfig;
+export type ShellAvailability = envmgr.ShellAvailability;
+export type ShellEnvironmentInfo = envmgr.ShellEnvironmentInfo;
 
 export interface ProcessState {
   projectId: string;

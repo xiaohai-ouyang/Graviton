@@ -11,6 +11,8 @@ import {
   ProcessState,
   ProjectCommand,
   ProjectRecord,
+  ShellConfig,
+  ShellEnvironmentInfo,
   SwitchResult,
   ApiError,
 } from '../types';
@@ -393,6 +395,34 @@ export const api = {
   async testAIConfig(cfg: AIConfig): Promise<void> {
     try {
       await WailsApp.TestAIConfig(cfg);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async getShellEnvironment(): Promise<ShellEnvironmentInfo> {
+    return WailsApp.GetShellEnvironment();
+  },
+
+  async saveShellConfig(cfg: ShellConfig): Promise<ShellEnvironmentInfo> {
+    try {
+      return await WailsApp.SaveShellConfig(cfg);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async selectGitBashPath(): Promise<string> {
+    try {
+      return await WailsApp.SelectGitBashPath();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async resetGitBashPath(): Promise<ShellEnvironmentInfo> {
+    try {
+      return await WailsApp.ResetGitBashPath();
     } catch (e) {
       throw parseError(e);
     }
