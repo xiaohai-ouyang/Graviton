@@ -12,49 +12,13 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AccountQuotaDetail } from './AccountQuotaDetail';
+import { ResetTimeText } from './ResetTimeText';
+import { useResetTimeStore } from '../store/useResetTimeStore';
+import { useNowTick } from '../hooks/useNowTick';
+import { formatRelativeTime } from '../utils/quota';
 
 interface AccountRowProps {
   account: AccountDisplay;
-}
-
-function formatTime(isoStr?: string): string {
-  if (!isoStr) return '从未';
-  try {
-    const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return isoStr;
-    const now = new Date();
-    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-
-    if (diffSec < 60) return '刚刚';
-    if (diffSec < 3600) return `${Math.floor(diffSec / 60)} 分钟前`;
-    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} 小时前`;
-
-    const month = d.getMonth() + 1;
-    const date = d.getDate();
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${month}月${date}日 ${hours}:${minutes}`;
-  } catch {
-    return isoStr;
-  }
-}
-
-function formatReset(resetTime?: string): string {
-  if (!resetTime) return '未知';
-  try {
-    const d = new Date(resetTime);
-    if (isNaN(d.getTime())) return resetTime;
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-
-    if (isToday) return `今日 ${hours}:${minutes}`;
-    return `${d.getMonth() + 1}月${d.getDate()}日 ${hours}:${minutes}`;
-  } catch {
-    return resetTime;
-  }
 }
 
 export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
@@ -71,6 +35,8 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
   const isRefreshing = Boolean(refreshingIds[account.id]);
   const isSwitching = Boolean(switchingIds[account.id]);
   const isExpanded = Boolean(expandedIds[account.id]);
+  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const nowMs = useNowTick();
 
   const pct = account.remainingPercentage;
   const isUnknown = pct < 0;
@@ -117,11 +83,11 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
               )}
               <span className="flex items-center gap-1" title={account.lastRefreshedAt}>
                 <Clock className="h-3 w-3" />
-                上次刷新: {formatTime(account.lastRefreshedAt)}
+                上次刷新: {formatRelativeTime(account.lastRefreshedAt, nowMs)}
               </span>
               {account.lastSwitchedAt && (
                 <span title={account.lastSwitchedAt}>
-                  最近切换: {formatTime(account.lastSwitchedAt)}
+                  最近切换: {formatRelativeTime(account.lastSwitchedAt, nowMs)}
                 </span>
               )}
             </div>
@@ -167,7 +133,12 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
           <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
             <span>重置时间:</span>
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              {formatReset(account.resetTime)}
+              <ResetTimeText
+                resetTime={account.resetTime}
+                format={resetTimeFormat}
+                nowMs={nowMs}
+                absoluteStyle="bare"
+              />
             </span>
           </div>
         </div>

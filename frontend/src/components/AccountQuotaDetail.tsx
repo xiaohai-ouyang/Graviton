@@ -2,35 +2,18 @@ import React from 'react';
 import { AccountDisplay } from '../types';
 import { motion, useReducedMotion } from 'motion/react';
 import { Clock, Layers, Sparkles } from 'lucide-react';
+import { ResetTimeText } from './ResetTimeText';
+import { useResetTimeStore } from '../store/useResetTimeStore';
+import { useNowTick } from '../hooks/useNowTick';
 
 interface AccountQuotaDetailProps {
   account: AccountDisplay;
 }
 
-function formatResetTime(t?: string): string {
-  if (!t) return '未知';
-  try {
-    const d = new Date(t);
-    if (isNaN(d.getTime())) return t;
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-
-    if (isToday) {
-      return `今日 ${hours}:${minutes}`;
-    }
-    const month = d.getMonth() + 1;
-    const date = d.getDate();
-    return `${month}月${date}日 ${hours}:${minutes}`;
-  } catch {
-    return t;
-  }
-}
-
 export const AccountQuotaDetail: React.FC<AccountQuotaDetailProps> = ({ account }) => {
   const shouldReduceMotion = useReducedMotion();
+  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const nowMs = useNowTick();
   const groups = account.groups || [];
   const models = account.models || [];
 
@@ -108,7 +91,12 @@ export const AccountQuotaDetail: React.FC<AccountQuotaDetailProps> = ({ account 
                             {b.resetTime && (
                               <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
                                 <Clock className="h-2.5 w-2.5 shrink-0 text-neutral-400 dark:text-neutral-500" />
-                                <span>重置：{formatResetTime(b.resetTime)}</span>
+                                <ResetTimeText
+                                  resetTime={b.resetTime}
+                                  format={resetTimeFormat}
+                                  nowMs={nowMs}
+                                  absoluteStyle="prefix"
+                                />
                               </div>
                             )}
                           </div>
@@ -156,7 +144,14 @@ export const AccountQuotaDetail: React.FC<AccountQuotaDetailProps> = ({ account 
                   </span>
                   {m.resetTime && (
                     <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
-                      ({formatResetTime(m.resetTime)})
+                      (
+                      <ResetTimeText
+                        resetTime={m.resetTime}
+                        format={resetTimeFormat}
+                        nowMs={nowMs}
+                        absoluteStyle="bare"
+                      />
+                      )
                     </span>
                   )}
                 </div>
