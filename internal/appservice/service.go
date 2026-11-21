@@ -70,10 +70,24 @@ type AppService struct {
 	oauthSess  *oauthLoginSession
 }
 
+const defaultBatchRefreshConcurrency = 8
+
+func newDefaultHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 64
+	transport.MaxIdleConnsPerHost = 16
+	transport.MaxConnsPerHost = 24
+	transport.IdleConnTimeout = 90 * time.Second
+	return &http.Client{
+		Timeout:   15 * time.Second,
+		Transport: transport,
+	}
+}
+
 // NewAppService creates an AppService with custom or default dependencies.
 func NewAppService(sm *storage.StorageManager, httpClient *http.Client) *AppService {
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: 15 * time.Second}
+		httpClient = newDefaultHTTPClient()
 	}
 	return &AppService{
 		storageMgr: sm,
@@ -298,7 +312,7 @@ func (s *AppService) RefreshAccountQuota(id string) (*AccountDisplay, error) {
 		return nil, NewAppError("CRED_NOT_FOUND", "账号凭据丢失，请重新收录该账号")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 
 	// Ensure token is fresh
@@ -336,8 +350,14 @@ func (s *AppService) RefreshAccountQuota(id string) (*AccountDisplay, error) {
 	return &disp, nil
 }
 
-// RefreshAllQuotas updates quotas for all accounts with up to 5 concurrent workers.
+// RefreshAllQuotas updates quotas for all accounts concurrently.
 func (s *AppService) RefreshAllQuotas() ([]BatchRefreshResult, error) {
+	return s.RefreshAllQuotasWithProgress(nil)
+}
+
+// RefreshAllQuotasWithProgress updates quotas for all accounts with up to 8 concurrent workers,
+// invoking onProgress as soon as each account finishes.
+func (s *AppService) RefreshAllQuotasWithProgress(onProgress func(BatchRefreshResult)) ([]BatchRefreshResult, error) {
 	lock, err := s.tryLock()
 	if err != nil {
 		return nil, err
@@ -353,8 +373,18 @@ func (s *AppService) RefreshAllQuotas() ([]BatchRefreshResult, error) {
 		return []BatchRefreshResult{}, nil
 	}
 
+	var currentEmail string
+	settings, _, _ := s.storageMgr.LoadSettings()
+	clientPath := ""
+	if settings != nil {
+		clientPath = settings.ClientPath
+	}
+	if credPayload, err := s.switcher.ReadCurrentClientCredential(clientPath); err == nil && credPayload != nil {
+		currentEmail = strings.ToLower(strings.TrimSpace(credPayload.IDTokenEmail))
+	}
+
 	results := make([]BatchRefreshResult, len(accounts))
-	sem := make(chan struct{}, 5)
+	sem := make(chan struct{}, defaultBatchRefreshConcurrency)
 	var wg sync.WaitGroup
 
 	for i, acc := range accounts {
@@ -364,20 +394,27 @@ func (s *AppService) RefreshAllQuotas() ([]BatchRefreshResult, error) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
+			isCurrent := currentEmail != "" && strings.ToLower(strings.TrimSpace(a.Email)) == currentEmail
 			res := BatchRefreshResult{
 				AccountID: a.ID,
+			}
+			emit := func(r BatchRefreshResult) {
+				results[idx] = r
+				if onProgress != nil {
+					onProgress(r)
+				}
 			}
 
 			credPayload, err := cred.ReadAccountCredential(a.ID)
 			if err != nil {
 				res.Success = false
 				res.ErrorMessage = "账号凭据丢失"
-				res.Account = toDisplay(a, false)
-				results[idx] = res
+				res.Account = toDisplay(a, isCurrent)
+				emit(res)
 				return
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 			defer cancel()
 
 			refreshed, tokenUpdated, err := s.oauthSvc.EnsureFreshToken(ctx, credPayload, false)
@@ -389,8 +426,8 @@ func (s *AppService) RefreshAllQuotas() ([]BatchRefreshResult, error) {
 					res.ErrorMessage = fmt.Sprintf("Token 刷新失败: %v", err)
 				}
 				a.Quota.ErrorMessage = res.ErrorMessage
-				res.Account = toDisplay(a, false)
-				results[idx] = res
+				res.Account = toDisplay(a, isCurrent)
+				emit(res)
 				return
 			}
 			if tokenUpdated {
@@ -413,8 +450,8 @@ func (s *AppService) RefreshAllQuotas() ([]BatchRefreshResult, error) {
 			if quotaErr != nil {
 				res.ErrorMessage = fmt.Sprintf("%v", quotaErr)
 			}
-			res.Account = toDisplay(a, false)
-			results[idx] = res
+			res.Account = toDisplay(a, isCurrent)
+			emit(res)
 		}(i, acc)
 	}
 

@@ -165,6 +165,20 @@ func TestAppService_RefreshAllQuotas(t *testing.T) {
 		assert.Equal(t, "PRO", res.Account.SubscriptionTier)
 		assert.Equal(t, 75, res.Account.RemainingPercentage)
 	}
+
+	progressIDs := make(chan string, 3)
+	results2, err := svc.RefreshAllQuotasWithProgress(func(r BatchRefreshResult) {
+		progressIDs <- r.AccountID
+	})
+	require.NoError(t, err)
+	require.Len(t, results2, 3)
+	close(progressIDs)
+
+	seen := make(map[string]bool)
+	for id := range progressIDs {
+		seen[id] = true
+	}
+	assert.Len(t, seen, 3)
 }
 
 func getAccounts(sm *storage.StorageManager) []storage.AccountRecord {

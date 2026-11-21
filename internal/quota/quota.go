@@ -9,7 +9,9 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"codetool/internal/storage"
@@ -102,12 +104,19 @@ type RawQuotaSummaryResponse struct {
 	Groups []RawQuotaSummaryGroup `json:"groups"`
 }
 
+const defaultAttemptTimeout = 8 * time.Second
+
 // QuotaService queries and merges quota info across endpoints.
 type QuotaService struct {
 	HTTPClient              *http.Client
 	LoadProjectEndpoints    []string
 	AvailableModelEndpoints []string
 	QuotaSummaryEndpoints   []string
+	AttemptTimeout          time.Duration
+
+	endpointMu         sync.RWMutex
+	preferredEndpoints map[string]string
+	preferredHost      string
 }
 
 // NewQuotaService creates a QuotaService with default fallback endpoints.
@@ -122,7 +131,129 @@ func NewQuotaService(client *http.Client) *QuotaService {
 		LoadProjectEndpoints:    LoadProjectEndpoints,
 		AvailableModelEndpoints: AvailableModelsEndpoints,
 		QuotaSummaryEndpoints:   QuotaSummaryEndpoints,
+		AttemptTimeout:          defaultAttemptTimeout,
+		preferredEndpoints:      make(map[string]string),
 	}
+}
+
+func extractHostPrefix(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+func (s *QuotaService) orderedEndpoints(apiKind string, endpoints []string, hintHost string) []string {
+	if len(endpoints) <= 1 {
+		return endpoints
+	}
+
+	s.endpointMu.RLock()
+	cachedEP := ""
+	if s.preferredEndpoints != nil {
+		cachedEP = s.preferredEndpoints[apiKind]
+	}
+	globalHost := s.preferredHost
+	s.endpointMu.RUnlock()
+
+	ordered := make([]string, 0, len(endpoints))
+	seen := make(map[string]struct{}, len(endpoints))
+	appendUnique := func(ep string) {
+		if _, ok := seen[ep]; ok {
+			return
+		}
+		seen[ep] = struct{}{}
+		ordered = append(ordered, ep)
+	}
+
+	if cachedEP != "" {
+		for _, ep := range endpoints {
+			if ep == cachedEP {
+				appendUnique(ep)
+				break
+			}
+		}
+	}
+	if hintHost != "" {
+		for _, ep := range endpoints {
+			if extractHostPrefix(ep) == hintHost {
+				appendUnique(ep)
+			}
+		}
+	}
+	if globalHost != "" && globalHost != hintHost {
+		for _, ep := range endpoints {
+			if extractHostPrefix(ep) == globalHost {
+				appendUnique(ep)
+			}
+		}
+	}
+	for _, ep := range endpoints {
+		appendUnique(ep)
+	}
+	return ordered
+}
+
+func (s *QuotaService) recordSuccessfulEndpoint(apiKind, endpoint string) {
+	host := extractHostPrefix(endpoint)
+	s.endpointMu.Lock()
+	if s.preferredEndpoints == nil {
+		s.preferredEndpoints = make(map[string]string)
+	}
+	s.preferredEndpoints[apiKind] = endpoint
+	if host != "" {
+		s.preferredHost = host
+	}
+	s.endpointMu.Unlock()
+}
+
+func (s *QuotaService) attemptContext(ctx context.Context, hasFallbacks bool) (context.Context, context.CancelFunc) {
+	if !hasFallbacks {
+		return ctx, func() {}
+	}
+	timeout := s.AttemptTimeout
+	if timeout <= 0 {
+		timeout = defaultAttemptTimeout
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+// doJSONPost sends a POST request with JSON body to a single endpoint and decodes the JSON response.
+// Response body is always drained/closed before returning so keep-alive connections can be reused.
+func (s *QuotaService) doJSONPost(ctx context.Context, endpoint, accessToken string, reqBody []byte, out interface{}) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", UserAgent)
+
+	resp, err := s.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return ErrUnauthorized
+	}
+	if resp.StatusCode == http.StatusForbidden {
+		return ErrForbidden
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NormalizeSubscriptionTier normalizes tier string to FREE, PRO, ULTRA, etc.
@@ -144,6 +275,11 @@ func NormalizeSubscriptionTier(raw string) string {
 
 // FetchProjectAndTier calls loadCodeAssist across fallback endpoints.
 func (s *QuotaService) FetchProjectAndTier(ctx context.Context, accessToken string) (projectID string, tier string, err error) {
+	projectID, tier, _, err = s.fetchProjectAndTier(ctx, accessToken)
+	return projectID, tier, err
+}
+
+func (s *QuotaService) fetchProjectAndTier(ctx context.Context, accessToken string) (projectID string, tier string, workingHost string, err error) {
 	meta := map[string]interface{}{
 		"metadata": map[string]string{
 			"ideType": "ANTIGRAVITY",
@@ -151,41 +287,26 @@ func (s *QuotaService) FetchProjectAndTier(ctx context.Context, accessToken stri
 	}
 	reqBody, _ := json.Marshal(meta)
 
+	endpoints := s.orderedEndpoints("load", s.LoadProjectEndpoints, "")
 	var lastErr error
-	for _, ep := range s.LoadProjectEndpoints {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewReader(reqBody))
-		if err != nil {
-			lastErr = err
-			continue
+	for i, ep := range endpoints {
+		if ctx.Err() != nil {
+			lastErr = ctx.Err()
+			break
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", UserAgent)
-
-		resp, err := s.HTTPClient.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			return "", "", ErrUnauthorized
-		}
-		if resp.StatusCode == http.StatusForbidden {
-			return "", "", ErrForbidden
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
-			lastErr = fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
-			continue
-		}
-
+		attemptCtx, cancel := s.attemptContext(ctx, i < len(endpoints)-1)
 		var loadResp LoadProjectResponse
-		if err := json.NewDecoder(resp.Body).Decode(&loadResp); err != nil {
+		err := s.doJSONPost(attemptCtx, ep, accessToken, reqBody, &loadResp)
+		cancel()
+		if err != nil {
+			if errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) {
+				return "", "", "", err
+			}
 			lastErr = err
 			continue
 		}
+
+		s.recordSuccessfulEndpoint("load", ep)
 
 		// Tier precedence: paidTier -> currentTier -> allowedTiers -> default FREE
 		rawTier := ""
@@ -211,55 +332,44 @@ func (s *QuotaService) FetchProjectAndTier(ctx context.Context, accessToken stri
 		}
 
 		tier = NormalizeSubscriptionTier(rawTier)
-		return loadResp.ProjectID, tier, nil
+		return loadResp.ProjectID, tier, extractHostPrefix(ep), nil
 	}
 
-	return "", "FREE", lastErr
+	return "", "FREE", "", lastErr
 }
 
 // FetchAvailableModels calls fetchAvailableModels across fallback endpoints.
 func (s *QuotaService) FetchAvailableModels(ctx context.Context, accessToken string, projectID string) (*RawQuotaResponse, error) {
+	return s.fetchAvailableModels(ctx, accessToken, projectID, "")
+}
+
+func (s *QuotaService) fetchAvailableModels(ctx context.Context, accessToken string, projectID string, hintHost string) (*RawQuotaResponse, error) {
 	payload := map[string]interface{}{}
 	if projectID != "" {
 		payload["project"] = projectID
 	}
 	reqBody, _ := json.Marshal(payload)
 
+	endpoints := s.orderedEndpoints("models", s.AvailableModelEndpoints, hintHost)
 	var lastErr error
-	for _, ep := range s.AvailableModelEndpoints {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewReader(reqBody))
-		if err != nil {
-			lastErr = err
-			continue
+	for i, ep := range endpoints {
+		if ctx.Err() != nil {
+			lastErr = ctx.Err()
+			break
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", UserAgent)
-
-		resp, err := s.HTTPClient.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, ErrUnauthorized
-		}
-		if resp.StatusCode == http.StatusForbidden {
-			return nil, ErrForbidden
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
-			lastErr = fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
-			continue
-		}
-
+		attemptCtx, cancel := s.attemptContext(ctx, i < len(endpoints)-1)
 		var rawResp RawQuotaResponse
-		if err := json.NewDecoder(resp.Body).Decode(&rawResp); err != nil {
+		err := s.doJSONPost(attemptCtx, ep, accessToken, reqBody, &rawResp)
+		cancel()
+		if err != nil {
+			if errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) {
+				return nil, err
+			}
 			lastErr = err
 			continue
 		}
+
+		s.recordSuccessfulEndpoint("models", ep)
 		return &rawResp, nil
 	}
 
@@ -268,47 +378,36 @@ func (s *QuotaService) FetchAvailableModels(ctx context.Context, accessToken str
 
 // FetchQuotaSummary calls retrieveUserQuotaSummary across fallback endpoints.
 func (s *QuotaService) FetchQuotaSummary(ctx context.Context, accessToken string, projectID string) ([]storage.QuotaGroup, error) {
+	return s.fetchQuotaSummary(ctx, accessToken, projectID, "")
+}
+
+func (s *QuotaService) fetchQuotaSummary(ctx context.Context, accessToken string, projectID string, hintHost string) ([]storage.QuotaGroup, error) {
 	payload := map[string]interface{}{}
 	if projectID != "" {
 		payload["project"] = projectID
 	}
 	reqBody, _ := json.Marshal(payload)
 
+	endpoints := s.orderedEndpoints("summary", s.QuotaSummaryEndpoints, hintHost)
 	var lastErr error
-	for _, ep := range s.QuotaSummaryEndpoints {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, ep, bytes.NewReader(reqBody))
-		if err != nil {
-			lastErr = err
-			continue
+	for i, ep := range endpoints {
+		if ctx.Err() != nil {
+			lastErr = ctx.Err()
+			break
 		}
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("User-Agent", UserAgent)
-
-		resp, err := s.HTTPClient.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == http.StatusUnauthorized {
-			return nil, ErrUnauthorized
-		}
-		if resp.StatusCode == http.StatusForbidden {
-			return nil, ErrForbidden
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(resp.Body)
-			lastErr = fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
-			continue
-		}
-
+		attemptCtx, cancel := s.attemptContext(ctx, i < len(endpoints)-1)
 		var rawSummary RawQuotaSummaryResponse
-		if err := json.NewDecoder(resp.Body).Decode(&rawSummary); err != nil {
+		err := s.doJSONPost(attemptCtx, ep, accessToken, reqBody, &rawSummary)
+		cancel()
+		if err != nil {
+			if errors.Is(err, ErrUnauthorized) || errors.Is(err, ErrForbidden) {
+				return nil, err
+			}
 			lastErr = err
 			continue
 		}
+
+		s.recordSuccessfulEndpoint("summary", ep)
 
 		groups := make([]storage.QuotaGroup, 0, len(rawSummary.Groups))
 		for _, g := range rawSummary.Groups {
@@ -338,13 +437,13 @@ func (s *QuotaService) FetchQuotaSummary(ctx context.Context, accessToken string
 	return nil, fmt.Errorf("all retrieveUserQuotaSummary endpoints failed: %w", lastErr)
 }
 
-// FetchCompleteQuota queries loadCodeAssist, fetchAvailableModels, and retrieveUserQuotaSummary,
-// and synthesizes a complete QuotaSnapshot.
+// FetchCompleteQuota queries loadCodeAssist, and then concurrently queries
+// retrieveUserQuotaSummary and fetchAvailableModels to synthesize a complete QuotaSnapshot.
 func (s *QuotaService) FetchCompleteQuota(ctx context.Context, accessToken string, lastSnapshot *storage.QuotaSnapshot) (storage.QuotaSnapshot, error) {
 	nowStr := time.Now().UTC().Format(time.RFC3339)
 
 	// 1. Fetch project ID and tier
-	projectID, tier, err := s.FetchProjectAndTier(ctx, accessToken)
+	projectID, tier, workingHost, err := s.fetchProjectAndTier(ctx, accessToken)
 	if err != nil {
 		if errors.Is(err, ErrUnauthorized) {
 			return storage.QuotaSnapshot{}, ErrUnauthorized
@@ -371,15 +470,36 @@ func (s *QuotaService) FetchCompleteQuota(ctx context.Context, accessToken strin
 		}
 	}
 
-	// 2. Fetch grouped quota summary (best effort)
-	groups, summaryErr := s.FetchQuotaSummary(ctx, accessToken, projectID)
-	if summaryErr != nil && errors.Is(summaryErr, ErrUnauthorized) {
-		return storage.QuotaSnapshot{}, ErrUnauthorized
-	}
+	// 2 & 3. Fetch grouped quota summary and available models concurrently
+	subCtx, subCancel := context.WithCancel(ctx)
+	defer subCancel()
 
-	// 3. Fetch available models
-	modelsResp, modelsErr := s.FetchAvailableModels(ctx, accessToken, projectID)
-	if modelsErr != nil && errors.Is(modelsErr, ErrUnauthorized) {
+	var (
+		groups     []storage.QuotaGroup
+		summaryErr error
+		modelsResp *RawQuotaResponse
+		modelsErr  error
+		wg         sync.WaitGroup
+	)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		groups, summaryErr = s.fetchQuotaSummary(subCtx, accessToken, projectID, workingHost)
+		if errors.Is(summaryErr, ErrUnauthorized) {
+			subCancel()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		modelsResp, modelsErr = s.fetchAvailableModels(subCtx, accessToken, projectID, workingHost)
+		if errors.Is(modelsErr, ErrUnauthorized) {
+			subCancel()
+		}
+	}()
+	wg.Wait()
+
+	if errors.Is(summaryErr, ErrUnauthorized) || errors.Is(modelsErr, ErrUnauthorized) {
 		return storage.QuotaSnapshot{}, ErrUnauthorized
 	}
 

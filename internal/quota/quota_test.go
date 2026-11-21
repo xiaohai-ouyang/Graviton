@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"codetool/internal/storage"
 
@@ -145,4 +147,143 @@ func TestQuota_403Forbidden(t *testing.T) {
 	assert.True(t, snap.IsForbidden)
 	assert.Contains(t, snap.ErrorMessage, "403")
 	assert.Len(t, snap.Groups, 1) // preserved
+}
+
+func TestQuota_StickyPreferredEndpoint(t *testing.T) {
+	var primaryHits atomic.Int32
+	primary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		primaryHits.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer primary.Close()
+
+	secondary := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/loadCodeAssist":
+			_ = json.NewEncoder(w).Encode(LoadProjectResponse{
+				ProjectID:   "proj-sticky",
+				CurrentTier: &Tier{ID: "pro-tier"},
+			})
+		case "/retrieveUserQuotaSummary":
+			f := 0.8
+			_ = json.NewEncoder(w).Encode(RawQuotaSummaryResponse{
+				Groups: []RawQuotaSummaryGroup{
+					{
+						DisplayName: "Gemini",
+						Buckets:     []RawQuotaSummaryBucket{{BucketID: "g_5h", Window: "5h", RemainingFraction: &f}},
+					},
+				},
+			})
+		case "/fetchAvailableModels":
+			_ = json.NewEncoder(w).Encode(RawQuotaResponse{Models: map[string]RawModelInfo{}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer secondary.Close()
+
+	svc := NewQuotaService(secondary.Client())
+	svc.LoadProjectEndpoints = []string{primary.URL + "/loadCodeAssist", secondary.URL + "/loadCodeAssist"}
+	svc.QuotaSummaryEndpoints = []string{primary.URL + "/retrieveUserQuotaSummary", secondary.URL + "/retrieveUserQuotaSummary"}
+	svc.AvailableModelEndpoints = []string{primary.URL + "/fetchAvailableModels", secondary.URL + "/fetchAvailableModels"}
+
+	// First call hits primary once on loadCodeAssist, falls back to secondary, and reuses secondary host for summary & models.
+	snap1, err := svc.FetchCompleteQuota(context.Background(), "tok", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 80, snap1.RemainingPercentage)
+	assert.Equal(t, int32(1), primaryHits.Load())
+
+	// Second call should go straight to secondary for all 3 APIs without hitting primary again.
+	snap2, err := svc.FetchCompleteQuota(context.Background(), "tok", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 80, snap2.RemainingPercentage)
+	assert.Equal(t, int32(1), primaryHits.Load())
+}
+
+func TestQuota_ParallelSummaryAndModels(t *testing.T) {
+	bothArrived := make(chan struct{})
+	var waiting atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/loadCodeAssist":
+			_ = json.NewEncoder(w).Encode(LoadProjectResponse{
+				ProjectID:   "proj-par",
+				CurrentTier: &Tier{ID: "free-tier"},
+			})
+		case "/retrieveUserQuotaSummary", "/fetchAvailableModels":
+			if waiting.Add(1) == 2 {
+				close(bothArrived)
+			}
+			select {
+			case <-bothArrived:
+			case <-time.After(2 * time.Second):
+				w.WriteHeader(http.StatusGatewayTimeout)
+				return
+			}
+			if r.URL.Path == "/retrieveUserQuotaSummary" {
+				f := 0.5
+				_ = json.NewEncoder(w).Encode(RawQuotaSummaryResponse{
+					Groups: []RawQuotaSummaryGroup{
+						{
+							DisplayName: "Claude",
+							Buckets:     []RawQuotaSummaryBucket{{BucketID: "c_5h", Window: "5h", RemainingFraction: &f}},
+						},
+					},
+				})
+			} else {
+				_ = json.NewEncoder(w).Encode(RawQuotaResponse{Models: map[string]RawModelInfo{}})
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	svc := NewQuotaService(server.Client())
+	svc.LoadProjectEndpoints = []string{server.URL + "/loadCodeAssist"}
+	svc.QuotaSummaryEndpoints = []string{server.URL + "/retrieveUserQuotaSummary"}
+	svc.AvailableModelEndpoints = []string{server.URL + "/fetchAvailableModels"}
+
+	snap, err := svc.FetchCompleteQuota(context.Background(), "tok", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 50, snap.RemainingPercentage)
+}
+
+func TestQuota_AttemptTimeoutFallsBack(t *testing.T) {
+	unblockSlow := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-unblockSlow:
+		case <-r.Context().Done():
+		}
+	}))
+	defer func() {
+		close(unblockSlow)
+		slow.Close()
+	}()
+
+	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(LoadProjectResponse{
+			ProjectID:   "proj-fast",
+			CurrentTier: &Tier{ID: "pro-tier"},
+		})
+	}))
+	defer fast.Close()
+
+	svc := NewQuotaService(fast.Client())
+	svc.AttemptTimeout = 120 * time.Millisecond
+	svc.LoadProjectEndpoints = []string{slow.URL, fast.URL}
+
+	start := time.Now()
+	projID, tier, err := svc.FetchProjectAndTier(context.Background(), "tok")
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	assert.Equal(t, "proj-fast", projID)
+	assert.Equal(t, "PRO", tier)
+	assert.Less(t, elapsed, time.Second)
 }

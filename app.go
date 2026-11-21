@@ -588,7 +588,7 @@ func (a *App) RefreshAccountQuota(id string) (*appservice.AccountDisplay, error)
 	return res, err
 }
 
-// RefreshAllQuotas updates quotas for all accounts with up to 5 concurrent workers.
+// RefreshAllQuotas updates quotas for all accounts concurrently and emits progress events.
 func (a *App) RefreshAllQuotas() ([]appservice.BatchRefreshResult, error) {
 	a.mu.Lock()
 	if a.refreshingAll {
@@ -601,7 +601,11 @@ func (a *App) RefreshAllQuotas() ([]appservice.BatchRefreshResult, error) {
 		a.widgetMgr.BroadcastState()
 	}
 
-	res, err := a.service.RefreshAllQuotas()
+	res, err := a.service.RefreshAllQuotasWithProgress(func(item appservice.BatchRefreshResult) {
+		if a.ctx != nil && !a.isWidget {
+			runtime.EventsEmit(a.ctx, "accounts:quota_progress", item)
+		}
+	})
 
 	a.mu.Lock()
 	a.refreshingAll = false
