@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { AccountDisplay } from '../types';
+import { appservice } from '../../wailsjs/go/models';
+import { AccountDisplay, BatchRefreshResult } from '../types';
 import { api, parseError } from '../services/api';
 
 interface FeedbackBanner {
@@ -7,11 +8,17 @@ interface FeedbackBanner {
   message: string;
 }
 
+interface RefreshProgress {
+  completed: number;
+  total: number;
+}
+
 interface AccountState {
   accounts: AccountDisplay[];
   loading: boolean;
   capturing: boolean;
   refreshingAll: boolean;
+  refreshProgress: RefreshProgress | null;
   refreshingIds: Record<string, boolean>;
   switchingIds: Record<string, boolean>;
   deletingAccount: AccountDisplay | null;
@@ -25,6 +32,7 @@ interface AccountState {
   captureCurrentAccount: () => Promise<void>;
   refreshAccountQuota: (id: string) => Promise<void>;
   refreshAllQuotas: () => Promise<void>;
+  applyQuotaProgress: (result: BatchRefreshResult) => void;
   switchAccount: (id: string) => Promise<void>;
   confirmDeleteAccount: (account: AccountDisplay) => void;
   cancelDeleteAccount: () => void;
@@ -46,6 +54,7 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   loading: false,
   capturing: false,
   refreshingAll: false,
+  refreshProgress: null,
   refreshingIds: {},
   switchingIds: {},
   deletingAccount: null,
@@ -95,7 +104,11 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     try {
       const updated = await api.refreshAccountQuota(id);
       set((state) => ({
-        accounts: state.accounts.map((acc) => (acc.id === id ? updated : acc)),
+        accounts: state.accounts.map((acc) =>
+          acc.id === id
+            ? appservice.AccountDisplay.createFrom({ ...updated, isCurrent: acc.isCurrent })
+            : acc
+        ),
         refreshingIds: { ...state.refreshingIds, [id]: false },
         banner: { type: 'success', message: `账号 ${updated.email} 额度已更新` },
       }));
@@ -109,7 +122,25 @@ export const useAccountStore = create<AccountState>((set, get) => ({
   },
 
   refreshAllQuotas: async () => {
-    set({ refreshingAll: true, banner: { type: 'info', message: '正在并发刷新全部账号额度...' } });
+    const currentAccounts = get().accounts;
+    const total = currentAccounts.length;
+    const initialRefreshingIds: Record<string, boolean> = {};
+    for (const acc of currentAccounts) {
+      initialRefreshingIds[acc.id] = true;
+    }
+
+    set({
+      refreshingAll: true,
+      refreshProgress: total > 0 ? { completed: 0, total } : null,
+      refreshingIds: initialRefreshingIds,
+      banner: {
+        type: 'info',
+        message:
+          total > 0
+            ? `正在并发刷新全部账号额度 (0/${total})...`
+            : '正在并发刷新全部账号额度...',
+      },
+    });
     try {
       const results = await api.refreshAllQuotas();
       const accounts = await api.listAccounts();
@@ -124,15 +155,61 @@ export const useAccountStore = create<AccountState>((set, get) => ({
       set({
         accounts,
         refreshingAll: false,
+        refreshProgress: null,
+        refreshingIds: {},
         banner: { type: failCount > 0 ? 'info' : 'success', message: msg },
       });
     } catch (e) {
       const err = parseError(e);
       set({
         refreshingAll: false,
+        refreshProgress: null,
+        refreshingIds: {},
         banner: { type: 'error', message: `批量刷新失败: ${err.message}` },
       });
     }
+  },
+
+  applyQuotaProgress: (result: BatchRefreshResult) => {
+    if (!result || !result.accountId || !result.account) {
+      return;
+    }
+    set((state) => {
+      const nextAccounts = state.accounts.map((acc) => {
+        if (acc.id !== result.accountId) return acc;
+        return appservice.AccountDisplay.createFrom({
+          ...result.account,
+          isCurrent: result.account.isCurrent ?? acc.isCurrent,
+        });
+      });
+
+      const nextRefreshingIds = {
+        ...state.refreshingIds,
+        [result.accountId]: false,
+      };
+
+      if (state.refreshingAll && state.refreshProgress) {
+        const completed = Math.min(
+          state.refreshProgress.total,
+          state.refreshProgress.completed + 1
+        );
+        const total = state.refreshProgress.total;
+        return {
+          accounts: nextAccounts,
+          refreshingIds: nextRefreshingIds,
+          refreshProgress: { completed, total },
+          banner: {
+            type: 'info',
+            message: `正在并发刷新全部账号额度 (${completed}/${total})...`,
+          },
+        };
+      }
+
+      return {
+        accounts: nextAccounts,
+        refreshingIds: nextRefreshingIds,
+      };
+    });
   },
 
   switchAccount: async (id: string) => {

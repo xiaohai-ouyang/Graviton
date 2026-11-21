@@ -21,6 +21,7 @@ export const QuotaPage: React.FC = () => {
     loading,
     capturing,
     refreshingAll,
+    refreshProgress,
     refreshAllQuotas,
     captureCurrentAccount,
     widgetOpen,
@@ -95,7 +96,13 @@ export const QuotaPage: React.FC = () => {
               className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-card px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshingAll ? 'animate-spin' : ''}`} />
-              <span>{refreshingAll ? '正在刷新全部...' : '刷新全部'}</span>
+              <span>
+                {refreshingAll
+                  ? refreshProgress
+                    ? `刷新中 (${refreshProgress.completed}/${refreshProgress.total})`
+                    : '正在刷新全部...'
+                  : '刷新全部'}
+              </span>
             </button>
 
             <button

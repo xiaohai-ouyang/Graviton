@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { EventsOn } from '../wailsjs/runtime/runtime';
+import { BatchRefreshResult } from './types';
 import { useAccountStore } from './store/useAccountStore';
 import { useThemeStore } from './store/useThemeStore';
 import { Sidebar } from './components/Sidebar';
@@ -20,12 +21,16 @@ export const App: React.FC = () => {
     const offAccounts = EventsOn('accounts:updated', () => {
       void useAccountStore.getState().loadAccounts();
     });
+    const offQuotaProgress = EventsOn('accounts:quota_progress', (result: BatchRefreshResult) => {
+      useAccountStore.getState().applyQuotaProgress(result);
+    });
     const offWidget = EventsOn('widget:status', (open: boolean) => {
       setWidgetOpen(Boolean(open));
     });
     return () => {
       cleanupTheme();
       offAccounts();
+      offQuotaProgress();
       offWidget();
     };
   }, [loadAccounts, loadWidgetStatus, initTheme, setWidgetOpen]);
