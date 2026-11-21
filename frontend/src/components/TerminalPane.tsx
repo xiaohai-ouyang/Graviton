@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   ArrowDown,
   Check,
@@ -13,6 +14,77 @@ import {
 import { useEnvStore } from '../store/useEnvStore';
 import { useAccountStore } from '../store/useAccountStore';
 import { LogEntry, ProcessState, ProjectCommand, ProjectRecord } from '../types';
+
+// Progressive label-collapse thresholds based on TerminalPane's own width,
+// with hysteresis bands so dragging the split divider never flickers.
+const SECONDARY_LABEL_HIDE_WIDTH = 492;
+const SECONDARY_LABEL_SHOW_WIDTH = 512;
+const SECONDARY_LABEL_INIT_WIDTH = 502;
+
+const PRIMARY_LABEL_HIDE_WIDTH = 382;
+const PRIMARY_LABEL_SHOW_WIDTH = 402;
+const PRIMARY_LABEL_INIT_WIDTH = 392;
+
+interface AdaptiveActionButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  tooltip?: string;
+  showLabel: boolean;
+  onClick: () => void;
+  toneClass: string;
+  expandedPaddingClass: string;
+  compactPaddingClass: string;
+}
+
+const AdaptiveActionButton: React.FC<AdaptiveActionButtonProps> = ({
+  icon,
+  label,
+  tooltip,
+  showLabel,
+  onClick,
+  toneClass,
+  expandedPaddingClass,
+  compactPaddingClass,
+}) => {
+  const tipText = tooltip ?? label;
+
+  return (
+    <Tooltip.Root open={showLabel ? false : undefined}>
+      <Tooltip.Trigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-label={tipText}
+          className={`inline-flex h-7 shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-[padding,background-color,border-color,color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            showLabel ? expandedPaddingClass : compactPaddingClass
+          } ${toneClass}`}
+        >
+          <span className="inline-flex shrink-0 items-center justify-center">{icon}</span>
+          <span
+            aria-hidden={!showLabel}
+            className={`inline-grid overflow-hidden transition-[grid-template-columns,opacity,margin] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              showLabel
+                ? 'ml-1.5 grid-cols-[1fr] opacity-100'
+                : 'ml-0 grid-cols-[0fr] opacity-0'
+            }`}
+          >
+            <span className="min-w-0 overflow-hidden whitespace-nowrap">{label}</span>
+          </span>
+        </button>
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content
+          side="bottom"
+          align="center"
+          sideOffset={6}
+          className="z-50 rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+        >
+          {tipText}
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
+  );
+};
 
 const STDERR_WARN_RE = /\b(warn|warning|deprecated)\b|警告/i;
 const STDERR_ERROR_RE =
@@ -85,7 +157,68 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
 
   const [autoScroll, setAutoScroll] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [paneEl, setPaneEl] = useState<HTMLElement | null>(null);
+  const [labelVisibility, setLabelVisibility] = useState<{
+    primary: boolean;
+    secondary: boolean;
+  }>({
+    primary: true,
+    secondary: true,
+  });
+  const initializedWidthRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!paneEl) return;
+
+    const updateForWidth = (width: number) => {
+      if (width <= 0) return;
+
+      if (!initializedWidthRef.current) {
+        initializedWidthRef.current = true;
+        setLabelVisibility({
+          primary: width >= PRIMARY_LABEL_INIT_WIDTH,
+          secondary: width >= SECONDARY_LABEL_INIT_WIDTH,
+        });
+        return;
+      }
+
+      setLabelVisibility((prev) => {
+        let nextPrimary = prev.primary;
+        if (prev.primary && width < PRIMARY_LABEL_HIDE_WIDTH) {
+          nextPrimary = false;
+        } else if (!prev.primary && width >= PRIMARY_LABEL_SHOW_WIDTH) {
+          nextPrimary = true;
+        }
+
+        let nextSecondary = prev.secondary;
+        if (prev.secondary && width < SECONDARY_LABEL_HIDE_WIDTH) {
+          nextSecondary = false;
+        } else if (!prev.secondary && width >= SECONDARY_LABEL_SHOW_WIDTH) {
+          nextSecondary = true;
+        }
+
+        if (nextPrimary === prev.primary && nextSecondary === prev.secondary) {
+          return prev;
+        }
+        return { primary: nextPrimary, secondary: nextSecondary };
+      });
+    };
+
+    updateForWidth(paneEl.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateForWidth(entry.contentRect.width);
+    });
+    observer.observe(paneEl);
+
+    return () => {
+      observer.disconnect();
+      initializedWidthRef.current = false;
+    };
+  }, [paneEl]);
 
   const { project, command } = useMemo<{
     project: ProjectRecord | null;
@@ -150,7 +283,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
 
   if (!project || !command) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-white px-6 text-center text-neutral-500 dark:bg-[#0d1117] dark:text-neutral-400">
+      <div className="flex min-w-0 flex-1 flex-col items-center justify-center bg-white px-6 text-center text-neutral-500 dark:bg-[#0d1117] dark:text-neutral-400">
         <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-[#161b22]">
           <Terminal className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
         </div>
@@ -163,16 +296,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
   }
 
   return (
-    <section className="relative flex min-w-0 flex-1 flex-col bg-white text-neutral-900 dark:bg-[#0d1117] dark:text-neutral-100">
+    <section
+      ref={setPaneEl}
+      className="relative flex min-w-0 flex-1 flex-col bg-white text-neutral-900 dark:bg-[#0d1117] dark:text-neutral-100"
+    >
       {/* Terminal Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50/90 px-4 py-3 dark:border-neutral-800 dark:bg-[#161b22]">
+      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50/90 px-4 py-3 dark:border-neutral-800 dark:bg-[#161b22]">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 shrink-0 rounded-full ${badge.dot}`} />
             <span className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
               {project.name}
             </span>
-            <span className="text-neutral-400 dark:text-neutral-600">/</span>
+            <span className="shrink-0 text-neutral-400 dark:text-neutral-600">/</span>
             <span className="truncate text-sm font-medium text-neutral-600 dark:text-neutral-300">
               {command.name}
             </span>
@@ -192,70 +328,90 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           {isRunning ? (
             <>
-              <button
-                type="button"
+              <AdaptiveActionButton
+                icon={<RotateCw className="h-3.5 w-3.5" />}
+                label="重启"
+                showLabel={labelVisibility.primary}
                 onClick={() => void restartCommand(project.id, command.id)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-                <span>重启</span>
-              </button>
-              <button
-                type="button"
+                expandedPaddingClass="px-2.5"
+                compactPaddingClass="px-1.5"
+                toneClass="border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              />
+              <AdaptiveActionButton
+                icon={<Square className="h-3 w-3 fill-current" />}
+                label="停止"
+                showLabel={labelVisibility.primary}
                 onClick={() => void stopCommand(command.id)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-rose-500"
-              >
-                <Square className="h-3 w-3 fill-current" />
-                <span>停止</span>
-              </button>
+                expandedPaddingClass="px-2.5"
+                compactPaddingClass="px-2"
+                toneClass="bg-rose-600 text-white hover:bg-rose-500"
+              />
             </>
           ) : (
-            <button
-              type="button"
+            <AdaptiveActionButton
+              icon={<Play className="h-3 w-3 fill-current" />}
+              label="启动"
+              showLabel={labelVisibility.primary}
               onClick={() => void startCommand(project.id, command.id)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
-            >
-              <Play className="h-3 w-3 fill-current" />
-              <span>启动</span>
-            </button>
+              expandedPaddingClass="px-3"
+              compactPaddingClass="px-2"
+              toneClass="bg-emerald-600 text-white hover:bg-emerald-500"
+            />
           )}
 
-          <div className="mx-1 h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
+          <div className="mx-1 h-4 w-px shrink-0 bg-neutral-200 dark:bg-neutral-800" />
 
-          <button
-            type="button"
+          <AdaptiveActionButton
+            icon={copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            label={copied ? '已复制' : '一键复制'}
+            tooltip={copied ? '已复制' : '一键复制'}
+            showLabel={labelVisibility.secondary}
             onClick={() => void handleCopy()}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+            expandedPaddingClass="px-2.5"
+            compactPaddingClass="px-1.5"
+            toneClass={`border ${
               copied
                 ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:text-emerald-300'
                 : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700'
             }`}
-          >
-            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-            <span>{copied ? '已复制' : '一键复制'}</span>
-          </button>
+          />
 
-          <button
-            type="button"
+          <AdaptiveActionButton
+            icon={<Trash2 className="h-3.5 w-3.5" />}
+            label="清空"
+            tooltip="清空输出"
+            showLabel={labelVisibility.secondary}
             onClick={() => void clearLogs(command.id)}
-            title="清空输出"
-            className="inline-flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>清空</span>
-          </button>
+            expandedPaddingClass="px-2.5"
+            compactPaddingClass="px-1.5"
+            toneClass="border border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-white"
+          />
 
-          <button
-            type="button"
-            onClick={() => onEditCommand(project.id, command)}
-            title="编辑此指令"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-800 dark:bg-transparent dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <button
+                type="button"
+                onClick={() => onEditCommand(project.id, command)}
+                aria-label="编辑此指令"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:border-neutral-800 dark:bg-transparent dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="bottom"
+                align="end"
+                sideOffset={6}
+                className="z-50 rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                编辑此指令
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
         </div>
       </div>
 

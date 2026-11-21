@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   closestCenter,
   CollisionDetection,
@@ -38,6 +38,34 @@ import { ProjectCardDragPreview, SortableProjectCard } from '../components/Proje
 
 const PINNED_ZONE_ID = 'zone:pinned';
 const UNPINNED_ZONE_ID = 'zone:unpinned';
+
+const LEFT_PANE_STORAGE_KEY = 'graviton_env_left_pane_width';
+const DEFAULT_LEFT_PANE_WIDTH = 360;
+const MIN_LEFT_PANE_WIDTH = 280;
+const MIN_RIGHT_PANE_WIDTH = 320;
+const KEYBOARD_RESIZE_STEP = 16;
+
+function loadStoredLeftPaneWidth(): number {
+  try {
+    const raw = localStorage.getItem(LEFT_PANE_STORAGE_KEY);
+    if (!raw) return DEFAULT_LEFT_PANE_WIDTH;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= MIN_LEFT_PANE_WIDTH) {
+      return Math.round(parsed);
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return DEFAULT_LEFT_PANE_WIDTH;
+}
+
+function saveStoredLeftPaneWidth(width: number): void {
+  try {
+    localStorage.setItem(LEFT_PANE_STORAGE_KEY, String(Math.round(width)));
+  } catch {
+    // Ignore storage write errors
+  }
+}
 
 type ZoneKey = 'pinned' | 'unpinned';
 
@@ -148,6 +176,137 @@ export const EnvironmentPage: React.FC = () => {
     projectId: string;
     editing: ProjectCommand | null;
   }>({ open: false, projectId: '', editing: null });
+
+  // Resizable split pane state (left project list vs right terminal pane)
+  const [preferredLeftWidth, setPreferredLeftWidth] = useState<number>(loadStoredLeftPaneWidth);
+  const [splitContainerEl, setSplitContainerEl] = useState<HTMLDivElement | null>(null);
+  const [splitContainerWidth, setSplitContainerWidth] = useState<number>(0);
+  const [isResizingSplit, setIsResizingSplit] = useState(false);
+
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
+    if (!splitContainerEl) return;
+
+    const updateWidth = (width: number) => {
+      if (width > 0) {
+        setSplitContainerWidth(width);
+      }
+    };
+
+    updateWidth(splitContainerEl.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateWidth(entry.contentRect.width);
+    });
+    observer.observe(splitContainerEl);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [splitContainerEl]);
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
+
+  const maxLeftWidth =
+    splitContainerWidth > 0
+      ? Math.max(MIN_LEFT_PANE_WIDTH, Math.floor(splitContainerWidth - MIN_RIGHT_PANE_WIDTH))
+      : Math.max(MIN_LEFT_PANE_WIDTH, preferredLeftWidth);
+
+  const effectiveLeftWidth = Math.min(
+    Math.max(preferredLeftWidth, MIN_LEFT_PANE_WIDTH),
+    maxLeftWidth
+  );
+
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+
+      resizeCleanupRef.current?.();
+
+      const startX = e.clientX;
+      const startWidth = effectiveLeftWidth;
+      let latestWidth = startWidth;
+      let didMove = false;
+
+      const prevCursor = document.body.style.cursor;
+      const prevUserSelect = document.body.style.userSelect;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      setIsResizingSplit(true);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const delta = moveEvent.clientX - startX;
+        if (delta === 0 && !didMove) return;
+        didMove = true;
+        const containerW =
+          splitContainerEl?.getBoundingClientRect().width ?? splitContainerWidth;
+        const currentMax =
+          containerW > 0
+            ? Math.max(MIN_LEFT_PANE_WIDTH, Math.floor(containerW - MIN_RIGHT_PANE_WIDTH))
+            : Infinity;
+        const nextWidth = Math.round(
+          Math.min(
+            Math.max(startWidth + delta, MIN_LEFT_PANE_WIDTH),
+            currentMax
+          )
+        );
+        latestWidth = nextWidth;
+        setPreferredLeftWidth(nextWidth);
+      };
+
+      const finishResize = () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', finishResize);
+        window.removeEventListener('blur', finishResize);
+        document.body.style.cursor = prevCursor;
+        document.body.style.userSelect = prevUserSelect;
+        resizeCleanupRef.current = null;
+        setIsResizingSplit(false);
+        if (didMove) {
+          saveStoredLeftPaneWidth(latestWidth);
+        }
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', finishResize);
+      window.addEventListener('blur', finishResize);
+      resizeCleanupRef.current = finishResize;
+    },
+    [effectiveLeftWidth, splitContainerEl, splitContainerWidth]
+  );
+
+  const handleResetLeftWidth = useCallback(() => {
+    setPreferredLeftWidth(DEFAULT_LEFT_PANE_WIDTH);
+    saveStoredLeftPaneWidth(DEFAULT_LEFT_PANE_WIDTH);
+  }, []);
+
+  const handleDividerKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const next = Math.max(MIN_LEFT_PANE_WIDTH, effectiveLeftWidth - KEYBOARD_RESIZE_STEP);
+        setPreferredLeftWidth(next);
+        saveStoredLeftPaneWidth(next);
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const next = Math.min(maxLeftWidth, effectiveLeftWidth + KEYBOARD_RESIZE_STEP);
+        setPreferredLeftWidth(next);
+        saveStoredLeftPaneWidth(next);
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        handleResetLeftWidth();
+      }
+    },
+    [effectiveLeftWidth, maxLeftWidth, handleResetLeftWidth]
+  );
 
   // Drag-and-drop local state (committed to backend on drop)
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -497,9 +656,12 @@ export const EnvironmentPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div ref={setSplitContainerEl} className="flex min-h-0 flex-1 overflow-hidden">
           {/* Left Pane: Sortable Project & Command List */}
-          <aside className="w-[360px] shrink-0 overflow-y-auto border-r border-neutral-200 bg-neutral-50/70 p-4 lg:w-[410px] dark:border-neutral-800 dark:bg-neutral-950/60">
+          <aside
+            style={{ width: effectiveLeftWidth, minWidth: MIN_LEFT_PANE_WIDTH }}
+            className="shrink-0 overflow-y-scroll bg-neutral-50/70 py-4 pl-4 pr-2.5 dark:bg-neutral-950/60"
+          >
             {/* Compact Toolbar: Count + Bulk Collapse/Expand */}
             {projects.length > 1 && (
               <div className="mb-2.5 flex items-center justify-between px-0.5">
@@ -587,6 +749,41 @@ export const EnvironmentPage: React.FC = () => {
               </DragOverlay>
             </DndContext>
           </aside>
+
+          {/* Resizable Split Divider */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="调整项目栏与终端区域宽度"
+            aria-valuemin={MIN_LEFT_PANE_WIDTH}
+            aria-valuemax={maxLeftWidth}
+            aria-valuenow={effectiveLeftWidth}
+            tabIndex={0}
+            title="拖动调整宽度，双击恢复默认"
+            onMouseDown={handleResizeStart}
+            onDoubleClick={handleResetLeftWidth}
+            onKeyDown={handleDividerKeyDown}
+            className="group/divider relative z-10 w-px shrink-0 cursor-col-resize bg-neutral-200 outline-hidden select-none focus-visible:bg-neutral-500 dark:bg-neutral-800 dark:focus-visible:bg-neutral-400"
+          >
+            {/* Wider invisible hit zone */}
+            <div className="absolute inset-y-0 -right-1.5 -left-1.5" />
+            {/* Highlight accent line on hover / drag */}
+            <div
+              className={`pointer-events-none absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 transition-opacity duration-150 ${
+                isResizingSplit
+                  ? 'bg-neutral-400 opacity-100 dark:bg-neutral-500'
+                  : 'bg-neutral-300 opacity-0 group-hover/divider:opacity-100 group-focus-visible/divider:opacity-100 dark:bg-neutral-600'
+              }`}
+            />
+            {/* Subtle centered grip pill */}
+            <div
+              className={`pointer-events-none absolute top-1/2 left-1/2 h-8 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity duration-150 ${
+                isResizingSplit
+                  ? 'bg-neutral-600 opacity-100 dark:bg-neutral-300'
+                  : 'bg-neutral-400 opacity-0 group-hover/divider:opacity-100 group-focus-visible/divider:opacity-100 dark:bg-neutral-400'
+              }`}
+            />
+          </div>
 
           {/* Right Pane: Persistent Embedded Terminal */}
           <TerminalPane
