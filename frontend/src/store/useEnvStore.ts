@@ -8,6 +8,48 @@ const notify = (type: 'success' | 'error' | 'info', message: string) => {
   useAccountStore.getState().setBanner({ type, message });
 };
 
+const COLLAPSED_STORAGE_KEY = 'codetool_env_collapsed_projects';
+
+function loadCollapsedProjects(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const result: Record<string, boolean> = {};
+      for (const [key, val] of Object.entries(parsed)) {
+        if (val === true) {
+          result[key] = true;
+        }
+      }
+      return result;
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return {};
+}
+
+function saveCollapsedProjects(map: Record<string, boolean>) {
+  try {
+    const compact: Record<string, boolean> = {};
+    for (const [key, val] of Object.entries(map)) {
+      if (val) compact[key] = true;
+    }
+    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(compact));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function insertUnpinnedProjectAtTop(projects: ProjectRecord[], proj: ProjectRecord): ProjectRecord[] {
+  const pinned = projects.filter((p) => p.pinned);
+  const unpinned = projects.filter((p) => !p.pinned);
+  return [...pinned, proj, ...unpinned];
+}
+
+let reorderSeq = 0;
+
 interface EnvState {
   projects: ProjectRecord[];
   loading: boolean;
@@ -17,6 +59,7 @@ interface EnvState {
   activeLogTarget: { projectId: string; commandId: string } | null;
   aiAnalyzingIds: Record<string, boolean>;
   aiConfig: AIConfig | null;
+  collapsedProjects: Record<string, boolean>;
   initialized: boolean;
 
   init: () => () => void;
@@ -26,6 +69,10 @@ interface EnvState {
   rescanProject: (projectId: string) => Promise<void>;
   analyzeProjectWithAI: (projectId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  reorderProjects: (pinnedIDs: string[], unpinnedIDs: string[]) => Promise<void>;
+  togglePinProject: (projectId: string) => Promise<void>;
+  toggleCollapseProject: (projectId: string) => void;
+  setAllProjectsCollapsed: (collapsed: boolean) => void;
 
   saveCommand: (projectId: string, cmd: ProjectCommand) => Promise<boolean>;
   deleteCommand: (projectId: string, commandId: string) => Promise<void>;
@@ -58,6 +105,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   activeLogTarget: null,
   aiAnalyzingIds: {},
   aiConfig: null,
+  collapsedProjects: loadCollapsedProjects(),
   initialized: false,
 
   init: () => {
@@ -171,7 +219,9 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       set((s) => {
         const exists = s.projects.some((p) => p.id === proj.id);
         return {
-          projects: exists ? s.projects.map((p) => (p.id === proj.id ? proj : p)) : [proj, ...s.projects],
+          projects: exists
+            ? s.projects.map((p) => (p.id === proj.id ? proj : p))
+            : insertUnpinnedProjectAtTop(s.projects, proj),
         };
       });
       notify('success', `已导入项目「${proj.name}」，共识别 ${proj.commands.length} 条指令`);
@@ -191,7 +241,9 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         const exists = s.projects.some((p) => p.id === proj.id);
         return {
           importing: false,
-          projects: exists ? s.projects.map((p) => (p.id === proj.id ? proj : p)) : [proj, ...s.projects],
+          projects: exists
+            ? s.projects.map((p) => (p.id === proj.id ? proj : p))
+            : insertUnpinnedProjectAtTop(s.projects, proj),
         };
       });
       notify('success', `已导入项目「${proj.name}」，共识别 ${proj.commands.length} 条指令`);
@@ -228,14 +280,109 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   deleteProject: async (projectId: string) => {
     try {
       await api.deleteProject(projectId);
-      set((s) => ({
-        projects: s.projects.filter((p) => p.id !== projectId),
-        activeLogTarget: s.activeLogTarget?.projectId === projectId ? null : s.activeLogTarget,
-      }));
+      set((s) => {
+        const nextCollapsed = { ...s.collapsedProjects };
+        delete nextCollapsed[projectId];
+        saveCollapsedProjects(nextCollapsed);
+        return {
+          projects: s.projects.filter((p) => p.id !== projectId),
+          collapsedProjects: nextCollapsed,
+          activeLogTarget: s.activeLogTarget?.projectId === projectId ? null : s.activeLogTarget,
+        };
+      });
       notify('info', '已移除项目');
     } catch (e) {
       notify('error', parseError(e).message);
     }
+  },
+
+  reorderProjects: async (pinnedIDs: string[], unpinnedIDs: string[]) => {
+    const prevProjects = get().projects;
+    const byId = new Map(prevProjects.map((p) => [p.id, p]));
+    const seen = new Set<string>();
+    const nextPinned: ProjectRecord[] = [];
+    const nextUnpinned: ProjectRecord[] = [];
+
+    for (const id of pinnedIDs) {
+      const p = byId.get(id);
+      if (p && !seen.has(id)) {
+        nextPinned.push(Object.assign(Object.create(Object.getPrototypeOf(p)), p, { pinned: true }));
+        seen.add(id);
+      }
+    }
+    for (const id of unpinnedIDs) {
+      const p = byId.get(id);
+      if (p && !seen.has(id)) {
+        nextUnpinned.push(Object.assign(Object.create(Object.getPrototypeOf(p)), p, { pinned: false }));
+        seen.add(id);
+      }
+    }
+    for (const p of prevProjects) {
+      if (!seen.has(p.id)) {
+        if (p.pinned) nextPinned.push(p);
+        else nextUnpinned.push(p);
+      }
+    }
+
+    const optimistic = [...nextPinned, ...nextUnpinned];
+    const seq = ++reorderSeq;
+    set({ projects: optimistic });
+
+    try {
+      const persisted = await api.reorderProjects(
+        nextPinned.map((p) => p.id),
+        nextUnpinned.map((p) => p.id)
+      );
+      if (seq === reorderSeq) {
+        set({ projects: persisted });
+      }
+    } catch (e) {
+      if (seq === reorderSeq) {
+        set({ projects: prevProjects });
+      }
+      notify('error', parseError(e).message);
+    }
+  },
+
+  togglePinProject: async (projectId: string) => {
+    const projects = get().projects;
+    const target = projects.find((p) => p.id === projectId);
+    if (!target) return;
+
+    const pinnedIDs = projects.filter((p) => p.pinned && p.id !== projectId).map((p) => p.id);
+    const unpinnedIDs = projects.filter((p) => !p.pinned && p.id !== projectId).map((p) => p.id);
+
+    if (target.pinned) {
+      // Unpin: move to top of unpinned section
+      await get().reorderProjects(pinnedIDs, [projectId, ...unpinnedIDs]);
+    } else {
+      // Pin: move to top of pinned section
+      await get().reorderProjects([projectId, ...pinnedIDs], unpinnedIDs);
+    }
+  },
+
+  toggleCollapseProject: (projectId: string) => {
+    set((s) => {
+      const next = {
+        ...s.collapsedProjects,
+        [projectId]: !s.collapsedProjects[projectId],
+      };
+      saveCollapsedProjects(next);
+      return { collapsedProjects: next };
+    });
+  },
+
+  setAllProjectsCollapsed: (collapsed: boolean) => {
+    set((s) => {
+      const next: Record<string, boolean> = {};
+      if (collapsed) {
+        for (const p of s.projects) {
+          next[p.id] = true;
+        }
+      }
+      saveCollapsedProjects(next);
+      return { collapsedProjects: next };
+    });
   },
 
   saveCommand: async (projectId: string, cmd: ProjectCommand) => {

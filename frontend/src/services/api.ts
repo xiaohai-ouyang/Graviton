@@ -256,6 +256,14 @@ export const api = {
     }
   },
 
+  async reorderProjects(pinnedIDs: string[], unpinnedIDs: string[]): Promise<ProjectRecord[]> {
+    try {
+      return (await WailsApp.ReorderProjects(pinnedIDs, unpinnedIDs)) || [];
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
   async saveProjectCommand(projectID: string, cmd: ProjectCommand): Promise<ProjectRecord> {
     try {
       return await WailsApp.SaveProjectCommand(projectID, cmd);
