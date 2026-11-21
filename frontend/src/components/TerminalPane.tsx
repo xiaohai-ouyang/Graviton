@@ -12,7 +12,37 @@ import {
 } from 'lucide-react';
 import { useEnvStore } from '../store/useEnvStore';
 import { useAccountStore } from '../store/useAccountStore';
-import { ProcessState, ProjectCommand, ProjectRecord } from '../types';
+import { LogEntry, ProcessState, ProjectCommand, ProjectRecord } from '../types';
+
+const STDERR_WARN_RE = /\b(warn|warning|deprecated)\b|警告/i;
+const STDERR_ERROR_RE =
+  /\b(error|err|fatal|critical|exception|traceback|panic|failed|errno)\b|^\s*File ".*", line \d+|\w+(Error|Exception):|exited with code [1-9]|已退出\s*\(code=[1-9]|错误|异常|失败/i;
+const STDERR_INFO_RE =
+  /\b(INFO|DEBUG)\b|^\s*\*\s+(Serving|Debug mode|Running on|Restarting|Debugger)|Press CTRL\+C to quit|\b(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+\S+\s+HTTP\//i;
+
+const getLogLineColorClass = (entry: LogEntry): string => {
+  if (entry.stream === 'system') {
+    if (entry.line.includes('状态: error')) {
+      return 'text-rose-600 dark:text-rose-400';
+    }
+    return 'text-sky-600 dark:text-sky-400/90';
+  }
+  if (entry.stream === 'stderr') {
+    const line = entry.line;
+    if (STDERR_WARN_RE.test(line) && !/^\s*(error|fatal|critical)\b/i.test(line)) {
+      return 'text-amber-600 dark:text-amber-400';
+    }
+    if (STDERR_INFO_RE.test(line) && !STDERR_ERROR_RE.test(line)) {
+      return 'text-neutral-800 dark:text-neutral-200';
+    }
+    if (STDERR_ERROR_RE.test(line)) {
+      return 'text-rose-600 dark:text-rose-400';
+    }
+    // Many runtimes (Python logging, Flask, Uvicorn, git, npm) emit normal status lines on stderr.
+    return 'text-neutral-800 dark:text-neutral-200';
+  }
+  return 'text-neutral-800 dark:text-neutral-200';
+};
 
 interface TerminalPaneProps {
   onEditCommand: (projectId: string, cmd: ProjectCommand) => void;
@@ -244,19 +274,14 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
           </div>
         ) : (
           <div className="space-y-0.5">
-            {logs.map((entry, idx) => {
-              const colorClass =
-                entry.stream === 'stderr'
-                  ? 'text-rose-600 dark:text-rose-400'
-                  : entry.stream === 'system'
-                  ? 'text-sky-600 dark:text-sky-400/90'
-                  : 'text-neutral-800 dark:text-neutral-200';
-              return (
-                <div key={idx} className={`whitespace-pre-wrap break-all ${colorClass}`}>
-                  {entry.line}
-                </div>
-              );
-            })}
+            {logs.map((entry, idx) => (
+              <div
+                key={idx}
+                className={`whitespace-pre-wrap break-all ${getLogLineColorClass(entry)}`}
+              >
+                {entry.line}
+              </div>
+            ))}
           </div>
         )}
       </div>
