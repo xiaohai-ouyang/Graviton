@@ -4,6 +4,7 @@ package envmgr
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -14,6 +15,7 @@ func buildShellCommand(dir, commandLine string) *exec.Cmd {
 	fullCmd := "chcp 65001 >nul && " + commandLine
 	cmd := exec.Command("cmd.exe", "/C", fullCmd)
 	cmd.Dir = dir
+	cmd.Env = withUTF8ProcessEnv(os.Environ())
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow: true,
 	}

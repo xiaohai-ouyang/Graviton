@@ -7,12 +7,18 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 const maxLogLines = 1000
+
+var ansiEscapeRe = regexp.MustCompile("\x1b(?:\\[[0-9;?]*[ -/]*[@-~]|\\][^\\x07\\x1b]*(?:\\x07|\x1b\\\\)|[@-Z\\\\-_])")
 
 // ProcessStatus represents the lifecycle state of a managed command.
 type ProcessStatus string
@@ -277,10 +283,61 @@ func (pm *ProcessManager) readStream(projectID, commandID, stream string, r io.R
 			ProjectID: projectID,
 			CommandID: commandID,
 			Stream:    stream,
-			Line:      scanner.Text(),
+			Line:      normalizeLogLine(scanner.Bytes()),
 			Timestamp: time.Now().Format("15:04:05"),
 		})
 	}
+}
+
+// withUTF8ProcessEnv ensures Python and other CLIs emit unbuffered UTF-8 when attached to pipes.
+func withUTF8ProcessEnv(base []string) []string {
+	out := make([]string, len(base), len(base)+3)
+	copy(out, base)
+	defaults := [][2]string{
+		{"PYTHONUTF8", "1"},
+		{"PYTHONIOENCODING", "utf-8"},
+		{"PYTHONUNBUFFERED", "1"},
+	}
+	for _, kv := range defaults {
+		if !hasEnvKey(out, kv[0]) {
+			out = append(out, kv[0]+"="+kv[1])
+		}
+	}
+	return out
+}
+
+func hasEnvKey(env []string, key string) bool {
+	prefix := key + "="
+	for _, item := range env {
+		if len(item) >= len(prefix) && strings.EqualFold(item[:len(prefix)], prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeLogLine decodes GBK/GB18030 output to UTF-8 if needed and strips ANSI escape sequences.
+func normalizeLogLine(raw []byte) string {
+	var text string
+	if utf8.Valid(raw) {
+		text = string(raw)
+	} else if decoded, err := simplifiedchinese.GB18030.NewDecoder().Bytes(raw); err == nil {
+		text = string(decoded)
+	} else {
+		text = string(raw)
+	}
+
+	text = ansiEscapeRe.ReplaceAllString(text, "")
+	if strings.ContainsRune(text, '\r') {
+		parts := strings.Split(text, "\r")
+		for i := len(parts) - 1; i >= 0; i-- {
+			if parts[i] != "" {
+				text = parts[i]
+				break
+			}
+		}
+	}
+	return text
 }
 
 func (pm *ProcessManager) appendLog(entry LogEntry) {
