@@ -3,20 +3,24 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { BatchRefreshResult } from './types';
 import { useAccountStore } from './store/useAccountStore';
+import { useAppInfoStore } from './store/useAppInfoStore';
 import { useThemeStore } from './store/useThemeStore';
 import { Sidebar } from './components/Sidebar';
 import { FeedbackBanner } from './components/FeedbackBanner';
+import { ChangelogModal } from './components/ChangelogModal';
 import { QuotaPage } from './pages/QuotaPage';
 import { EnvironmentPage } from './pages/EnvironmentPage';
 import { SettingsPage } from './pages/SettingsPage';
 
 export const App: React.FC = () => {
   const { loadAccounts, loadWidgetStatus, setWidgetOpen } = useAccountStore();
+  const loadAppInfo = useAppInfoStore((s) => s.loadAppInfo);
   const initTheme = useThemeStore((s) => s.initTheme);
 
   useEffect(() => {
     loadAccounts();
     loadWidgetStatus();
+    void loadAppInfo();
     const cleanupTheme = initTheme();
     const offAccounts = EventsOn('accounts:updated', () => {
       void useAccountStore.getState().loadAccounts();
@@ -33,12 +37,13 @@ export const App: React.FC = () => {
       offQuotaProgress();
       offWidget();
     };
-  }, [loadAccounts, loadWidgetStatus, initTheme, setWidgetOpen]);
+  }, [loadAccounts, loadWidgetStatus, loadAppInfo, initTheme, setWidgetOpen]);
 
   return (
     <HashRouter>
       <div className="flex min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
         <Sidebar />
+        <ChangelogModal />
 
         <div className="flex min-w-0 flex-1 flex-col">
           <FeedbackBanner />

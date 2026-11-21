@@ -2,8 +2,10 @@ import * as WailsApp from '../../wailsjs/go/main/App';
 import {
   AccountDisplay,
   AIConfig,
+  AppInfo,
   BatchImportResult,
   BatchRefreshResult,
+  ChangelogRelease,
   LogEntry,
   OAuthStartResult,
   ProcessState,
@@ -385,6 +387,19 @@ export const api = {
       await WailsApp.TestAIConfig(cfg);
     } catch (e) {
       throw parseError(e);
+    }
+  },
+
+  // --- App Version & Changelog APIs ---
+  async getAppInfo(): Promise<AppInfo> {
+    return WailsApp.GetAppInfo();
+  },
+
+  async getChangelog(): Promise<ChangelogRelease[]> {
+    try {
+      return (await WailsApp.GetChangelog()) || [];
+    } catch {
+      return [];
     }
   },
 };

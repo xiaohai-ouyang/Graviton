@@ -9,5 +9,12 @@
   "author": {
     "name": "CodeTool",
     "email": "dev@codetool.local"
+  },
+  "info": {
+    "companyName": "CodeTool",
+    "productName": "CodeTool",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 CodeTool",
+    "comments": "Antigravity 账号管理、额度监控与本地开发环境工具"
   }
 }

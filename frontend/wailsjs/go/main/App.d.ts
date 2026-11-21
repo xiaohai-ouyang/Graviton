@@ -3,6 +3,7 @@
 import {storage} from '../models';
 import {appservice} from '../models';
 import {envmgr} from '../models';
+import {buildinfo} from '../models';
 import {widget} from '../models';
 import {main} from '../models';
 import {client} from '../models';
@@ -26,6 +27,10 @@ export function DeleteProject(arg1:string):Promise<void>;
 export function DeleteProjectCommand(arg1:string,arg2:string):Promise<storage.ProjectRecord>;
 
 export function GetAIConfig():Promise<envmgr.AIConfig>;
+
+export function GetAppInfo():Promise<buildinfo.AppInfo>;
+
+export function GetChangelog():Promise<Array<buildinfo.ChangelogRelease>>;
 
 export function GetClientPath():Promise<string>;
 

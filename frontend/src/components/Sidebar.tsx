@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
+  FileClock,
   Gauge,
   Layers,
   Settings,
   ShieldCheck,
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { useAppInfoStore } from '../store/useAppInfoStore';
 
 const NAV_ITEMS = [
   { to: '/quota', label: '额度', icon: Gauge },
@@ -15,6 +17,7 @@ const NAV_ITEMS = [
 
 export const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const { appInfo, openChangelog } = useAppInfoStore();
 
   return (
     <aside
@@ -111,6 +114,41 @@ export const Sidebar: React.FC = () => {
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="truncate">设置</span>}
         </NavLink>
+
+        {appInfo && (
+          <button
+            type="button"
+            onClick={openChangelog}
+            title={`CodeTool v${appInfo.version} — 点击查看更新日志`}
+            className={`flex items-center rounded-lg text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100 ${
+              collapsed
+                ? 'h-8 w-9 justify-center'
+                : 'w-full justify-between px-2.5 py-1.5'
+            }`}
+          >
+            {collapsed ? (
+              <FileClock className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <>
+                <span className="inline-flex min-w-0 items-center gap-1.5 font-mono">
+                  <FileClock className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">v{appInfo.version}</span>
+                </span>
+                {appInfo.channel !== 'stable' && (
+                  <span
+                    className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase ${
+                      appInfo.channel === 'rc'
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
+                        : 'bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300'
+                    }`}
+                  >
+                    {appInfo.channel}
+                  </span>
+                )}
+              </>
+            )}
+          </button>
+        )}
       </div>
     </aside>
   );

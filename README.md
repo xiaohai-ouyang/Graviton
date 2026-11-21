@@ -110,17 +110,48 @@ cd ..
 
 ### 构建桌面应用与安装包
 ```powershell
-# 编译生产版单文件并打包 Windows NSIS 安装包
-wails build -nsis
+# 1. 本地调试打包（仅验证构建，不产生 Git 提交与 Tag）
+.\scripts\release.ps1 -NoGit
+
+# 2. 规范发包（校验 SemVer 与 changelog.json -> 同步配置 -> 跑测试 -> 提交 -> 编译打包 -> 归档 -> 打 Tag，不自动 push）
+.\scripts\release.ps1 -Version 0.1.0-rc.1
 ```
 
-打包完成后产物位于：
-- 便携可执行文件：`build\bin\CodeTool.exe`
-- Windows 安装程序：`build\bin\codetool-amd64-installer.exe`
+归档产物位于 `dist\v<版本>\`：
+- Windows 安装程序：`dist\v<版本>\CodeTool-v<版本>-windows-amd64-installer.exe`
+- 便携可执行文件：`dist\v<版本>\CodeTool-v<版本>-windows-amd64-portable.exe`
+- 完整性校验文件：`dist\v<版本>\SHA256SUMS.txt`
 
 ---
 
-## 6. 移植来源与开源许可证
+## 6. 版本规范、更新日志与发包流程
+
+### 6.1 版本号语义（SemVer 双通道）
+CodeTool 采用 **正式版（`X.Y.Z`）+ 候选版（`X.Y.Z-rc.N`）** 双通道语义化版本规范：
+
+| 格式示例 | 含义与适用场景 |
+| --- | --- |
+| `0.1.0` -> `0.1.1`（`PATCH`） | 纯 Bug 修复、稳定性或性能小修，不新增大功能、不破坏配置结构 |
+| `0.1.0` -> `0.2.0`（`MINOR`） | 新增完整功能模块或明显新特性且向下兼容旧配置 |
+| `0.x.y` -> `1.0.0`（`MAJOR`） | 产品进入稳定里程碑，或存在不向后兼容的数据/配置结构大改 |
+| `0.1.1-rc.1`（`RC 候选版`） | `0.1.1` 正式发包前的功能冻结验收包；验收通过后转正为 `0.1.1`，若有修复则递增 `0.1.1-rc.2` |
+
+> **Windows 四段版本号映射**：Windows Manifest 与 NSIS `VIProductVersion` 仅支持纯数字 `X.Y.Z.0`。发包脚本会自动从 `VERSION` 提取纯数字 `X.Y.Z` 写入 `wails.json`，同时将完整 SemVer（如 `0.1.0-rc.1`）同步至 `frontend/package.json`、Go `-ldflags`、Git Tag、归档文件名及应用内界面展示。
+
+### 6.2 单一真相源与更新日志维护
+- **`VERSION`**：版本号唯一真相源（仅存放一行如 `0.1.0-rc.1`）。
+- **`changelog.json`**：结构化更新日志源数据，Go 通过 `//go:embed` 编译期嵌入并向前端提供强类型接口（侧边栏版本徽章与设置页「关于与更新日志」均可查看）。
+  - 变更类型（`type`）支持：`feat`（新增）、`fix`（修复）、`perf`（优化）、`change`（变更）、`breaking`（重大变更）。
+- **`CHANGELOG.md`**：由 `scripts/release.ps1` 根据 `changelog.json` 自动生成，请勿手动编辑。
+
+### 6.3 标准发包步骤
+1. 在根目录 `changelog.json` 的 `releases` 首位新增目标版本条目（如 `0.1.0-rc.1` 或 `0.1.0`）。
+2. 执行 `.\scripts\release.ps1 -Version <目标版本>`（可先加 `-DryRun` 预览，或 `-SyncOnly` 仅同步文件与生成 `CHANGELOG.md`）。
+3. 验收 `dist\v<版本>\` 中的安装包与便携版；确认无误后手动执行 `git push && git push origin v<版本>`，若已关联 GitHub 仓库，`.github/workflows/release.yml` 将自动构建并发布 GitHub Release（`-rc.` 标签自动标记为 Pre-release）。
+
+---
+
+## 7. 移植来源与开源许可证
 
 本项目核心 OAuth 流程、Google Cloud Code Quota Summary 解析规范、Base64 哨兵机制以及 Antigravity 客户端进程定位/SQLite 注入逻辑移植自开源项目：
 

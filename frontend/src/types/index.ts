@@ -1,4 +1,8 @@
-import { appservice, client, envmgr, storage } from '../../wailsjs/go/models';
+import { appservice, buildinfo, client, envmgr, storage } from '../../wailsjs/go/models';
+
+export type AppInfo = buildinfo.AppInfo;
+export type ChangelogRelease = buildinfo.ChangelogRelease;
+export type ChangelogChange = buildinfo.ChangelogChange;
 
 export type AccountDisplay = appservice.AccountDisplay;
 export type BatchRefreshResult = appservice.BatchRefreshResult;

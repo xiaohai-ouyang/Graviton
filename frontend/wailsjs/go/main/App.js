@@ -42,6 +42,14 @@ export function GetAIConfig() {
   return window['go']['main']['App']['GetAIConfig']();
 }
 
+export function GetAppInfo() {
+  return window['go']['main']['App']['GetAppInfo']();
+}
+
+export function GetChangelog() {
+  return window['go']['main']['App']['GetChangelog']();
+}
+
 export function GetClientPath() {
   return window['go']['main']['App']['GetClientPath']();
 }
