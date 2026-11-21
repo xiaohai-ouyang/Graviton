@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import {
   ChevronDown,
   ChevronRight,
@@ -19,7 +20,9 @@ import {
   Square,
   Trash2,
 } from 'lucide-react';
-import { ProcessState, ProjectRecord } from '../types';
+import { AnimatePresence, motion } from 'motion/react';
+import { useMotionStore } from '../store/useMotionStore';
+import { ProcessState, ProjectCommand, ProjectRecord } from '../types';
 
 export interface ProjectCardProps {
   project: ProjectRecord;
@@ -104,22 +107,104 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
     transition,
   };
 
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const canAnimate = shouldAnimate && !isDragging;
+
   const coreCommands = project.commands.filter((c) => c.pinned);
   const extraCommands = project.commands.filter((c) => !c.pinned);
-  const visibleCommands =
-    coreCommands.length > 0 ? (showMore ? project.commands : coreCommands) : project.commands;
+  const primaryCommands = coreCommands.length > 0 ? coreCommands : project.commands;
+  const hasCollapsibleExtras = coreCommands.length > 0 && extraCommands.length > 0;
 
   const runningCount = project.commands.filter(
     (c) => processStates[c.id]?.status === 'running'
   ).length;
 
+  const renderCommandRow = (cmd: ProjectCommand) => {
+    const state = processStates[cmd.id];
+    const isRunning = state?.status === 'running';
+    const isSelected = activeCommandId === cmd.id;
+
+    return (
+      <div
+        key={cmd.id}
+        onClick={() => onSelectCommand(cmd.id)}
+        className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
+          isSelected
+            ? 'border-neutral-300 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800'
+            : 'border-transparent bg-neutral-50/80 hover:bg-neutral-100/80 dark:bg-neutral-950/60 dark:hover:bg-neutral-800/50'
+        }`}
+      >
+        <Tooltip.Root open={isDragging ? false : undefined}>
+          <Tooltip.Trigger asChild>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="truncate text-xs font-medium text-neutral-900 dark:text-neutral-100">
+                {cmd.name}
+              </span>
+              {cmd.cwd && (
+                <span className="shrink-0 rounded bg-neutral-200/80 px-1 py-0.2 font-mono text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+                  {cmd.cwd}
+                </span>
+              )}
+            </div>
+          </Tooltip.Trigger>
+          <Tooltip.Portal>
+            <Tooltip.Content
+              side="top"
+              align="start"
+              sideOffset={6}
+              className="z-50 max-w-xs break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+            >
+              {cmd.command}
+            </Tooltip.Content>
+          </Tooltip.Portal>
+        </Tooltip.Root>
+
+        {/* Only Start / Stop / Restart */}
+        <div
+          className="flex shrink-0 items-center gap-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isRunning ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onRestart(cmd.id)}
+                title="重启"
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-neutral-200 bg-card px-2 text-[11px] font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
+              >
+                <RotateCw className="h-2.5 w-2.5" />
+                <span>重启</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onStop(cmd.id)}
+                title="停止"
+                className="inline-flex h-6 items-center gap-1 rounded-md bg-rose-600 px-2 text-[11px] font-medium text-white transition-colors hover:bg-rose-500"
+              >
+                <Square className="h-2 w-2 fill-current" />
+                <span>停止</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onStart(cmd.id)}
+              className="inline-flex h-6 items-center gap-1 rounded-md bg-neutral-900 px-2 text-[11px] font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              <Play className="h-2 w-2 fill-current" />
+              <span>启动</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`group/card rounded-xl border bg-card shadow-2xs transition-colors dark:bg-neutral-900 ${
-        collapsed ? 'px-3 py-2.5' : 'p-3.5'
-      } ${
+      className={`group/card rounded-xl border bg-card px-3 py-2.5 shadow-2xs transition-colors dark:bg-neutral-900 ${
         isDragging
           ? 'border-dashed border-neutral-300 opacity-35 dark:border-neutral-600'
           : isPinned
@@ -128,13 +213,9 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
       }`}
     >
       {/* Project Header */}
-      <div
-        className={`group/header relative flex justify-between gap-1.5 ${
-          collapsed ? 'items-center' : 'items-start'
-        }`}
-      >
+      <div className="group/header relative flex items-center justify-between gap-1.5">
         {/* Left: Drag Handle + Clickable Collapse Area */}
-        <div className={`flex min-w-0 flex-1 gap-1 ${collapsed ? 'items-center' : 'items-start'}`}>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           {/* Dedicated 6-dot Drag Handle */}
           <button
             ref={setActivatorNodeRef}
@@ -144,9 +225,7 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
             onClick={(e) => e.stopPropagation()}
             title="拖拽调整顺序"
             aria-label={`拖拽 ${project.name}`}
-            className={`inline-flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-600 active:cursor-grabbing group-hover/card:text-neutral-400 dark:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 dark:group-hover/card:text-neutral-500 ${
-              collapsed ? '' : 'mt-0.5'
-            }`}
+            className="inline-flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded text-neutral-300 transition-colors hover:bg-neutral-100 hover:text-neutral-600 active:cursor-grabbing group-hover/card:text-neutral-400 dark:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 dark:group-hover/card:text-neutral-500"
           >
             <GripVertical className="h-3.5 w-3.5" />
           </button>
@@ -163,23 +242,32 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
                 onToggleCollapse();
               }
             }}
-            className={`flex min-w-0 flex-1 cursor-pointer select-none gap-1.5 rounded-lg py-0.5 pr-1 text-left transition-colors hover:bg-neutral-100/60 dark:hover:bg-neutral-800/40 ${
-              collapsed ? 'items-center' : 'items-start'
-            }`}
+            className="flex min-w-0 flex-1 cursor-pointer select-none items-center gap-1.5 rounded-lg py-0.5 pr-1 text-left"
           >
             <ChevronRight
               className={`h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform duration-150 dark:text-neutral-500 ${
-                collapsed ? '' : 'mt-1 rotate-90'
+                collapsed ? '' : 'rotate-90'
               }`}
             />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <h3
-                  title={project.path}
-                  className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100"
-                >
-                  {project.name}
-                </h3>
+                <Tooltip.Root open={isDragging ? false : undefined}>
+                  <Tooltip.Trigger asChild>
+                    <h3 className="truncate text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                      {project.name}
+                    </h3>
+                  </Tooltip.Trigger>
+                  <Tooltip.Portal>
+                    <Tooltip.Content
+                      side="top"
+                      align="start"
+                      sideOffset={6}
+                      className="z-50 max-w-xs break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                    >
+                      {project.path}
+                    </Tooltip.Content>
+                  </Tooltip.Portal>
+                </Tooltip.Root>
                 {runningCount > 0 && (
                   <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
                     {runningCount} 运行中
@@ -189,14 +277,6 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
                   <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-neutral-400" />
                 )}
               </div>
-              {!collapsed && (
-                <p
-                  title={project.path}
-                  className="mt-0.5 truncate font-mono text-[11px] text-neutral-400 dark:text-neutral-500"
-                >
-                  {project.path}
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -231,184 +311,153 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
             <MoreHorizontal className="h-4 w-4" />
           </button>
 
-          {menuOpen && (
-            <div className="absolute top-8 right-0 z-30 w-40 rounded-xl border border-neutral-200 bg-card p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-              <button
-                type="button"
-                onClick={() => {
-                  onCloseMenu();
-                  onTogglePin();
-                }}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={canAnimate ? { opacity: 0, scale: 0.95, y: -4 } : false}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={canAnimate ? { opacity: 0, scale: 0.95, y: -4 } : { opacity: 0 }}
+                transition={
+                  canAnimate
+                    ? { duration: 0.13, ease: [0.22, 1, 0.36, 1] }
+                    : { duration: 0 }
+                }
+                style={{ transformOrigin: 'top right' }}
+                className="absolute top-8 right-0 z-30 w-40 rounded-xl border border-neutral-200 bg-card p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
               >
-                {isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                <span>{isPinned ? '取消置顶' : '置顶项目'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={onAddCommand}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>新增指令</span>
-              </button>
-              <button
-                type="button"
-                onClick={onOpenFolder}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-                <span>打开目录</span>
-              </button>
-              <button
-                type="button"
-                onClick={onRescan}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span>重新扫描</span>
-              </button>
-              {aiEnabled && (
                 <button
                   type="button"
-                  onClick={onAIAnalyze}
+                  onClick={() => {
+                    onCloseMenu();
+                    onTogglePin();
+                  }}
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>AI 优化指令</span>
+                  {isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                  <span>{isPinned ? '取消置顶' : '置顶项目'}</span>
                 </button>
-              )}
-              <div className="my-1 h-px bg-neutral-100 dark:bg-neutral-800" />
-              <button
-                type="button"
-                onClick={onDeleteProject}
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>移除项目</span>
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  onClick={onAddCommand}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>新增指令</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenFolder}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  <span>打开目录</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onRescan}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>重新扫描</span>
+                </button>
+                {aiEnabled && (
+                  <button
+                    type="button"
+                    onClick={onAIAnalyze}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>AI 优化指令</span>
+                  </button>
+                )}
+                <div className="my-1 h-px bg-neutral-100 dark:bg-neutral-800" />
+                <button
+                  type="button"
+                  onClick={onDeleteProject}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>移除项目</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
       {/* Collapsible Body: Commands List + More Toggle */}
-      {!collapsed && (
-        <>
-          <div className="mt-3 space-y-1.5">
-            {visibleCommands.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-neutral-200 py-3 text-center text-xs text-neutral-400 dark:border-neutral-800">
-                暂无指令，可在右上角 ··· 中新增
-              </p>
-            ) : (
-              visibleCommands.map((cmd) => {
-                const state = processStates[cmd.id];
-                const isRunning = state?.status === 'running';
-                const isFailed = state?.status === 'error';
-                const isSelected = activeCommandId === cmd.id;
+      <AnimatePresence initial={false}>
+        {!collapsed && (
+          <motion.div
+            key="card-body"
+            initial={canAnimate ? { height: 0, opacity: 0 } : false}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={canAnimate ? { height: 0, opacity: 0 } : { opacity: 0 }}
+            transition={
+              canAnimate
+                ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0 }
+            }
+            className="overflow-hidden"
+          >
+            <div className="pt-2.5 pb-1">
+              <div className="space-y-1.5">
+                {project.commands.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-neutral-200 py-3 text-center text-xs text-neutral-400 dark:border-neutral-800">
+                    暂无指令，可在右上角 ··· 中新增
+                  </p>
+                ) : (
+                  primaryCommands.map((cmd) => renderCommandRow(cmd))
+                )}
+              </div>
 
-                return (
-                  <div
-                    key={cmd.id}
-                    onClick={() => onSelectCommand(cmd.id)}
-                    className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-2 transition-colors ${
-                      isSelected
-                        ? 'border-neutral-300 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800'
-                        : 'border-transparent bg-neutral-50/80 hover:bg-neutral-100/80 dark:bg-neutral-950/60 dark:hover:bg-neutral-800/50'
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${
-                          isRunning
-                            ? 'bg-emerald-500 animate-pulse'
-                            : isFailed
-                            ? 'bg-rose-500'
-                            : 'bg-neutral-300 dark:bg-neutral-700'
-                        }`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="truncate text-xs font-medium text-neutral-900 dark:text-neutral-100">
-                            {cmd.name}
-                          </span>
-                          {cmd.cwd && (
-                            <span className="shrink-0 rounded bg-neutral-200/80 px-1 py-0.2 font-mono text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-                              {cmd.cwd}
-                            </span>
-                          )}
+              {/* Extra Commands Animated Section */}
+              {hasCollapsibleExtras && (
+                <>
+                  <AnimatePresence initial={false}>
+                    {showMore && (
+                      <motion.div
+                        key="extra-commands"
+                        initial={canAnimate ? { height: 0, opacity: 0 } : false}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={canAnimate ? { height: 0, opacity: 0 } : { opacity: 0 }}
+                        transition={
+                          canAnimate
+                            ? { duration: 0.16, ease: [0.22, 1, 0.36, 1] }
+                            : { duration: 0 }
+                        }
+                        className="overflow-hidden"
+                      >
+                        <div className="space-y-1.5 pt-1.5">
+                          {extraCommands.map((cmd) => renderCommandRow(cmd))}
                         </div>
-                        <p className="truncate font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-                          {cmd.command}
-                        </p>
-                      </div>
-                    </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                    {/* Only Start / Stop / Restart */}
-                    <div
-                      className="flex shrink-0 items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {isRunning ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => onRestart(cmd.id)}
-                            title="重启"
-                            className="inline-flex h-7 items-center gap-1 rounded-md border border-neutral-200 bg-card px-2 text-[11px] font-medium text-neutral-700 transition-colors hover:bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:bg-neutral-800"
-                          >
-                            <RotateCw className="h-3 w-3" />
-                            <span>重启</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onStop(cmd.id)}
-                            title="停止"
-                            className="inline-flex h-7 items-center gap-1 rounded-md bg-rose-600 px-2 text-[11px] font-medium text-white transition-colors hover:bg-rose-500"
-                          >
-                            <Square className="h-2.5 w-2.5 fill-current" />
-                            <span>停止</span>
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => onStart(cmd.id)}
-                          className="inline-flex h-7 items-center gap-1 rounded-md bg-neutral-900 px-2.5 text-[11px] font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
-                        >
-                          <Play className="h-2.5 w-2.5 fill-current" />
-                          <span>启动</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Expand/Collapse extra commands */}
-          {coreCommands.length > 0 && extraCommands.length > 0 && (
-            <button
-              type="button"
-              onClick={onToggleMore}
-              className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
-            >
-              {showMore ? (
-                <>
-                  <ChevronUp className="h-3.5 w-3.5" />
-                  <span>收起</span>
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="h-3.5 w-3.5" />
-                  <span>更多指令 ({extraCommands.length})</span>
+                  <button
+                    type="button"
+                    onClick={onToggleMore}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200"
+                  >
+                    {showMore ? (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                        <span>收起</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        <span>更多指令 ({extraCommands.length})</span>
+                      </>
+                    )}
+                  </button>
                 </>
               )}
-            </button>
-          )}
-        </>
-      )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
