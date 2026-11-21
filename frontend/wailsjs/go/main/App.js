@@ -122,6 +122,10 @@ export function RefreshAllQuotas() {
   return window['go']['main']['App']['RefreshAllQuotas']();
 }
 
+export function ReorderProjects(arg1, arg2) {
+  return window['go']['main']['App']['ReorderProjects'](arg1, arg2);
+}
+
 export function RescanProject(arg1) {
   return window['go']['main']['App']['RescanProject'](arg1);
 }

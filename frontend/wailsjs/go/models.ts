@@ -327,6 +327,7 @@ export namespace storage {
 	    path: string;
 	    techStack: string[];
 	    commands: ProjectCommand[];
+	    pinned: boolean;
 	    aiAnalyzed: boolean;
 	    createdAt: string;
 	    updatedAt: string;
@@ -342,6 +343,7 @@ export namespace storage {
 	        this.path = source["path"];
 	        this.techStack = source["techStack"];
 	        this.commands = this.convertValues(source["commands"], ProjectCommand);
+	        this.pinned = source["pinned"];
 	        this.aiAnalyzed = source["aiAnalyzed"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];

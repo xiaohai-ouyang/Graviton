@@ -67,6 +67,8 @@ export function RefreshAccountQuota(arg1:string):Promise<appservice.AccountDispl
 
 export function RefreshAllQuotas():Promise<Array<appservice.BatchRefreshResult>>;
 
+export function ReorderProjects(arg1:Array<string>,arg2:Array<string>):Promise<Array<storage.ProjectRecord>>;
+
 export function RescanProject(arg1:string):Promise<storage.ProjectRecord>;
 
 export function RestartCommand(arg1:string,arg2:string):Promise<void>;
