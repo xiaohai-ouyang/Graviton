@@ -121,12 +121,39 @@ jobs:
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: Graviton ${{ steps.meta.outputs.tag }}
-          body_path: dist/${{ steps.meta.outputs.tag }}/RELEASE_NOTES.md
-          prerelease: ${{ steps.meta.outputs.prerelease }}
-          files: |
-            dist/${{ steps.meta.outputs.tag }}/*.exe
-            dist/${{ steps.meta.outputs.tag }}/SHA256SUMS.txt
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $distDir = "dist/$tag"
+          $notesFile = Join-Path $distDir "RELEASE_NOTES.md"
+          $checksumFile = Join-Path $distDir "SHA256SUMS.txt"
+          $exeFiles = @(Get-ChildItem -Path $distDir -Filter "*.exe" | Sort-Object Name | ForEach-Object { $_.FullName })
+          if ($exeFiles.Count -ne 2) {
+            throw "Expected 2 .exe assets (installer + portable) in '$distDir', found $($exeFiles.Count)."
+          }
+          if (-not (Test-Path $checksumFile)) {
+            throw "Missing checksum file '$checksumFile'."
+          }
+          if (-not (Test-Path $notesFile)) {
+            throw "Missing release notes file '$notesFile'."
+          }
+
+          gh --version
+          $ghArgs = @("release", "create", $tag)
+          $ghArgs += $exeFiles
+          $ghArgs += (Resolve-Path $checksumFile).Path
+          $ghArgs += @(
+            "--verify-tag",
+            "--title", "Graviton $tag",
+            "--notes-file", (Resolve-Path $notesFile).Path
+          )
+          if ("${{ steps.meta.outputs.prerelease }}" -eq "true") {
+            $ghArgs += "--prerelease"
+          }
+
+          gh @ghArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "gh release create failed with exit code $LASTEXITCODE."
+          }
