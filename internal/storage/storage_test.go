@@ -143,6 +143,42 @@ func TestStorage_SettingsLifecycle(t *testing.T) {
 	assert.Equal(t, `C:\Custom\Antigravity\Antigravity.exe`, loaded.ClientPath)
 }
 
+func TestStorage_UpdateSettingsRoundTripAndDefaults(t *testing.T) {
+	tempDir := t.TempDir()
+	sm, err := NewStorageManager(tempDir)
+	require.NoError(t, err)
+
+	// Legacy settings without update fields: auto-update defaults to enabled.
+	legacy := `format_version = 1
+theme = "dark"
+`
+	require.NoError(t, os.WriteFile(filepath.Join(tempDir, SettingsFileName), []byte(legacy), 0644))
+	sf, report, err := sm.LoadSettings()
+	require.NoError(t, err)
+	assert.Empty(t, report)
+	assert.False(t, sf.AutoUpdateDisabled)
+	assert.Empty(t, sf.UpdateMirrorURL)
+	assert.Empty(t, sf.SkippedUpdateVersion)
+	assert.Empty(t, sf.LastRunVersion)
+	assert.Empty(t, sf.UpdatedFromVersion)
+
+	sf.AutoUpdateDisabled = true
+	sf.UpdateMirrorURL = "https://gh-proxy.com/"
+	sf.SkippedUpdateVersion = "0.2.0"
+	sf.LastRunVersion = "0.1.0"
+	sf.UpdatedFromVersion = "0.1.0-rc.9"
+	require.NoError(t, sm.SaveSettings(sf))
+
+	loaded, _, err := sm.LoadSettings()
+	require.NoError(t, err)
+	assert.True(t, loaded.AutoUpdateDisabled)
+	assert.Equal(t, "https://gh-proxy.com/", loaded.UpdateMirrorURL)
+	assert.Equal(t, "0.2.0", loaded.SkippedUpdateVersion)
+	assert.Equal(t, "0.1.0", loaded.LastRunVersion)
+	assert.Equal(t, "0.1.0-rc.9", loaded.UpdatedFromVersion)
+	assert.Equal(t, "dark", loaded.Theme)
+}
+
 func TestStorage_MigrateLegacyCodeToolDir(t *testing.T) {
 	tempRoot := t.TempDir()
 	legacyDir := filepath.Join(tempRoot, LegacyAppDirName)
