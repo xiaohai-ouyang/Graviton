@@ -573,6 +573,63 @@ export namespace storage {
 
 }
 
+export namespace updater {
+	
+	export class UpdateState {
+	    status: string;
+	    currentVersion: string;
+	    channel: string;
+	    installMode: string;
+	    latestVersion?: string;
+	    releaseTitle?: string;
+	    releaseNotes?: string;
+	    releaseUrl?: string;
+	    publishedAt?: string;
+	    assetName?: string;
+	    downloadedBytes: number;
+	    totalBytes: number;
+	    progress: number;
+	    errorMessage?: string;
+	    checkedAt?: string;
+	    pendingRestart: boolean;
+	    busyReasons?: string[];
+	    autoCheckEnabled: boolean;
+	    mirrorUrl: string;
+	    skippedVersion?: string;
+	    updatedFromVersion?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.currentVersion = source["currentVersion"];
+	        this.channel = source["channel"];
+	        this.installMode = source["installMode"];
+	        this.latestVersion = source["latestVersion"];
+	        this.releaseTitle = source["releaseTitle"];
+	        this.releaseNotes = source["releaseNotes"];
+	        this.releaseUrl = source["releaseUrl"];
+	        this.publishedAt = source["publishedAt"];
+	        this.assetName = source["assetName"];
+	        this.downloadedBytes = source["downloadedBytes"];
+	        this.totalBytes = source["totalBytes"];
+	        this.progress = source["progress"];
+	        this.errorMessage = source["errorMessage"];
+	        this.checkedAt = source["checkedAt"];
+	        this.pendingRestart = source["pendingRestart"];
+	        this.busyReasons = source["busyReasons"];
+	        this.autoCheckEnabled = source["autoCheckEnabled"];
+	        this.mirrorUrl = source["mirrorUrl"];
+	        this.skippedVersion = source["skippedVersion"];
+	        this.updatedFromVersion = source["updatedFromVersion"];
+	    }
+	}
+
+}
+
 export namespace widget {
 	
 	export class WindowBounds {

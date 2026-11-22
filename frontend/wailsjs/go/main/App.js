@@ -10,12 +10,20 @@ export function ApplyWidgetAlwaysOnTop(arg1) {
   return window['go']['main']['App']['ApplyWidgetAlwaysOnTop'](arg1);
 }
 
+export function CancelDeferredUpdate() {
+  return window['go']['main']['App']['CancelDeferredUpdate']();
+}
+
 export function CancelOAuthLogin() {
   return window['go']['main']['App']['CancelOAuthLogin']();
 }
 
 export function CaptureCurrentAccount() {
   return window['go']['main']['App']['CaptureCurrentAccount']();
+}
+
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
 }
 
 export function ClearCommandLogs(arg1) {
@@ -36,6 +44,10 @@ export function DeleteProject(arg1) {
 
 export function DeleteProjectCommand(arg1, arg2) {
   return window['go']['main']['App']['DeleteProjectCommand'](arg1, arg2);
+}
+
+export function DismissUpdatedNotice() {
+  return window['go']['main']['App']['DismissUpdatedNotice']();
 }
 
 export function GetAIConfig() {
@@ -68,6 +80,10 @@ export function GetScreenWorkArea() {
 
 export function GetShellEnvironment() {
   return window['go']['main']['App']['GetShellEnvironment']();
+}
+
+export function GetUpdateState() {
+  return window['go']['main']['App']['GetUpdateState']();
 }
 
 export function GetWidgetAlwaysOnTop() {
@@ -122,6 +138,10 @@ export function OpenProjectTerminal(arg1) {
   return window['go']['main']['App']['OpenProjectTerminal'](arg1);
 }
 
+export function OpenReleasePage(arg1) {
+  return window['go']['main']['App']['OpenReleasePage'](arg1);
+}
+
 export function QuitApp() {
   return window['go']['main']['App']['QuitApp']();
 }
@@ -136,6 +156,10 @@ export function RefreshAllQuotas() {
 
 export function ReorderProjects(arg1, arg2) {
   return window['go']['main']['App']['ReorderProjects'](arg1, arg2);
+}
+
+export function RequestInstallUpdate() {
+  return window['go']['main']['App']['RequestInstallUpdate']();
 }
 
 export function RescanProject(arg1) {
@@ -160,6 +184,10 @@ export function SaveProjectCommand(arg1, arg2) {
 
 export function SaveShellConfig(arg1) {
   return window['go']['main']['App']['SaveShellConfig'](arg1);
+}
+
+export function SaveUpdateSettings(arg1, arg2) {
+  return window['go']['main']['App']['SaveUpdateSettings'](arg1, arg2);
 }
 
 export function SelectAndImportProject() {
@@ -188,6 +216,10 @@ export function SetWidgetSize(arg1, arg2) {
 
 export function ShowMainWindow() {
   return window['go']['main']['App']['ShowMainWindow']();
+}
+
+export function SkipUpdateVersion(arg1) {
+  return window['go']['main']['App']['SkipUpdateVersion'](arg1);
 }
 
 export function StartCommand(arg1, arg2) {
