@@ -2,6 +2,7 @@ import React from 'react';
 import { AccountDisplay } from '../types';
 import { motion, useReducedMotion } from 'motion/react';
 import { Clock, Layers, Sparkles } from 'lucide-react';
+import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { useNowTick } from '../hooks/useNowTick';
@@ -75,18 +76,11 @@ export const AccountQuotaDetail: React.FC<AccountQuotaDetailProps> = ({ account 
                               </span>
                             </div>
 
-                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  isLow
-                                    ? 'bg-rose-500'
-                                    : isMid
-                                    ? 'bg-amber-500'
-                                    : 'bg-emerald-500 dark:bg-emerald-400'
-                                }`}
-                                style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-                              />
-                            </div>
+                            <QuotaProgressBar
+                              percentage={pct}
+                              size="md"
+                              ariaLabel={`${b.displayName || b.window || b.bucketId || '配额窗口'} 剩余额度`}
+                            />
 
                             {b.resetTime && (
                               <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">

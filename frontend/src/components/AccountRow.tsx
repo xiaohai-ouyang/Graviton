@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { AccountQuotaDetail } from './AccountQuotaDetail';
+import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { useNowTick } from '../hooks/useNowTick';
@@ -116,20 +117,12 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
             </span>
           </div>
 
-          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-neutral-100 dark:bg-neutral-800">
-            {!isUnknown && (
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  isLow
-                    ? 'bg-rose-500'
-                    : isMid
-                    ? 'bg-amber-500'
-                    : 'bg-emerald-500 dark:bg-emerald-400'
-                }`}
-                style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-              />
-            )}
-          </div>
+          <QuotaProgressBar
+            percentage={pct}
+            size="md"
+            className="mt-1.5"
+            ariaLabel="剩余额度"
+          />
 
           <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
             <span>重置时间:</span>
