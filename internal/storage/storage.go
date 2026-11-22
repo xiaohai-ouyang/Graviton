@@ -88,6 +88,12 @@ type SettingsFile struct {
 	AIModel           string `toml:"ai_model,omitempty"`
 	DefaultShell      string `toml:"default_shell,omitempty"`
 	GitBashPath       string `toml:"git_bash_path,omitempty"`
+	// Inverted flag so existing users default to auto-update ON after upgrading.
+	AutoUpdateDisabled   bool   `toml:"auto_update_disabled,omitempty"`
+	UpdateMirrorURL      string `toml:"update_mirror_url,omitempty"`
+	SkippedUpdateVersion string `toml:"skipped_update_version,omitempty"`
+	LastRunVersion       string `toml:"last_run_version,omitempty"`
+	UpdatedFromVersion   string `toml:"updated_from_version,omitempty"`
 }
 
 // StorageManager manages loading and atomic saving of configuration and accounts.

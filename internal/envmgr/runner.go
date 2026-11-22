@@ -287,6 +287,24 @@ func (pm *ProcessManager) StopAll() {
 	wg.Wait()
 }
 
+// RunningCount returns the number of commands currently in the running state.
+func (pm *ProcessManager) RunningCount() int {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	count := 0
+	for _, mp := range pm.procs {
+		if mp.state.Status == StatusRunning {
+			count++
+		}
+	}
+	return count
+}
+
+// HasRunningProcesses reports whether any managed command is still running.
+func (pm *ProcessManager) HasRunningProcesses() bool {
+	return pm.RunningCount() > 0
+}
+
 // GetStates returns a snapshot of all tracked command process states.
 func (pm *ProcessManager) GetStates() map[string]ProcessState {
 	pm.mu.Lock()

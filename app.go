@@ -13,6 +13,7 @@ import (
 	"graviton/internal/envmgr"
 	"graviton/internal/storage"
 	"graviton/internal/tray"
+	"graviton/internal/updater"
 	"graviton/internal/widget"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -37,9 +38,12 @@ type App struct {
 	widgetPort  int
 	widgetToken string
 	widgetMgr   *widget.Manager
-	trayIcon    *tray.Tray
-	procMgr     *envmgr.ProcessManager
-	projectsMu  sync.Mutex
+	trayIcon       *tray.Tray
+	procMgr        *envmgr.ProcessManager
+	updater        *updater.Manager
+	launchUpdateFn func(updater.ApplyParams) error
+	quitAppFn      func()
+	projectsMu     sync.Mutex
 
 	mu                sync.Mutex
 	theme             string
@@ -115,6 +119,9 @@ func (a *App) startup(ctx context.Context) {
 			if a.ctx != nil && !a.isWidget {
 				runtime.EventsEmit(a.ctx, "env:process:status", state)
 			}
+			if state.Status == envmgr.StatusStopped || state.Status == envmgr.StatusError {
+				a.onPotentialIdleForUpdate()
+			}
 		},
 		OnLog: func(entry envmgr.LogEntry) {
 			if a.ctx != nil && !a.isWidget {
@@ -157,6 +164,7 @@ func (a *App) startup(ctx context.Context) {
 	})
 
 	a.startAutoRefreshLoop()
+	a.initUpdater()
 
 	if a.storageMgr != nil {
 		if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf.WidgetEnabled {
@@ -222,6 +230,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.procMgr != nil {
 		a.procMgr.StopAll()
+	}
+	if a.updater != nil {
+		a.updater.Stop()
 	}
 }
 
@@ -558,6 +569,7 @@ func (a *App) CaptureCurrentAccount() (*appservice.AccountDisplay, error) {
 	if err == nil {
 		a.notifyStateChanged()
 	}
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -570,6 +582,7 @@ func (a *App) StartOAuthLogin() (*appservice.OAuthStartResult, error) {
 		if evt.Account != nil {
 			a.notifyStateChanged()
 		}
+		a.onPotentialIdleForUpdate()
 	})
 	if err != nil {
 		return nil, err
@@ -583,6 +596,7 @@ func (a *App) StartOAuthLogin() (*appservice.OAuthStartResult, error) {
 // CancelOAuthLogin cancels an active OAuth login session.
 func (a *App) CancelOAuthLogin() {
 	a.service.CancelOAuthLogin()
+	a.onPotentialIdleForUpdate()
 }
 
 // CompleteOAuthWithCallbackURL manually completes an active OAuth login using a pasted callback URL.
@@ -591,6 +605,7 @@ func (a *App) CompleteOAuthWithCallbackURL(rawURL string) (*appservice.AccountDi
 	if err == nil {
 		a.notifyStateChanged()
 	}
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -600,6 +615,7 @@ func (a *App) ImportRefreshTokens(rawInput string) (*appservice.BatchImportResul
 	if err == nil {
 		a.notifyStateChanged()
 	}
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -618,6 +634,7 @@ func (a *App) RefreshAccountQuota(id string) (*appservice.AccountDisplay, error)
 	delete(a.refreshingIDs, id)
 	a.mu.Unlock()
 	a.notifyStateChanged()
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -644,6 +661,7 @@ func (a *App) RefreshAllQuotas() ([]appservice.BatchRefreshResult, error) {
 	a.refreshingAll = false
 	a.mu.Unlock()
 	a.notifyStateChanged()
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -662,6 +680,7 @@ func (a *App) SwitchAccount(id string) (*client.SwitchResult, error) {
 	delete(a.switchingIDs, id)
 	a.mu.Unlock()
 	a.notifyStateChanged()
+	a.onPotentialIdleForUpdate()
 	return res, err
 }
 
@@ -671,6 +690,7 @@ func (a *App) DeleteAccount(id string) error {
 	if err == nil {
 		a.notifyStateChanged()
 	}
+	a.onPotentialIdleForUpdate()
 	return err
 }
 

@@ -106,6 +106,17 @@ func (s *AppService) tryLock() (*sync.Mutex, error) {
 	return &s.opLock, nil
 }
 
+// IsBusy reports without blocking whether an account operation or OAuth login is active.
+func (s *AppService) IsBusy() bool {
+	if !s.opLock.TryLock() {
+		return true
+	}
+	s.opLock.Unlock()
+	s.oauthMu.Lock()
+	defer s.oauthMu.Unlock()
+	return s.oauthSess != nil
+}
+
 // toDisplay converts an AccountRecord to AccountDisplay.
 func toDisplay(r storage.AccountRecord, isCurrent bool) AccountDisplay {
 	return AccountDisplay{
