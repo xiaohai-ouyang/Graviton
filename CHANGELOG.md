@@ -4,6 +4,18 @@
 
 本项目遵循语义化版本规范（正式版 `X.Y.Z` / 候选版 `X.Y.Z-rc.N`）。此文件由根目录 [changelog.json](./changelog.json) 自动生成。
 
+## [v0.1.0-rc.11] - 2026-11-22 (RC 候选版) · 修复 Immutable Releases 附件自动发布并重发千问版本
+
+> 修复仓库启用 GitHub Immutable Releases 后 RC 预发布版本无法上传安装包与校验文件的问题，重新发布包含千问 Token Plan 额度查询与全供应商概览页的完整构建产物。
+
+### 修复
+
+- 将 GitHub Actions 发布步骤由 softprops/action-gh-release 切换为官方 gh release create，遵循先创建草稿、上传双安装包与 SHA256SUMS.txt 后再正式发布锁定的顺序，完整兼容 GitHub Immutable Releases
+
+### 变更
+
+- 包含 v0.1.0-rc.10 全部功能（千问 Token Plan 个人版/团队版额度查询、全供应商「概览」页与侧边栏「额度」二级子菜单）并附带完整 Windows 安装包、便携版、SHA-256 校验与 SLSA 构建来源证明
+
 ## [v0.1.0-rc.10] - 2026-11-22 (RC 候选版) · 千问 Token Plan 额度查询与全供应商概览页
 
 > 新增千问 AI 平台（platform.qianwenai.com）Token Plan 个人版与团队版实时额度查询能力，并上线全供应商「概览」页与侧边栏「额度」提供商二级子菜单。
