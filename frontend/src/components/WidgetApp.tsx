@@ -6,10 +6,10 @@ import {
   formatRelativeTime,
   formatResetDisplay,
   getGroupEffectivePct,
-  getQuotaBarColor,
   getQuotaTextColor,
   ResetTimeFormat,
 } from '../utils/quota';
+import { QuotaProgressBar } from './QuotaProgressBar';
 import {
   ArrowRightLeft,
   ChevronDown,
@@ -318,14 +318,13 @@ export const WidgetApp: React.FC = () => {
                         {isUnknown ? '未知' : `${pct}%`}
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${
-                          isUnknown ? 'w-0' : getQuotaBarColor(pct)
-                        }`}
-                        style={{ width: isUnknown ? '0%' : `${Math.max(0, Math.min(100, pct))}%` }}
-                      />
-                    </div>
+                    <QuotaProgressBar
+                      percentage={pct}
+                      size="sm"
+                      surface="widget"
+                      className="mt-1.5"
+                      ariaLabel={`${label} 剩余额度`}
+                    />
                     <div className="mt-1 flex items-center justify-between text-[10px] text-neutral-500 dark:text-neutral-400">
                       <span
                         className="inline-flex items-center gap-1"

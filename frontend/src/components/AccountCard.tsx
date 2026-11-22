@@ -6,9 +6,9 @@ import { useNowTick } from '../hooks/useNowTick';
 import {
   formatBucketLabel,
   formatRelativeTime,
-  getQuotaBarColor,
   getQuotaTextColor,
 } from '../utils/quota';
+import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import {
   AlertCircle,
@@ -186,14 +186,12 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
                             </div>
                           </div>
 
-                          <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/80 dark:bg-neutral-800">
-                            <div
-                              className={`h-full rounded-full transition-all duration-300 ${getQuotaBarColor(
-                                bucketPct
-                              )}`}
-                              style={{ width: `${Math.max(0, Math.min(100, bucketPct))}%` }}
-                            />
-                          </div>
+                          <QuotaProgressBar
+                            percentage={bucketPct}
+                            size="md"
+                            className="pt-0.5"
+                            ariaLabel={`${formatBucketLabel(b.displayName || b.window || b.bucketId)} 剩余额度`}
+                          />
                         </div>
                       );
                     })}
@@ -218,14 +216,12 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
                 {isUnknown ? '未知' : `${pct}%`}
               </span>
             </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-200/80 dark:bg-neutral-800">
-              {!isUnknown && (
-                <div
-                  className={`h-full rounded-full transition-all duration-300 ${getQuotaBarColor(pct)}`}
-                  style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-                />
-              )}
-            </div>
+            <QuotaProgressBar
+              percentage={pct}
+              size="md"
+              className="mt-2"
+              ariaLabel="综合剩余额度"
+            />
             <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
               <span>重置时间</span>
               <ResetTimeText

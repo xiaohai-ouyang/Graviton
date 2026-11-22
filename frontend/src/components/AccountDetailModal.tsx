@@ -7,9 +7,9 @@ import { useNowTick } from '../hooks/useNowTick';
 import {
   formatBucketLabel,
   formatRelativeTime,
-  getQuotaBarColor,
   getQuotaTextColor,
 } from '../utils/quota';
+import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import {
   ArrowRightLeft,
@@ -177,12 +177,12 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                                   </span>
                                 </div>
 
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200/80 dark:bg-neutral-800">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-300 ${getQuotaBarColor(pct)}`}
-                                    style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-                                  />
-                                </div>
+                                <QuotaProgressBar
+                                  percentage={pct}
+                                  size="md"
+                                  className="pt-0.5"
+                                  ariaLabel={`${formatBucketLabel(b.displayName || b.window || b.bucketId)} 剩余额度`}
+                                />
 
                                 {b.resetTime && (
                                   <div className="flex items-center gap-1 text-[10px] text-neutral-500 dark:text-neutral-400">
