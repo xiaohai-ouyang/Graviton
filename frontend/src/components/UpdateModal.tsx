@@ -14,6 +14,7 @@ import { useMotionStore } from '../store/useMotionStore';
 import { useUpdateStore } from '../store/useUpdateStore';
 import { api, parseError } from '../services/api';
 import { useAccountStore } from '../store/useAccountStore';
+import { isFeedbackBannerEvent } from '../utils/dialog';
 import { CHANNEL_META } from './ChangelogModal';
 
 const INSTALL_MODE_LABEL: Record<string, string> = {
@@ -114,10 +115,22 @@ export const UpdateModal: React.FC = () => {
             initial={shouldAnimate ? { opacity: 0 } : false}
             animate={{ opacity: 1 }}
             transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-xs"
           />
         </Dialog.Overlay>
-        <Dialog.Content asChild>
+        <Dialog.Content
+          asChild
+          onPointerDownOutside={(e) => {
+            if (isFeedbackBannerEvent(e)) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (isFeedbackBannerEvent(e)) {
+              e.preventDefault();
+            }
+          }}
+        >
           <motion.div
             initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -126,7 +139,7 @@ export const UpdateModal: React.FC = () => {
                 ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
                 : { duration: 0 }
             }
-            className="fixed left-1/2 top-1/2 z-50 flex max-h-[82vh] w-[92vw] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-card shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+            className="fixed left-1/2 top-1/2 z-[60] flex max-h-[82vh] w-[92vw] max-w-xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-card shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 border-b border-neutral-200/80 px-5 py-4 dark:border-neutral-800">

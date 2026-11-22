@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
+import { FEEDBACK_BANNER_ATTR } from '../utils/dialog';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 
@@ -29,8 +31,13 @@ export const FeedbackBanner: React.FC = () => {
   const isSuccess = banner?.type === 'success';
   const isError = banner?.type === 'error';
 
-  return (
-    <div className="pointer-events-none fixed top-4 right-5 z-[100] flex max-w-md flex-col items-end gap-2">
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      {...{ [FEEDBACK_BANNER_ATTR]: 'true' }}
+      className="pointer-events-none fixed top-4 right-5 z-[100] flex max-w-md flex-col items-end gap-2"
+    >
       <AnimatePresence mode="wait">
         {banner && (
           <motion.div
@@ -70,6 +77,7 @@ export const FeedbackBanner: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div>,
+    document.body
   );
 };
