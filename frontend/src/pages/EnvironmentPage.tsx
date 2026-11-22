@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useEnvStore } from '../store/useEnvStore';
 import { ProjectCommand, ProjectRecord } from '../types';
+import { CommandContextMenu, CommandContextMenuState } from '../components/CommandContextMenu';
 import { CommandModal } from '../components/CommandModal';
 import { TerminalPane } from '../components/TerminalPane';
 import { ProjectCardDragPreview, SortableProjectCard } from '../components/ProjectCard';
@@ -161,16 +162,20 @@ export const EnvironmentPage: React.FC = () => {
     toggleCollapseProject,
     setAllProjectsCollapsed,
     saveCommand,
+    deleteCommand,
+    togglePinCommand,
     startCommand,
     stopCommand,
     restartCommand,
     openLogDrawer,
+    openCommandInTerminal,
     openProjectFolder,
   } = useEnvStore();
 
   const [pathInput, setPathInput] = useState('');
   const [expandedMore, setExpandedMore] = useState<Record<string, boolean>>({});
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [cmdContextMenu, setCmdContextMenu] = useState<CommandContextMenuState | null>(null);
   const [cmdModalState, setCmdModalState] = useState<{
     open: boolean;
     projectId: string;
@@ -406,6 +411,7 @@ export const EnvironmentPage: React.FC = () => {
         unpinned: [...derivedContainers.unpinned],
       };
       setOpenMenuId(null);
+      setCmdContextMenu(null);
       setActiveDragId(id);
       setHadPinnedOnDragStart(snapshot.pinned.length > 0);
       dragContainersRef.current = snapshot;
@@ -546,12 +552,29 @@ export const EnvironmentPage: React.FC = () => {
         aiEnabled={Boolean(aiConfig?.enabled)}
         showMore={Boolean(expandedMore[project.id])}
         menuOpen={openMenuId === project.id}
+        contextMenuCommandId={
+          cmdContextMenu?.projectId === project.id ? cmdContextMenu.command.id : null
+        }
         onToggleCollapse={() => toggleCollapseProject(project.id)}
         onTogglePin={() => void togglePinProject(project.id)}
-        onToggleMenu={() => setOpenMenuId((prev) => (prev === project.id ? null : project.id))}
+        onToggleMenu={() => {
+          setCmdContextMenu(null);
+          setOpenMenuId((prev) => (prev === project.id ? null : project.id));
+        }}
         onCloseMenu={() => setOpenMenuId((prev) => (prev === project.id ? null : prev))}
         onToggleMore={() => toggleMore(project.id)}
         onSelectCommand={(cmdId) => void openLogDrawer(project.id, cmdId)}
+        onCommandContextMenu={(cmd, e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpenMenuId(null);
+          setCmdContextMenu({
+            projectId: project.id,
+            command: cmd,
+            x: e.clientX,
+            y: e.clientY,
+          });
+        }}
         onStart={(cmdId) => void startCommand(project.id, cmdId)}
         onStop={(cmdId) => void stopCommand(cmdId)}
         onRestart={(cmdId) => void restartCommand(project.id, cmdId)}
@@ -793,6 +816,19 @@ export const EnvironmentPage: React.FC = () => {
           />
         </div>
       )}
+
+      <CommandContextMenu
+        state={cmdContextMenu}
+        onClose={() => setCmdContextMenu(null)}
+        onEdit={(projectId, cmd) =>
+          setCmdModalState({ open: true, projectId, editing: cmd })
+        }
+        onTogglePin={(projectId, commandId) => void togglePinCommand(projectId, commandId)}
+        onOpenInTerminal={(projectId, commandId) =>
+          void openCommandInTerminal(projectId, commandId)
+        }
+        onDelete={(projectId, commandId) => void deleteCommand(projectId, commandId)}
+      />
 
       <CommandModal
         open={cmdModalState.open}

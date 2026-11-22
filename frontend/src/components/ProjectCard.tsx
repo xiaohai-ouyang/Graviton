@@ -36,12 +36,14 @@ export interface ProjectCardProps {
   aiEnabled: boolean;
   showMore: boolean;
   menuOpen: boolean;
+  contextMenuCommandId: string | null;
   onToggleCollapse: () => void;
   onTogglePin: () => void;
   onToggleMenu: () => void;
   onCloseMenu: () => void;
   onToggleMore: () => void;
   onSelectCommand: (commandId: string) => void;
+  onCommandContextMenu: (command: ProjectCommand, e: React.MouseEvent) => void;
   onStart: (commandId: string) => void;
   onStop: (commandId: string) => void;
   onRestart: (commandId: string) => void;
@@ -63,12 +65,14 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
     aiEnabled,
     showMore,
     menuOpen,
+    contextMenuCommandId,
     onToggleCollapse,
     onTogglePin,
     onToggleMenu,
     onCloseMenu,
     onToggleMore,
     onSelectCommand,
+    onCommandContextMenu,
     onStart,
     onStop,
     onRestart,
@@ -128,6 +132,7 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
     const state = processStates[cmd.id];
     const isRunning = state?.status === 'running';
     const isSelected = activeCommandId === cmd.id;
+    const isContextMenuOpen = contextMenuCommandId === cmd.id;
     const shellOverride = normalizeShellOverride(cmd.shell);
     const overrideMeta =
       shellOverride !== '' && shellOverride !== defaultShell
@@ -138,13 +143,14 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
       <div
         key={cmd.id}
         onClick={() => onSelectCommand(cmd.id)}
+        onContextMenu={(e) => onCommandContextMenu(cmd, e)}
         className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
           isSelected
             ? 'border-neutral-300 bg-neutral-100 dark:border-neutral-700 dark:bg-neutral-800'
             : 'border-transparent bg-neutral-50/80 hover:bg-neutral-100/80 dark:bg-neutral-950/60 dark:hover:bg-neutral-800/50'
-        }`}
+        } ${isContextMenuOpen ? 'ring-1 ring-neutral-300 dark:ring-neutral-600' : ''}`}
       >
-        <Tooltip.Root open={isDragging ? false : undefined}>
+        <Tooltip.Root open={isDragging || isContextMenuOpen ? false : undefined}>
           <Tooltip.Trigger asChild>
             <div className="flex min-w-0 flex-1 items-center gap-1.5">
               <span className="truncate text-xs font-medium text-neutral-900 dark:text-neutral-100">

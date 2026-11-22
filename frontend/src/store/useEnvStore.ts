@@ -421,10 +421,16 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   deleteCommand: async (projectId: string, commandId: string) => {
     try {
       const updated = await api.deleteProjectCommand(projectId, commandId);
-      set((s) => ({
-        projects: s.projects.map((p) => (p.id === projectId ? updated : p)),
-        activeLogTarget: s.activeLogTarget?.commandId === commandId ? null : s.activeLogTarget,
-      }));
+      set((s) => {
+        const nextLogs = { ...s.logsByCmd };
+        delete nextLogs[commandId];
+        return {
+          projects: s.projects.map((p) => (p.id === projectId ? updated : p)),
+          logsByCmd: nextLogs,
+          activeLogTarget: s.activeLogTarget?.commandId === commandId ? null : s.activeLogTarget,
+        };
+      });
+      notify('info', '已删除指令');
     } catch (e) {
       notify('error', parseError(e).message);
     }
