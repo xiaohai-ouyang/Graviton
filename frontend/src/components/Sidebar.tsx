@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
   FileClock,
@@ -17,6 +17,12 @@ import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
+import {
+  getBackgroundLocation,
+  isSettingsPath,
+  SettingsRouteState,
+  useSettingsModalStore,
+} from '../store/useSettingsModalStore';
 import { useUpdateStore } from '../store/useUpdateStore';
 
 export const Sidebar: React.FC = () => {
@@ -28,10 +34,44 @@ export const Sidebar: React.FC = () => {
   const qwCount = useQianwenStore((s) => s.accounts.length);
   const { appInfo, openChangelog } = useAppInfoStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const lastSection = useSettingsModalStore((s) => s.lastSection);
   const updateState = useUpdateStore((s) => s.state);
   const setUpdateModalOpen = useUpdateStore((s) => s.setModalOpen);
 
-  const isQuotaRoute = location.pathname.startsWith('/quota');
+  const backgroundLocation = getBackgroundLocation(location);
+  const settingsOpen = isSettingsPath(location.pathname);
+  const isOverviewActive = backgroundLocation.pathname === '/overview';
+  const isQuotaRoute = backgroundLocation.pathname.startsWith('/quota');
+  const isEnvActive = backgroundLocation.pathname === '/env';
+
+  const navigateMainRoute = (to: string) => {
+    if (settingsOpen || backgroundLocation.pathname !== to) {
+      navigate(to);
+    }
+  };
+
+  const handleToggleSettings = () => {
+    if (settingsOpen) {
+      const routeState = location.state as SettingsRouteState | null | undefined;
+      if (routeState?.fromModalTrigger) {
+        navigate(-1);
+      } else {
+        navigate(
+          `${backgroundLocation.pathname}${backgroundLocation.search}${backgroundLocation.hash}`,
+          { replace: true }
+        );
+      }
+      return;
+    }
+
+    navigate(`/settings/${lastSection}`, {
+      state: {
+        backgroundLocation,
+        fromModalTrigger: true,
+      } satisfies SettingsRouteState,
+    });
+  };
+
   const quotaProviders = [
     { to: '/quota/antigravity', label: 'Antigravity', count: agCount },
     { to: '/quota/qianwen', label: '千问', count: qwCount },
@@ -83,33 +123,29 @@ export const Sidebar: React.FC = () => {
       {/* Navigation */}
       <nav aria-label="主导航" className="flex-1 space-y-1 p-2.5">
         {/* 概览 */}
-        <NavLink
-          to="/overview"
+        <button
+          type="button"
+          onClick={() => navigateMainRoute('/overview')}
+          aria-current={isOverviewActive ? 'page' : undefined}
           title={collapsed ? '概览' : undefined}
-          className={({ isActive }) =>
-            `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
-            } ${
-              isActive
-                ? 'text-white dark:text-neutral-900'
-                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
-            }`
-          }
+          className={`relative flex w-full items-center rounded-lg text-xs font-medium transition-colors ${
+            collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+          } ${
+            isOverviewActive
+              ? 'text-white dark:text-neutral-900'
+              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+          }`}
         >
-          {({ isActive }) => (
-            <>
-              {isActive && (
-                <motion.span
-                  layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
-                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                  className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
-                />
-              )}
-              <LayoutGrid className="relative z-10 h-4 w-4 shrink-0" />
-              {!collapsed && <span className="relative z-10 truncate">概览</span>}
-            </>
+          {isOverviewActive && (
+            <motion.span
+              layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+              transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+            />
           )}
-        </NavLink>
+          <LayoutGrid className="relative z-10 h-4 w-4 shrink-0" />
+          {!collapsed && <span className="relative z-10 truncate">概览</span>}
+        </button>
 
         {/* 额度（支持展开提供商子菜单） */}
         <div className="space-y-1">
@@ -119,7 +155,7 @@ export const Sidebar: React.FC = () => {
             aria-expanded={!collapsed ? quotaExpanded : undefined}
             onClick={() => {
               if (collapsed) {
-                navigate('/quota/antigravity');
+                navigateMainRoute('/quota/antigravity');
               } else {
                 setQuotaExpanded((prev) => !prev);
               }
@@ -164,41 +200,40 @@ export const Sidebar: React.FC = () => {
                   transition={shouldAnimate ? { duration: 0.15 } : { duration: 0 }}
                   className="ml-3 space-y-0.5 overflow-hidden border-l border-neutral-200/80 pl-2.5 dark:border-neutral-800"
                 >
-                  {quotaProviders.map((provider) => (
-                    <NavLink
-                      key={provider.to}
-                      to={provider.to}
-                      className={({ isActive }) =>
-                        `relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                  {quotaProviders.map((provider) => {
+                    const isActive = backgroundLocation.pathname === provider.to;
+                    return (
+                      <button
+                        key={provider.to}
+                        type="button"
+                        onClick={() => navigateMainRoute(provider.to)}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={`relative flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
                           isActive
                             ? 'text-white dark:text-neutral-900'
                             : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          {isActive && (
-                            <motion.span
-                              layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
-                              transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                              className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
-                            />
-                          )}
-                          <span className="relative z-10 truncate">{provider.label}</span>
-                          <span
-                            className={`relative z-10 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-                              isActive
-                                ? 'bg-white/20 text-white dark:bg-neutral-900/15 dark:text-neutral-900'
-                                : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                            }`}
-                          >
-                            {provider.count}
-                          </span>
-                        </>
-                      )}
-                    </NavLink>
-                  ))}
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.span
+                            layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                            className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+                          />
+                        )}
+                        <span className="relative z-10 truncate">{provider.label}</span>
+                        <span
+                          className={`relative z-10 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                            isActive
+                              ? 'bg-white/20 text-white dark:bg-neutral-900/15 dark:text-neutral-900'
+                              : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                          }`}
+                        >
+                          {provider.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -206,33 +241,29 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* 环境 */}
-        <NavLink
-          to="/env"
+        <button
+          type="button"
+          onClick={() => navigateMainRoute('/env')}
+          aria-current={isEnvActive ? 'page' : undefined}
           title={collapsed ? '环境' : undefined}
-          className={({ isActive }) =>
-            `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
-              collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
-            } ${
-              isActive
-                ? 'text-white dark:text-neutral-900'
-                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
-            }`
-          }
+          className={`relative flex w-full items-center rounded-lg text-xs font-medium transition-colors ${
+            collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+          } ${
+            isEnvActive
+              ? 'text-white dark:text-neutral-900'
+              : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+          }`}
         >
-          {({ isActive }) => (
-            <>
-              {isActive && (
-                <motion.span
-                  layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
-                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                  className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
-                />
-              )}
-              <Layers className="relative z-10 h-4 w-4 shrink-0" />
-              {!collapsed && <span className="relative z-10 truncate">环境</span>}
-            </>
+          {isEnvActive && (
+            <motion.span
+              layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+              transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+              className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+            />
           )}
-        </NavLink>
+          <Layers className="relative z-10 h-4 w-4 shrink-0" />
+          {!collapsed && <span className="relative z-10 truncate">环境</span>}
+        </button>
       </nav>
 
       {/* Footer Utilities */}
@@ -254,22 +285,22 @@ export const Sidebar: React.FC = () => {
           <ThemeToggle compact={collapsed} />
         </div>
 
-        <NavLink
-          to="/settings"
-          title={collapsed ? '设置' : undefined}
-          className={({ isActive }) =>
-            `flex items-center rounded-lg text-xs font-medium transition-colors ${
-              collapsed ? 'h-9 w-9 justify-center' : 'w-full gap-2.5 px-3 py-2'
-            } ${
-              isActive
-                ? 'bg-neutral-900 text-white shadow-xs dark:bg-neutral-100 dark:text-neutral-900'
-                : 'border border-neutral-200 bg-card text-neutral-700 shadow-2xs hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700'
-            }`
-          }
+        <button
+          type="button"
+          onClick={handleToggleSettings}
+          aria-pressed={settingsOpen}
+          title={collapsed ? '设置 (Ctrl+,)' : '快捷键 Ctrl+,'}
+          className={`flex items-center rounded-lg text-xs font-medium transition-colors ${
+            collapsed ? 'h-9 w-9 justify-center' : 'w-full gap-2.5 px-3 py-2'
+          } ${
+            settingsOpen
+              ? 'bg-neutral-900 text-white shadow-xs dark:bg-neutral-100 dark:text-neutral-900'
+              : 'border border-neutral-200 bg-card text-neutral-700 shadow-2xs hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700'
+          }`}
         >
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && <span className="truncate">设置</span>}
-        </NavLink>
+        </button>
 
         {appInfo && (
           <button
