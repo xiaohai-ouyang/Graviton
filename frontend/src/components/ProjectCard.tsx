@@ -175,7 +175,7 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
               side="top"
               align="start"
               sideOffset={6}
-              className="z-50 max-w-xs whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              className="z-[70] max-w-xs whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
             >
               {cmd.command}
             </Tooltip.Content>
@@ -285,7 +285,7 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
                       side="top"
                       align="start"
                       sideOffset={6}
-                      className="z-50 max-w-xs break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                      className="z-[70] max-w-xs break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
                     >
                       {project.path}
                     </Tooltip.Content>

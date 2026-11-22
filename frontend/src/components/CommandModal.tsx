@@ -82,6 +82,18 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
     }
   }, [open, initial]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.isComposing) {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   const submitCommand = async () => {
     const trimmedName = name.trim();
     const normalizedCommand = normalizeCommandInput(command);
@@ -118,6 +130,9 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xs"
         >
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-label={initial ? '编辑指令' : '新增自定义指令'}
             initial={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : false}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={shouldAnimate ? { opacity: 0, scale: 0.96, y: 4 } : { opacity: 0 }}

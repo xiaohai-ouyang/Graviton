@@ -22,6 +22,11 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-settings-backdrop: var(--settings-backdrop);
+  --color-settings-surface: var(--settings-surface);
+  --color-settings-sidebar: var(--settings-sidebar);
+  --color-settings-border: var(--settings-border);
+  --color-settings-highlight: var(--settings-highlight);
 }
 
 :root {
@@ -46,6 +51,11 @@
   --input: #e5e5e5;
   --ring: #171717;
   --radius: 0.5rem;
+  --settings-backdrop: rgba(0, 0, 0, 0.22);
+  --settings-surface: rgba(255, 255, 255, 0.94);
+  --settings-sidebar: rgba(245, 245, 245, 0.84);
+  --settings-border: rgba(0, 0, 0, 0.08);
+  --settings-highlight: rgba(23, 23, 23, 0.08);
 }
 
 .dark {
@@ -69,6 +79,11 @@
   --border: #262626;
   --input: #262626;
   --ring: #d4d4d4;
+  --settings-backdrop: rgba(0, 0, 0, 0.48);
+  --settings-surface: rgba(23, 23, 23, 0.94);
+  --settings-sidebar: rgba(16, 16, 16, 0.86);
+  --settings-border: rgba(255, 255, 255, 0.09);
+  --settings-highlight: rgba(255, 255, 255, 0.10);
 }
 
 html {
@@ -125,4 +140,30 @@ html.motion-off *::after {
 
 html.motion-off .animate-spin {
   animation-duration: 1s !important;
+}
+
+@keyframes settings-entry-pulse {
+  0% {
+    background-color: var(--settings-highlight);
+    box-shadow: 0 0 0 2px var(--settings-highlight);
+  }
+  70% {
+    background-color: var(--settings-highlight);
+    box-shadow: 0 0 0 2px var(--settings-highlight);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.settings-entry-highlight {
+  border-radius: 0.75rem;
+  animation: settings-entry-pulse 1.4s ease-out both;
+}
+
+html.motion-off .settings-entry-highlight {
+  animation: none;
+  background-color: var(--settings-highlight);
+  box-shadow: 0 0 0 2px var(--settings-highlight);
 }

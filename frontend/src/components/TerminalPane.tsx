@@ -82,7 +82,7 @@ const AdaptiveActionButton: React.FC<AdaptiveActionButtonProps> = ({
           side="bottom"
           align="center"
           sideOffset={6}
-          className="z-50 rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+          className="z-[70] rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
         >
           {tipText}
         </Tooltip.Content>
@@ -355,7 +355,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
                   side="bottom"
                   align="start"
                   sideOffset={6}
-                  className="z-50 max-w-md whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                  className="z-[70] max-w-md whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
                 >
                   {command.command}
                 </Tooltip.Content>
@@ -443,7 +443,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
                 side="bottom"
                 align="end"
                 sideOffset={6}
-                className="z-50 rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                className="z-[70] rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
               >
                 编辑此指令
               </Tooltip.Content>
