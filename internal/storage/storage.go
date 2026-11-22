@@ -92,8 +92,9 @@ type SettingsFile struct {
 	AutoUpdateDisabled   bool   `toml:"auto_update_disabled,omitempty"`
 	UpdateMirrorURL      string `toml:"update_mirror_url,omitempty"`
 	SkippedUpdateVersion string `toml:"skipped_update_version,omitempty"`
-	LastRunVersion       string `toml:"last_run_version,omitempty"`
-	UpdatedFromVersion   string `toml:"updated_from_version,omitempty"`
+	LastRunVersion        string `toml:"last_run_version,omitempty"`
+	UpdatedFromVersion    string `toml:"updated_from_version,omitempty"`
+	QianwenDeviceClientID string `toml:"qianwen_device_client_id,omitempty"`
 }
 
 // StorageManager manages loading and atomic saving of configuration and accounts.

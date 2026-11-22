@@ -11,6 +11,7 @@ import (
 	"graviton/internal/appservice"
 	"graviton/internal/client"
 	"graviton/internal/envmgr"
+	"graviton/internal/qianwen"
 	"graviton/internal/storage"
 	"graviton/internal/tray"
 	"graviton/internal/updater"
@@ -32,6 +33,7 @@ type WidgetConnection struct {
 type App struct {
 	ctx        context.Context
 	service    *appservice.AppService
+	qianwenSvc *qianwen.Service
 	storageMgr *storage.StorageManager
 
 	isWidget    bool
@@ -50,12 +52,14 @@ type App struct {
 	resetTimeFormat   string
 	widgetLocked      bool
 	widgetAlwaysOnTop bool
-	refreshingAll     bool
-	refreshingIDs map[string]bool
-	switchingIDs  map[string]bool
-	lastUpdated   string
-	stopAuto      chan struct{}
-	quitting      bool
+	refreshingAll        bool
+	refreshingIDs        map[string]bool
+	switchingIDs         map[string]bool
+	qianwenRefreshingAll bool
+	qianwenRefreshingIDs map[string]bool
+	lastUpdated          string
+	stopAuto             chan struct{}
+	quitting             bool
 }
 
 // NewApp creates a new App application struct for the main window.
@@ -65,6 +69,7 @@ func NewApp() *App {
 		fmt.Printf("Warning: failed to initialize storage manager: %v\n", err)
 	}
 	svc := appservice.NewAppService(sm, nil)
+	qwSvc := qianwen.NewService(sm, nil, nil)
 	theme := "light"
 	resetTimeFormat := "countdown"
 	widgetLocked := false
@@ -82,15 +87,17 @@ func NewApp() *App {
 		}
 	}
 	return &App{
-		service:           svc,
-		storageMgr:        sm,
-		theme:             theme,
-		resetTimeFormat:   resetTimeFormat,
-		widgetLocked:      widgetLocked,
-		widgetAlwaysOnTop: widgetAlwaysOnTop,
-		refreshingIDs:     make(map[string]bool),
-		switchingIDs:      make(map[string]bool),
-		stopAuto:          make(chan struct{}),
+		service:              svc,
+		qianwenSvc:           qwSvc,
+		storageMgr:           sm,
+		theme:                theme,
+		resetTimeFormat:      resetTimeFormat,
+		widgetLocked:         widgetLocked,
+		widgetAlwaysOnTop:    widgetAlwaysOnTop,
+		refreshingIDs:        make(map[string]bool),
+		switchingIDs:         make(map[string]bool),
+		qianwenRefreshingIDs: make(map[string]bool),
+		stopAuto:             make(chan struct{}),
 	}
 }
 
@@ -230,6 +237,9 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 	if a.procMgr != nil {
 		a.procMgr.StopAll()
+	}
+	if a.qianwenSvc != nil {
+		a.qianwenSvc.CancelAuth()
 	}
 	if a.updater != nil {
 		a.updater.Stop()
@@ -553,6 +563,11 @@ func (a *App) startAutoRefreshLoopWithInterval(interval time.Duration) {
 				return
 			case <-ticker.C:
 				_, _ = a.RefreshAllQuotas()
+				if a.qianwenSvc != nil {
+					if qwList, err := a.qianwenSvc.ListAccounts(); err == nil && len(qwList) > 0 {
+						_, _ = a.RefreshAllQianwenAccounts()
+					}
+				}
 			}
 		}
 	}()
