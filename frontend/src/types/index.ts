@@ -1,4 +1,4 @@
-import { appservice, buildinfo, client, envmgr, storage } from '../../wailsjs/go/models';
+import { appservice, buildinfo, client, envmgr, storage, updater } from '../../wailsjs/go/models';
 
 export type AppInfo = buildinfo.AppInfo;
 export type ChangelogRelease = buildinfo.ChangelogRelease;
@@ -27,6 +27,7 @@ export type AIConfig = envmgr.AIConfig;
 export type ShellConfig = envmgr.ShellConfig;
 export type ShellAvailability = envmgr.ShellAvailability;
 export type ShellEnvironmentInfo = envmgr.ShellEnvironmentInfo;
+export type UpdateState = updater.UpdateState;
 
 export interface ProcessState {
   projectId: string;

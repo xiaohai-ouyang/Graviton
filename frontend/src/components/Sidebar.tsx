@@ -3,7 +3,9 @@ import { NavLink } from 'react-router-dom';
 import {
   FileClock,
   Gauge,
+  Hourglass,
   Layers,
+  RotateCcw,
   Settings,
   ShieldCheck,
 } from 'lucide-react';
@@ -11,6 +13,7 @@ import { motion } from 'motion/react';
 import { ThemeToggle } from './ThemeToggle';
 import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useMotionStore } from '../store/useMotionStore';
+import { useUpdateStore } from '../store/useUpdateStore';
 
 const NAV_ITEMS = [
   { to: '/quota', label: '额度', icon: Gauge },
@@ -21,6 +24,14 @@ export const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const { appInfo, openChangelog } = useAppInfoStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+  const updateState = useUpdateStore((s) => s.state);
+  const setUpdateModalOpen = useUpdateStore((s) => s.setModalOpen);
+
+  const updateStatus = updateState?.status;
+  const updateReady = updateStatus === 'ready';
+  const updateWaiting = updateStatus === 'waiting_idle';
+  const updateDownloading = updateStatus === 'downloading' || updateStatus === 'verifying';
+  const updateActive = updateReady || updateWaiting;
 
   return (
     <aside
@@ -132,21 +143,63 @@ export const Sidebar: React.FC = () => {
         {appInfo && (
           <button
             type="button"
-            onClick={openChangelog}
-            title={`Graviton v${appInfo.version} — 点击查看更新日志`}
-            className={`flex items-center rounded-lg text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100 ${
+            onClick={updateActive ? () => setUpdateModalOpen(true) : openChangelog}
+            title={
+              updateReady
+                ? `新版本 v${updateState?.latestVersion} 已就绪 — 点击重启更新`
+                : updateWaiting
+                  ? `已预约更新至 v${updateState?.latestVersion} — 等待任务结束`
+                  : updateDownloading
+                    ? `正在下载更新 ${updateState?.progress ?? 0}%`
+                    : `Graviton v${appInfo.version} — 点击查看更新日志`
+            }
+            className={`relative flex items-center rounded-lg text-[11px] font-medium transition-colors ${
+              updateReady
+                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-900/60'
+                : updateWaiting
+                  ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:hover:bg-amber-900/60'
+                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+            } ${
               collapsed
                 ? 'h-8 w-9 justify-center'
                 : 'w-full justify-between px-2.5 py-1.5'
             }`}
           >
             {collapsed ? (
-              <FileClock className="h-3.5 w-3.5 shrink-0" />
+              <>
+                {updateReady ? (
+                  <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                ) : updateWaiting ? (
+                  <Hourglass className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <FileClock className="h-3.5 w-3.5 shrink-0" />
+                )}
+                {(updateReady || updateDownloading) && (
+                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                )}
+              </>
+            ) : updateReady ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">重启更新 v{updateState?.latestVersion}</span>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+              </span>
+            ) : updateWaiting ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <Hourglass className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">等待空闲更新</span>
+              </span>
             ) : (
               <>
                 <span className="inline-flex min-w-0 items-center gap-1.5 font-mono">
                   <FileClock className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">v{appInfo.version}</span>
+                  {updateDownloading && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-sky-500"
+                      title={`正在下载更新 ${updateState?.progress ?? 0}%`}
+                    />
+                  )}
                 </span>
                 {appInfo.channel !== 'stable' && (
                   <span

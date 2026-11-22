@@ -14,6 +14,7 @@ import {
   ShellConfig,
   ShellEnvironmentInfo,
   SwitchResult,
+  UpdateState,
   ApiError,
 } from '../types';
 
@@ -438,6 +439,71 @@ export const api = {
       return (await WailsApp.GetChangelog()) || [];
     } catch {
       return [];
+    }
+  },
+
+  // --- App Update APIs ---
+  async getUpdateState(): Promise<UpdateState | null> {
+    try {
+      return await WailsApp.GetUpdateState();
+    } catch {
+      return null;
+    }
+  },
+
+  async checkForUpdates(): Promise<UpdateState> {
+    try {
+      return await WailsApp.CheckForUpdates();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async saveUpdateSettings(autoCheck: boolean, mirrorURL: string): Promise<UpdateState> {
+    try {
+      return await WailsApp.SaveUpdateSettings(autoCheck, mirrorURL);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async skipUpdateVersion(version: string): Promise<UpdateState> {
+    try {
+      return await WailsApp.SkipUpdateVersion(version);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async requestInstallUpdate(): Promise<UpdateState> {
+    try {
+      return await WailsApp.RequestInstallUpdate();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async cancelDeferredUpdate(): Promise<UpdateState | null> {
+    try {
+      return await WailsApp.CancelDeferredUpdate();
+    } catch {
+      return null;
+    }
+  },
+
+  async dismissUpdatedNotice(): Promise<void> {
+    try {
+      await WailsApp.DismissUpdatedNotice();
+    } catch {
+      // Ignore outside Wails runtime
+    }
+  },
+
+  async openReleasePage(rawURL: string): Promise<void> {
+    try {
+      await WailsApp.OpenReleasePage(rawURL);
+    } catch (e) {
+      throw parseError(e);
     }
   },
 };

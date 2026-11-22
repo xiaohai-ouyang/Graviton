@@ -3,15 +3,18 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { EventsOn } from '../wailsjs/runtime/runtime';
-import { BatchRefreshResult } from './types';
+import { BatchRefreshResult, UpdateState } from './types';
 import { useAccountStore } from './store/useAccountStore';
 import { useAppInfoStore } from './store/useAppInfoStore';
 import { useMotionStore } from './store/useMotionStore';
 import { useResetTimeStore } from './store/useResetTimeStore';
 import { useThemeStore } from './store/useThemeStore';
+import { useUpdateStore } from './store/useUpdateStore';
 import { Sidebar } from './components/Sidebar';
 import { FeedbackBanner } from './components/FeedbackBanner';
 import { ChangelogModal } from './components/ChangelogModal';
+import { UpdateModal } from './components/UpdateModal';
+import { UpdateStatusBar } from './components/UpdateStatusBar';
 import { QuotaPage } from './pages/QuotaPage';
 import { EnvironmentPage } from './pages/EnvironmentPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -70,6 +73,10 @@ export const App: React.FC = () => {
     const offWidget = EventsOn('widget:status', (open: boolean) => {
       setWidgetOpen(Boolean(open));
     });
+    void useUpdateStore.getState().loadUpdateState();
+    const offUpdate = EventsOn('update:state', (st: UpdateState) => {
+      useUpdateStore.getState().applyUpdateState(st);
+    });
     return () => {
       cleanupTheme();
       cleanupMotion();
@@ -77,6 +84,7 @@ export const App: React.FC = () => {
       offAccounts();
       offQuotaProgress();
       offWidget();
+      offUpdate();
     };
   }, [
     loadAccounts,
@@ -95,9 +103,11 @@ export const App: React.FC = () => {
           <div className="flex min-h-screen bg-neutral-50 text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
             <Sidebar />
             <ChangelogModal />
+            <UpdateModal />
 
             <div className="flex min-w-0 flex-1 flex-col">
               <FeedbackBanner />
+              <UpdateStatusBar />
               <AnimatedRoutes />
             </div>
           </div>

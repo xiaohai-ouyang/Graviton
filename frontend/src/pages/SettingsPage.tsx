@@ -4,15 +4,19 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Download,
   Eye,
   EyeOff,
+  ExternalLink,
   FileClock,
   FolderOpen,
   GitCommitHorizontal,
+  Hourglass,
   Layers,
   Loader2,
   MonitorCheck,
   Palette,
+  RefreshCw,
   RotateCcw,
   Shield,
   Sparkles,
@@ -25,6 +29,8 @@ import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useEnvStore } from '../store/useEnvStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useResetTimeStore } from '../store/useResetTimeStore';
+import { useUpdateStore } from '../store/useUpdateStore';
+import { api, parseError } from '../services/api';
 import { MotionToggle } from '../components/MotionToggle';
 import { ResetTimeModeToggle } from '../components/ResetTimeModeToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -59,6 +65,17 @@ export const SettingsPage: React.FC = () => {
   const { appInfo, changelog, loadAppInfo, openChangelog } = useAppInfoStore();
   const { motionMode, shouldAnimate, autoReason } = useMotionStore();
   const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const {
+    state: updateState,
+    checking: updateChecking,
+    savingSettings: savingUpdateSettings,
+    checkForUpdates,
+    saveSettings: saveUpdateSettings,
+    requestInstall,
+    cancelDeferred,
+    setModalOpen: setUpdateModalOpen,
+  } = useUpdateStore();
+  const [mirrorInput, setMirrorInput] = useState('');
   const [aiForm, setAiForm] = useState<AIConfig>({
     enabled: false,
     baseUrl: 'https://api.openai.com/v1',
@@ -92,6 +109,39 @@ export const SettingsPage: React.FC = () => {
       setAiForm(aiConfig);
     }
   }, [aiConfig]);
+
+  useEffect(() => {
+    if (updateState) {
+      setMirrorInput(updateState.mirrorUrl || '');
+    }
+  }, [updateState?.mirrorUrl]);
+
+  const updateStatusMeta: Record<string, { label: string; badgeClass: string }> = {
+    idle: { label: '待检查', badgeClass: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300' },
+    checking: { label: '检查中', badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300' },
+    downloading: { label: '下载中', badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300' },
+    verifying: { label: '校验中', badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300' },
+    ready: { label: '可安装', badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300' },
+    waiting_idle: { label: '等待空闲', badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300' },
+    installing: { label: '安装中', badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300' },
+    up_to_date: { label: '已是最新', badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300' },
+    error: { label: '检查失败', badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300' },
+  };
+  const installModeLabel: Record<string, string> = {
+    nsis: '标准安装版',
+    portable: '免安装便携版',
+    dev: '开发模式',
+  };
+  const fmtMB = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  const openReleasesPage = async () => {
+    try {
+      await api.openReleasePage(
+        updateState?.releaseUrl || 'https://github.com/xiaohai-ouyang/Graviton/releases'
+      );
+    } catch (e) {
+      useAccountStore.getState().setBanner({ type: 'error', message: parseError(e).message });
+    }
+  };
 
   return (
     <>
@@ -540,6 +590,237 @@ export const SettingsPage: React.FC = () => {
             <li>敏感 Token 仅保存在本机 Windows 凭据管理器，不会上传至第三方服务器</li>
             <li>纯粹合规、轻量原生：仅提供额度查询、账号导入与本地切号，绝不包含反代功能</li>
           </ul>
+        </section>
+
+        {/* App Update Card */}
+        <section className="rounded-2xl border border-neutral-200/80 bg-card p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                <Download className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    应用更新
+                  </h3>
+                  {updateState && (
+                    <span
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                        (updateStatusMeta[updateState.status] || updateStatusMeta.idle).badgeClass
+                      }`}
+                    >
+                      {(updateStatusMeta[updateState.status] || updateStatusMeta.idle).label}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  基于 GitHub Releases 的自动检查、后台下载与重启安装（强制 SHA-256 校验）
+                </p>
+              </div>
+            </div>
+
+            {/* Dynamic primary action */}
+            <div className="flex items-center gap-2">
+              {updateState?.status === 'downloading' || updateState?.status === 'verifying' ? (
+                <div className="flex min-w-44 items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+                    <div
+                      className={`h-full rounded-full bg-neutral-900 transition-[width] dark:bg-neutral-100 ${
+                        updateState.status === 'downloading' && updateState.totalBytes <= 0
+                          ? 'animate-pulse opacity-70'
+                          : ''
+                      }`}
+                      style={{
+                        width:
+                          updateState.totalBytes > 0
+                            ? `${updateState.progress}%`
+                            : '100%',
+                      }}
+                    />
+                  </div>
+                  <span className="shrink-0 font-mono text-[11px] text-neutral-600 dark:text-neutral-300">
+                    {updateState.status === 'verifying'
+                      ? '校验中…'
+                      : updateState.totalBytes > 0
+                        ? `${fmtMB(updateState.downloadedBytes)} / ${fmtMB(updateState.totalBytes)} · ${updateState.progress}%`
+                        : `已下载 ${fmtMB(updateState.downloadedBytes)}`}
+                  </span>
+                </div>
+              ) : updateState?.status === 'ready' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setUpdateModalOpen(true)}
+                    className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                  >
+                    查看详情
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void requestInstall()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    立即重启更新
+                  </button>
+                </>
+              ) : updateState?.status === 'waiting_idle' ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                    <Hourglass className="h-3.5 w-3.5" />
+                    等待任务结束后自动重启
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void cancelDeferred()}
+                    className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                  >
+                    取消预约
+                  </button>
+                </>
+              ) : updateState?.status === 'error' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void openReleasesPage()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    前往 GitHub Releases
+                  </button>
+                  <button
+                    type="button"
+                    disabled={updateChecking}
+                    onClick={() => void checkForUpdates()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                  >
+                    {updateChecking ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    重试
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={updateChecking || updateState?.status === 'checking'}
+                  onClick={() => void checkForUpdates()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                >
+                  {updateChecking || updateState?.status === 'checking' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  检查更新
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/40">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">当前版本</div>
+              <div className="mt-1 font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                v{updateState?.currentVersion || appInfo?.version || '-'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/40">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">运行形态</div>
+              <div className="mt-1 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                {installModeLabel[updateState?.installMode || ''] || '-'}
+              </div>
+            </div>
+            <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-800/40">
+              <div className="text-[11px] text-neutral-500 dark:text-neutral-400">上次检查</div>
+              <div className="mt-1 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                {updateState?.checkedAt ? new Date(updateState.checkedAt).toLocaleString() : '尚未检查'}
+              </div>
+            </div>
+          </div>
+
+          {updateState?.status === 'error' && updateState.errorMessage && (
+            <div className="mt-3 rounded-xl border border-rose-200/80 bg-rose-50 px-3 py-2.5 text-xs text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/50 dark:text-rose-300">
+              {updateState.errorMessage}
+            </div>
+          )}
+          {updateState?.installMode === 'dev' && (
+            <div className="mt-3 rounded-xl border border-sky-200/80 bg-sky-50 px-3 py-2.5 text-xs text-sky-700 dark:border-sky-800/70 dark:bg-sky-950/50 dark:text-sky-300">
+              开发模式仅支持检查预览，不会覆盖开发二进制；自动安装请使用正式构建版本
+            </div>
+          )}
+
+          {/* Auto check switch */}
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3.5 py-3 dark:border-neutral-800 dark:bg-neutral-800/40">
+            <div>
+              <div className="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                自动检查并后台下载更新
+              </div>
+              <div className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                启动后延迟检查，之后每 6 小时检查一次；下载完成后等待您手动确认重启
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={updateState?.autoCheckEnabled ?? true}
+              aria-label="自动检查并后台下载更新"
+              disabled={savingUpdateSettings || !updateState}
+              onClick={() =>
+                updateState &&
+                void saveUpdateSettings(!updateState.autoCheckEnabled, updateState.mirrorUrl || '')
+              }
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-hidden disabled:opacity-60 ${
+                (updateState?.autoCheckEnabled ?? true)
+                  ? 'bg-neutral-900 dark:bg-neutral-100'
+                  : 'bg-neutral-200 dark:bg-neutral-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition-transform dark:bg-neutral-900 ${
+                  (updateState?.autoCheckEnabled ?? true) ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Mirror prefix */}
+          <div className="mt-3">
+            <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              GitHub 加速镜像前缀（可选）
+            </label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                type="text"
+                value={mirrorInput}
+                onChange={(e) => setMirrorInput(e.target.value)}
+                placeholder="https://gh-proxy.com/"
+                className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-800 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+              />
+              <button
+                type="button"
+                disabled={savingUpdateSettings || !updateState}
+                onClick={() =>
+                  updateState &&
+                  void saveUpdateSettings(updateState.autoCheckEnabled, mirrorInput)
+                }
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3 py-2 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+              >
+                {savingUpdateSettings ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+                保存
+              </button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+              留空直连 GitHub；镜像仅用于加速下载，安装前仍强制校验官方 SHA-256，篡改包会被拒绝
+            </p>
+          </div>
         </section>
 
         {/* About & Changelog Card */}
