@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Loader2,
   Lock,
   RefreshCw,
   Sparkles,
@@ -447,7 +448,11 @@ export const WidgetApp: React.FC = () => {
                           title="切换到此账号"
                           className="inline-flex items-center gap-1 rounded-md bg-neutral-900 px-2 py-1 text-[10px] font-medium text-white transition-colors hover:bg-neutral-700 disabled:opacity-40 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-300"
                         >
-                          <ArrowRightLeft className="h-2.5 w-2.5" />
+                          {isSw ? (
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          ) : (
+                            <ArrowRightLeft className="h-2.5 w-2.5" />
+                          )}
                           <span>{isSw ? '切换中' : '切换'}</span>
                         </button>
                       </div>

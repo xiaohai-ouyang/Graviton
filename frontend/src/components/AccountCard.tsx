@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Loader2,
   RefreshCw,
 } from 'lucide-react';
 
@@ -107,7 +108,11 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
               aria-label={`切换到账号 ${account.email}`}
               className="inline-flex items-center gap-1 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-2xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              <ArrowRightLeft className={`h-3 w-3 ${isSwitching ? 'animate-spin' : ''}`} />
+              {isSwitching ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <ArrowRightLeft className="h-3 w-3" />
+              )}
               <span>{isSwitching ? '切换中' : '切换'}</span>
             </button>
           )}

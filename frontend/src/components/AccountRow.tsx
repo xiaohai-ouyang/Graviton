@@ -9,6 +9,7 @@ import {
   ArrowRightLeft,
   AlertCircle,
   Clock,
+  Loader2,
   Sparkles,
 } from 'lucide-react';
 import { AccountQuotaDetail } from './AccountQuotaDetail';
@@ -155,7 +156,11 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
                 : 'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200'
             }`}
           >
-            <ArrowRightLeft className={`h-3 w-3 ${isSwitching ? 'animate-spin' : ''}`} />
+            {isSwitching ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <ArrowRightLeft className="h-3 w-3" />
+            )}
             <span>{isSwitching ? '切换中...' : account.isCurrent ? '当前使用' : '切换'}</span>
           </button>
 

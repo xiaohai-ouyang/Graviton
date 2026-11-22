@@ -15,6 +15,7 @@ import {
   ArrowRightLeft,
   Clock,
   Layers,
+  Loader2,
   RefreshCw,
   Sparkles,
   Trash2,
@@ -283,7 +284,11 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                   disabled={isSwitching || isRefreshing}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white shadow-2xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                 >
-                  <ArrowRightLeft className={`h-3.5 w-3.5 ${isSwitching ? 'animate-spin' : ''}`} />
+                  {isSwitching ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                  )}
                   <span>{isSwitching ? '切换中...' : '切换到此账号'}</span>
                 </button>
               )}
