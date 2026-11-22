@@ -18,6 +18,10 @@ export function CancelOAuthLogin() {
   return window['go']['main']['App']['CancelOAuthLogin']();
 }
 
+export function CancelQianwenAuth() {
+  return window['go']['main']['App']['CancelQianwenAuth']();
+}
+
 export function CaptureCurrentAccount() {
   return window['go']['main']['App']['CaptureCurrentAccount']();
 }
@@ -44,6 +48,10 @@ export function DeleteProject(arg1) {
 
 export function DeleteProjectCommand(arg1, arg2) {
   return window['go']['main']['App']['DeleteProjectCommand'](arg1, arg2);
+}
+
+export function DeleteQianwenAccount(arg1) {
+  return window['go']['main']['App']['DeleteQianwenAccount'](arg1);
 }
 
 export function DismissUpdatedNotice() {
@@ -122,6 +130,10 @@ export function ListProjects() {
   return window['go']['main']['App']['ListProjects']();
 }
 
+export function ListQianwenAccounts() {
+  return window['go']['main']['App']['ListQianwenAccounts']();
+}
+
 export function OpenCommandInTerminal(arg1, arg2) {
   return window['go']['main']['App']['OpenCommandInTerminal'](arg1, arg2);
 }
@@ -150,8 +162,16 @@ export function RefreshAccountQuota(arg1) {
   return window['go']['main']['App']['RefreshAccountQuota'](arg1);
 }
 
+export function RefreshAllQianwenAccounts() {
+  return window['go']['main']['App']['RefreshAllQianwenAccounts']();
+}
+
 export function RefreshAllQuotas() {
   return window['go']['main']['App']['RefreshAllQuotas']();
+}
+
+export function RefreshQianwenAccount(arg1) {
+  return window['go']['main']['App']['RefreshQianwenAccount'](arg1);
 }
 
 export function ReorderProjects(arg1, arg2) {
@@ -228,6 +248,10 @@ export function StartCommand(arg1, arg2) {
 
 export function StartOAuthLogin() {
   return window['go']['main']['App']['StartOAuthLogin']();
+}
+
+export function StartQianwenAuth(arg1) {
+  return window['go']['main']['App']['StartQianwenAuth'](arg1);
 }
 
 export function StopCommand(arg1) {

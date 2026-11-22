@@ -7,6 +7,7 @@ import {envmgr} from '../models';
 import {buildinfo} from '../models';
 import {widget} from '../models';
 import {main} from '../models';
+import {qianwen} from '../models';
 import {client} from '../models';
 
 export function AnalyzeProjectWithAI(arg1:string):Promise<storage.ProjectRecord>;
@@ -16,6 +17,8 @@ export function ApplyWidgetAlwaysOnTop(arg1:boolean):Promise<void>;
 export function CancelDeferredUpdate():Promise<updater.UpdateState>;
 
 export function CancelOAuthLogin():Promise<void>;
+
+export function CancelQianwenAuth():Promise<void>;
 
 export function CaptureCurrentAccount():Promise<appservice.AccountDisplay>;
 
@@ -30,6 +33,8 @@ export function DeleteAccount(arg1:string):Promise<void>;
 export function DeleteProject(arg1:string):Promise<void>;
 
 export function DeleteProjectCommand(arg1:string,arg2:string):Promise<storage.ProjectRecord>;
+
+export function DeleteQianwenAccount(arg1:string):Promise<void>;
 
 export function DismissUpdatedNotice():Promise<void>;
 
@@ -69,6 +74,8 @@ export function ListAccounts():Promise<Array<appservice.AccountDisplay>>;
 
 export function ListProjects():Promise<Array<storage.ProjectRecord>>;
 
+export function ListQianwenAccounts():Promise<Array<qianwen.AccountDisplay>>;
+
 export function OpenCommandInTerminal(arg1:string,arg2:string):Promise<void>;
 
 export function OpenProjectFolder(arg1:string):Promise<void>;
@@ -83,7 +90,11 @@ export function QuitApp():Promise<void>;
 
 export function RefreshAccountQuota(arg1:string):Promise<appservice.AccountDisplay>;
 
+export function RefreshAllQianwenAccounts():Promise<Array<qianwen.BatchRefreshResult>>;
+
 export function RefreshAllQuotas():Promise<Array<appservice.BatchRefreshResult>>;
+
+export function RefreshQianwenAccount(arg1:string):Promise<qianwen.AccountDisplay>;
 
 export function ReorderProjects(arg1:Array<string>,arg2:Array<string>):Promise<Array<storage.ProjectRecord>>;
 
@@ -122,6 +133,8 @@ export function SkipUpdateVersion(arg1:string):Promise<updater.UpdateState>;
 export function StartCommand(arg1:string,arg2:string):Promise<void>;
 
 export function StartOAuthLogin():Promise<appservice.OAuthStartResult>;
+
+export function StartQianwenAuth(arg1:string):Promise<qianwen.AuthStartResponse>;
 
 export function StopCommand(arg1:string):Promise<void>;
 

@@ -420,6 +420,113 @@ export namespace main {
 
 }
 
+export namespace qianwen {
+	
+	export class AccountDisplay {
+	    id: string;
+	    userId?: string;
+	    aliyunId?: string;
+	    email?: string;
+	    name: string;
+	    tokenExpiresAt?: string;
+	    createdAt: string;
+	    quota: storage.QianwenQuotaSnapshot;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountDisplay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.userId = source["userId"];
+	        this.aliyunId = source["aliyunId"];
+	        this.email = source["email"];
+	        this.name = source["name"];
+	        this.tokenExpiresAt = source["tokenExpiresAt"];
+	        this.createdAt = source["createdAt"];
+	        this.quota = this.convertValues(source["quota"], storage.QianwenQuotaSnapshot);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AuthStartResponse {
+	    sessionId: string;
+	    verificationUrl: string;
+	    deviceCode: string;
+	    expiresIn: number;
+	    interval: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthStartResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sessionId = source["sessionId"];
+	        this.verificationUrl = source["verificationUrl"];
+	        this.deviceCode = source["deviceCode"];
+	        this.expiresIn = source["expiresIn"];
+	        this.interval = source["interval"];
+	    }
+	}
+	export class BatchRefreshResult {
+	    accountId: string;
+	    label: string;
+	    success: boolean;
+	    account?: AccountDisplay;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BatchRefreshResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.label = source["label"];
+	        this.success = source["success"];
+	        this.account = this.convertValues(source["account"], AccountDisplay);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace storage {
 	
 	export class ModelQuota {
@@ -514,6 +621,199 @@ export namespace storage {
 		    return a;
 		}
 	}
+	export class QianwenUsageCycle {
+	    cycle: string;
+	    label: string;
+	    usedPercentage: number;
+	    remainingPercentage: number;
+	    resetTime?: string;
+	    totalQuota?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new QianwenUsageCycle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cycle = source["cycle"];
+	        this.label = source["label"];
+	        this.usedPercentage = source["usedPercentage"];
+	        this.remainingPercentage = source["remainingPercentage"];
+	        this.resetTime = source["resetTime"];
+	        this.totalQuota = source["totalQuota"];
+	    }
+	}
+	export class QianwenPersonalPlan {
+	    status: string;
+	    specCode?: string;
+	    planName?: string;
+	    instanceCode?: string;
+	    startTime?: string;
+	    endTime?: string;
+	    remainingDays: number;
+	    autoRenew: boolean;
+	    cycles: QianwenUsageCycle[];
+	
+	    static createFrom(source: any = {}) {
+	        return new QianwenPersonalPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.specCode = source["specCode"];
+	        this.planName = source["planName"];
+	        this.instanceCode = source["instanceCode"];
+	        this.startTime = source["startTime"];
+	        this.endTime = source["endTime"];
+	        this.remainingDays = source["remainingDays"];
+	        this.autoRenew = source["autoRenew"];
+	        this.cycles = this.convertValues(source["cycles"], QianwenUsageCycle);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class QianwenTeamSeatGroup {
+	    specType: string;
+	    seats: number;
+	    assigned: number;
+	    totalCredits: number;
+	    remainingCredits: number;
+	    usedPercentage: number;
+	    remainingPercentage: number;
+	    nextResetTime?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new QianwenTeamSeatGroup(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.specType = source["specType"];
+	        this.seats = source["seats"];
+	        this.assigned = source["assigned"];
+	        this.totalCredits = source["totalCredits"];
+	        this.remainingCredits = source["remainingCredits"];
+	        this.usedPercentage = source["usedPercentage"];
+	        this.remainingPercentage = source["remainingPercentage"];
+	        this.nextResetTime = source["nextResetTime"];
+	    }
+	}
+	export class QianwenTeamPlan {
+	    status: string;
+	    planName?: string;
+	    instanceId?: string;
+	    startTime?: string;
+	    endTime?: string;
+	    remainingDays: number;
+	    autoRenew?: boolean;
+	    totalCredits: number;
+	    remainingCredits: number;
+	    usedPercentage: number;
+	    remainingPercentage: number;
+	    resetTime?: string;
+	    addonRemaining: number;
+	    seatGroups: QianwenTeamSeatGroup[];
+	
+	    static createFrom(source: any = {}) {
+	        return new QianwenTeamPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.planName = source["planName"];
+	        this.instanceId = source["instanceId"];
+	        this.startTime = source["startTime"];
+	        this.endTime = source["endTime"];
+	        this.remainingDays = source["remainingDays"];
+	        this.autoRenew = source["autoRenew"];
+	        this.totalCredits = source["totalCredits"];
+	        this.remainingCredits = source["remainingCredits"];
+	        this.usedPercentage = source["usedPercentage"];
+	        this.remainingPercentage = source["remainingPercentage"];
+	        this.resetTime = source["resetTime"];
+	        this.addonRemaining = source["addonRemaining"];
+	        this.seatGroups = this.convertValues(source["seatGroups"], QianwenTeamSeatGroup);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class QianwenQuotaSnapshot {
+	    hasSubscription: boolean;
+	    authExpired: boolean;
+	    lastRefreshedAt: string;
+	    errorMessage?: string;
+	    personal?: QianwenPersonalPlan;
+	    team?: QianwenTeamPlan;
+	
+	    static createFrom(source: any = {}) {
+	        return new QianwenQuotaSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hasSubscription = source["hasSubscription"];
+	        this.authExpired = source["authExpired"];
+	        this.lastRefreshedAt = source["lastRefreshedAt"];
+	        this.errorMessage = source["errorMessage"];
+	        this.personal = this.convertValues(source["personal"], QianwenPersonalPlan);
+	        this.team = this.convertValues(source["team"], QianwenTeamPlan);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
 	export class QuotaBucket {
 	    bucketId: string;
 	    window: string;
