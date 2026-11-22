@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"graviton/internal/appservice"
+	"graviton/internal/qianwen"
 	"graviton/internal/storage"
 
 	"github.com/stretchr/testify/assert"
@@ -16,11 +17,13 @@ func newTestApp(t *testing.T) *App {
 	sm, err := storage.NewStorageManager(t.TempDir())
 	require.NoError(t, err)
 	return &App{
-		service:       appservice.NewAppService(sm, nil),
-		storageMgr:    sm,
-		refreshingIDs: make(map[string]bool),
-		switchingIDs:  make(map[string]bool),
-		stopAuto:      make(chan struct{}),
+		service:              appservice.NewAppService(sm, nil),
+		qianwenSvc:           qianwen.NewService(sm, nil, nil),
+		storageMgr:           sm,
+		refreshingIDs:        make(map[string]bool),
+		switchingIDs:         make(map[string]bool),
+		qianwenRefreshingIDs: make(map[string]bool),
+		stopAuto:             make(chan struct{}),
 	}
 }
 
