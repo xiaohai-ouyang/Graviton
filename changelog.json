@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "version": "0.1.0-rc.10",
+      "date": "2026-11-22",
+      "title": "千问 Token Plan 额度查询与全供应商概览页",
+      "summary": "新增千问 AI 平台（platform.qianwenai.com）Token Plan 个人版与团队版实时额度查询能力，并上线全供应商「概览」页与侧边栏「额度」提供商二级子菜单。",
+      "changes": [
+        {
+          "type": "feat",
+          "text": "新增千问纯 HTTP 原生接入模块：基于 OAuth 2.0 Device Authorization Grant + PKCE（S256）完成浏览器授权与自动轮询（支持 slow_down 退避、超时与手动取消），无需安装任何 CLI 或配置 AK/SK，凭据独立安全存放在 Windows 凭据管理器中"
+        },
+        {
+          "type": "feat",
+          "text": "支持千问个人版（Lite / Essential / Standard / Pro）与团队版 Token Plan（含席位分组 Credits、加量包余量与自动续费状态）实时查询，自动签发并续期派生 cs-data 凭据，且已纳入 5 分钟后台自动刷新"
+        },
+        {
+          "type": "feat",
+          "text": "新增默认首页「概览」页，以平铺紧凑卡片聚合展示全部供应商账号与额度状态（支持按供应商筛选与一键刷新全部）；侧边栏「额度」升级为可展开二级子菜单（Antigravity / 千问），便于后续扩展更多 AI 提供商"
+        }
+      ]
+    },
+    {
       "version": "0.1.0-rc.9",
       "date": "2026-11-22",
       "title": "应用内自动更新与空闲预约重启",
