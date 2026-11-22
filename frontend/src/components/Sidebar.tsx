@@ -1,31 +1,41 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
+  ChevronDown,
   FileClock,
   Gauge,
   Hourglass,
   Layers,
+  LayoutGrid,
   RotateCcw,
   Settings,
   ShieldCheck,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ThemeToggle } from './ThemeToggle';
+import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
 import { useMotionStore } from '../store/useMotionStore';
+import { useQianwenStore } from '../store/useQianwenStore';
 import { useUpdateStore } from '../store/useUpdateStore';
-
-const NAV_ITEMS = [
-  { to: '/quota', label: '额度', icon: Gauge },
-  { to: '/env', label: '环境', icon: Layers },
-] as const;
 
 export const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [quotaExpanded, setQuotaExpanded] = useState(true);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const agCount = useAccountStore((s) => s.accounts.length);
+  const qwCount = useQianwenStore((s) => s.accounts.length);
   const { appInfo, openChangelog } = useAppInfoStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
   const updateState = useUpdateStore((s) => s.state);
   const setUpdateModalOpen = useUpdateStore((s) => s.setModalOpen);
+
+  const isQuotaRoute = location.pathname.startsWith('/quota');
+  const quotaProviders = [
+    { to: '/quota/antigravity', label: 'Antigravity', count: agCount },
+    { to: '/quota/qianwen', label: '千问', count: qwCount },
+  ] as const;
 
   const updateStatus = updateState?.status;
   const updateReady = updateStatus === 'ready';
@@ -72,36 +82,157 @@ export const Sidebar: React.FC = () => {
 
       {/* Navigation */}
       <nav aria-label="主导航" className="flex-1 space-y-1 p-2.5">
-        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            title={collapsed ? label : undefined}
-            className={({ isActive }) =>
-              `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
-                collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
-              } ${
-                isActive
-                  ? 'text-white dark:text-neutral-900'
+        {/* 概览 */}
+        <NavLink
+          to="/overview"
+          title={collapsed ? '概览' : undefined}
+          className={({ isActive }) =>
+            `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+            } ${
+              isActive
+                ? 'text-white dark:text-neutral-900'
+                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              {isActive && (
+                <motion.span
+                  layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+                />
+              )}
+              <LayoutGrid className="relative z-10 h-4 w-4 shrink-0" />
+              {!collapsed && <span className="relative z-10 truncate">概览</span>}
+            </>
+          )}
+        </NavLink>
+
+        {/* 额度（支持展开提供商子菜单） */}
+        <div className="space-y-1">
+          <button
+            type="button"
+            title={collapsed ? '额度' : undefined}
+            aria-expanded={!collapsed ? quotaExpanded : undefined}
+            onClick={() => {
+              if (collapsed) {
+                navigate('/quota/antigravity');
+              } else {
+                setQuotaExpanded((prev) => !prev);
+              }
+            }}
+            className={`relative flex w-full items-center rounded-lg text-xs font-medium transition-colors ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'justify-between px-3 py-2.5'
+            } ${
+              collapsed && isQuotaRoute
+                ? 'text-white dark:text-neutral-900'
+                : isQuotaRoute
+                  ? 'text-neutral-900 dark:text-neutral-100'
                   : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
-              }`
-            }
+            }`}
           >
-            {({ isActive }) => (
-              <>
-                {isActive && (
-                  <motion.span
-                    layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
-                    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                    className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
-                  />
-                )}
-                <Icon className="relative z-10 h-4 w-4 shrink-0" />
-                {!collapsed && <span className="relative z-10 truncate">{label}</span>}
-              </>
+            {collapsed && isQuotaRoute && (
+              <motion.span
+                layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+              />
             )}
-          </NavLink>
-        ))}
+            <span className="relative z-10 flex items-center gap-2.5 truncate">
+              <Gauge className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate">额度</span>}
+            </span>
+            {!collapsed && (
+              <ChevronDown
+                className={`relative z-10 h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform duration-150 ${
+                  quotaExpanded ? 'rotate-0' : '-rotate-90'
+                }`}
+              />
+            )}
+          </button>
+
+          {!collapsed && (
+            <AnimatePresence initial={false}>
+              {quotaExpanded && (
+                <motion.div
+                  initial={shouldAnimate ? { opacity: 0, height: 0 } : false}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={shouldAnimate ? { opacity: 0, height: 0 } : { opacity: 0 }}
+                  transition={shouldAnimate ? { duration: 0.15 } : { duration: 0 }}
+                  className="ml-3 space-y-0.5 overflow-hidden border-l border-neutral-200/80 pl-2.5 dark:border-neutral-800"
+                >
+                  {quotaProviders.map((provider) => (
+                    <NavLink
+                      key={provider.to}
+                      to={provider.to}
+                      className={({ isActive }) =>
+                        `relative flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+                          isActive
+                            ? 'text-white dark:text-neutral-900'
+                            : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          {isActive && (
+                            <motion.span
+                              layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                              transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                              className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+                            />
+                          )}
+                          <span className="relative z-10 truncate">{provider.label}</span>
+                          <span
+                            className={`relative z-10 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                              isActive
+                                ? 'bg-white/20 text-white dark:bg-neutral-900/15 dark:text-neutral-900'
+                                : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                            }`}
+                          >
+                            {provider.count}
+                          </span>
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
+        </div>
+
+        {/* 环境 */}
+        <NavLink
+          to="/env"
+          title={collapsed ? '环境' : undefined}
+          className={({ isActive }) =>
+            `relative flex items-center rounded-lg text-xs font-medium transition-colors ${
+              collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+            } ${
+              isActive
+                ? 'text-white dark:text-neutral-900'
+                : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800/80 dark:hover:text-neutral-100'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              {isActive && (
+                <motion.span
+                  layoutId={shouldAnimate ? 'sidebar-nav-pill' : undefined}
+                  transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
+                />
+              )}
+              <Layers className="relative z-10 h-4 w-4 shrink-0" />
+              {!collapsed && <span className="relative z-10 truncate">环境</span>}
+            </>
+          )}
+        </NavLink>
       </nav>
 
       {/* Footer Utilities */}

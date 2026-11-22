@@ -11,6 +11,9 @@ import {
   ProcessState,
   ProjectCommand,
   ProjectRecord,
+  QianwenAccountDisplay,
+  QianwenAuthStartResponse,
+  QianwenBatchRefreshResult,
   ShellConfig,
   ShellEnvironmentInfo,
   SwitchResult,
@@ -502,6 +505,54 @@ export const api = {
   async openReleasePage(rawURL: string): Promise<void> {
     try {
       await WailsApp.OpenReleasePage(rawURL);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async listQianwenAccounts(): Promise<QianwenAccountDisplay[]> {
+    try {
+      return await WailsApp.ListQianwenAccounts();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async startQianwenAuth(reauthAccountID = ''): Promise<QianwenAuthStartResponse> {
+    try {
+      return await WailsApp.StartQianwenAuth(reauthAccountID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async cancelQianwenAuth(): Promise<void> {
+    try {
+      await WailsApp.CancelQianwenAuth();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async refreshQianwenAccount(id: string): Promise<QianwenAccountDisplay> {
+    try {
+      return await WailsApp.RefreshQianwenAccount(id);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async refreshAllQianwenAccounts(): Promise<QianwenBatchRefreshResult[]> {
+    try {
+      return await WailsApp.RefreshAllQianwenAccounts();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async deleteQianwenAccount(id: string): Promise<void> {
+    try {
+      await WailsApp.DeleteQianwenAccount(id);
     } catch (e) {
       throw parseError(e);
     }

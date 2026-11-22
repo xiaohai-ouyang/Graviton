@@ -3,10 +3,11 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { EventsOn } from '../wailsjs/runtime/runtime';
-import { BatchRefreshResult, UpdateState } from './types';
+import { BatchRefreshResult, QianwenBatchRefreshResult, UpdateState } from './types';
 import { useAccountStore } from './store/useAccountStore';
 import { useAppInfoStore } from './store/useAppInfoStore';
 import { useMotionStore } from './store/useMotionStore';
+import { useQianwenStore } from './store/useQianwenStore';
 import { useResetTimeStore } from './store/useResetTimeStore';
 import { useThemeStore } from './store/useThemeStore';
 import { useUpdateStore } from './store/useUpdateStore';
@@ -15,7 +16,9 @@ import { FeedbackBanner } from './components/FeedbackBanner';
 import { ChangelogModal } from './components/ChangelogModal';
 import { UpdateModal } from './components/UpdateModal';
 import { UpdateStatusBar } from './components/UpdateStatusBar';
+import { OverviewPage } from './pages/OverviewPage';
 import { QuotaPage } from './pages/QuotaPage';
+import { QianwenQuotaPage } from './pages/QianwenQuotaPage';
 import { EnvironmentPage } from './pages/EnvironmentPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -38,11 +41,14 @@ const AnimatedRoutes: React.FC = () => {
         className="flex min-h-0 min-w-0 flex-1 flex-col"
       >
         <Routes location={location}>
-          <Route path="/" element={<Navigate to="/quota" replace />} />
-          <Route path="/quota" element={<QuotaPage />} />
+          <Route path="/" element={<Navigate to="/overview" replace />} />
+          <Route path="/overview" element={<OverviewPage />} />
+          <Route path="/quota" element={<Navigate to="/quota/antigravity" replace />} />
+          <Route path="/quota/antigravity" element={<QuotaPage />} />
+          <Route path="/quota/qianwen" element={<QianwenQuotaPage />} />
           <Route path="/env" element={<EnvironmentPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/quota" replace />} />
+          <Route path="*" element={<Navigate to="/overview" replace />} />
         </Routes>
       </motion.div>
     </AnimatePresence>
@@ -59,6 +65,7 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     loadAccounts();
+    void useQianwenStore.getState().loadAccounts();
     loadWidgetStatus();
     void loadAppInfo();
     const cleanupTheme = initTheme();
@@ -70,6 +77,15 @@ export const App: React.FC = () => {
     const offQuotaProgress = EventsOn('accounts:quota_progress', (result: BatchRefreshResult) => {
       useAccountStore.getState().applyQuotaProgress(result);
     });
+    const offQianwenUpdated = EventsOn('qianwen:updated', () => {
+      void useQianwenStore.getState().loadAccounts();
+    });
+    const offQianwenProgress = EventsOn(
+      'qianwen:quota_progress',
+      (result: QianwenBatchRefreshResult) => {
+        useQianwenStore.getState().applyQuotaProgress(result);
+      }
+    );
     const offWidget = EventsOn('widget:status', (open: boolean) => {
       setWidgetOpen(Boolean(open));
     });
@@ -83,6 +99,8 @@ export const App: React.FC = () => {
       cleanupResetTimeFormat();
       offAccounts();
       offQuotaProgress();
+      offQianwenUpdated();
+      offQianwenProgress();
       offWidget();
       offUpdate();
     };
