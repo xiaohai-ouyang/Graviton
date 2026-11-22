@@ -1,6 +1,26 @@
 {
   "releases": [
     {
+      "version": "0.1.0-rc.12",
+      "date": "2026-11-22",
+      "title": "设置页重构为模态弹窗并修复弹层交互细节",
+      "summary": "将原独立「设置」页面重构为支持 Ctrl+, 快捷键、背景路由保持与分区记忆的设置模态弹窗，并修复反馈提示条与弹窗遮罩的层叠冲突。",
+      "changes": [
+        {
+          "type": "feat",
+          "text": "设置中心由独立页面重构为全屏模态弹窗：支持 Ctrl+, 全局快捷键开关、路由驱动（/settings/:section）并保持背景页面不重载，侧边栏导航改为按钮并基于背景路由高亮，关闭后恢复上次浏览的分区"
+        },
+        {
+          "type": "fix",
+          "text": "反馈提示条改为 Portal 渲染至 body 并携带 data-feedback-banner 标记，弹窗遮罩与内容层提升至 z-[60]，Radix 外部点击事件正确忽略提示条交互，避免提示条点击被弹窗拦截或误关闭弹窗"
+        },
+        {
+          "type": "change",
+          "text": "应用内 Tooltip 层级统一提升至 z-[70]，命令编辑弹窗补充 role=dialog / aria-modal / aria-label 无障碍属性并支持 Esc 关闭，新增设置弹窗状态存储与弹窗工具函数模块"
+        }
+      ]
+    },
+    {
       "version": "0.1.0-rc.11",
       "date": "2026-11-22",
       "title": "修复 Immutable Releases 附件自动发布并重发千问版本",
