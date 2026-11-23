@@ -33,11 +33,14 @@ import { useAccountStore } from '../../store/useAccountStore';
 import { useAppInfoStore } from '../../store/useAppInfoStore';
 import { useEnvStore } from '../../store/useEnvStore';
 import { useMotionStore } from '../../store/useMotionStore';
+import { useQianwenStore } from '../../store/useQianwenStore';
 import { useResetTimeStore } from '../../store/useResetTimeStore';
 import {
   extractSettingsSlug,
   getBackgroundLocation,
+  isEmptyQuotaPath,
   isSettingsPath,
+  resolveSafeQuotaFallback,
   resolveSettingsSection,
   SettingsRouteState,
   SettingsSectionId,
@@ -49,6 +52,7 @@ import { hasOtherDialogOpen, isFeedbackBannerEvent } from '../../utils/dialog';
 import { normalizeDefaultShell, SHELL_META, SHELL_ORDER } from '../../utils/shell';
 import { ChangeItemRow, CHANNEL_META } from '../ChangelogModal';
 import { MotionToggle } from '../MotionToggle';
+import { ProvidersSettingsSection } from './ProvidersSettingsSection';
 import { ResetTimeModeToggle } from '../ResetTimeModeToggle';
 import { ThemeToggle } from '../ThemeToggle';
 import {
@@ -253,12 +257,29 @@ export const SettingsModal: React.FC = () => {
   }, []);
 
   const handleClose = useCallback(() => {
+    const bg = getBackgroundLocation(location);
+    const agState = useAccountStore.getState();
+    const qwState = useQianwenStore.getState();
+    // Background quota page may have been emptied while settings was open
+    if (
+      isEmptyQuotaPath(
+        bg.pathname,
+        agState.accounts.length,
+        agState.hasLoaded,
+        qwState.accounts.length,
+        qwState.hasLoaded
+      )
+    ) {
+      navigate(resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length), {
+        replace: true,
+      });
+      return;
+    }
     const routeState = location.state as SettingsRouteState | null | undefined;
     if (routeState?.fromModalTrigger) {
       navigate(-1);
       return;
     }
-    const bg = getBackgroundLocation(location);
     navigate(`${bg.pathname}${bg.search}${bg.hash}`, { replace: true });
   }, [location, navigate]);
 
@@ -417,12 +438,12 @@ export const SettingsModal: React.FC = () => {
                   }
                 }}
                 onPointerDownOutside={(e) => {
-                  if (isFeedbackBannerEvent(e)) {
+                  if (isFeedbackBannerEvent(e) || hasOtherDialogOpen(true)) {
                     e.preventDefault();
                   }
                 }}
                 onInteractOutside={(e) => {
-                  if (isFeedbackBannerEvent(e)) {
+                  if (isFeedbackBannerEvent(e) || hasOtherDialogOpen(true)) {
                     e.preventDefault();
                   }
                 }}
@@ -594,6 +615,13 @@ export const SettingsModal: React.FC = () => {
                       ref={contentScrollRef}
                       className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5"
                     >
+                      {activeSection === 'providers' && (
+                        <ProvidersSettingsSection
+                          entryHighlightClass={entryHighlightClass}
+                          onNavigateToQuota={(path) => navigate(path, { replace: true })}
+                        />
+                      )}
+
                       {activeSection === 'general' && (
                         <>
                           <section className="rounded-2xl border border-neutral-200/80 bg-card/90 p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">

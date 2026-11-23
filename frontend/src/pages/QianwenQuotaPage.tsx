@@ -1,34 +1,50 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Link2, RefreshCw, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { QianwenAccountCard } from '../components/QianwenAccountCard';
-import { QianwenConnectModal } from '../components/QianwenConnectModal';
-import { QianwenDeleteConfirmModal } from '../components/QianwenDeleteConfirmModal';
+import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
+import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
 import { QianwenAccountDisplay } from '../types';
 
 export const QianwenQuotaPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     accounts,
+    hasLoaded,
     loading,
     refreshingAll,
     refreshProgress,
     refreshAllAccounts,
   } = useQianwenStore();
+  const agCount = useAccountStore((s) => s.accounts.length);
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
-  const [connectOpen, setConnectOpen] = useState(false);
-  const [reauthAccount, setReauthAccount] = useState<QianwenAccountDisplay | null>(null);
+  // Auto-fallback when the last Qianwen account is removed, but never
+  // while the settings modal is open on top of this background page
+  useEffect(() => {
+    if (isSettingsPath(location.pathname)) return;
+    if (hasLoaded && !loading && accounts.length === 0) {
+      navigate(agCount > 0 ? '/quota/antigravity' : '/overview', { replace: true });
+    }
+  }, [hasLoaded, loading, accounts.length, agCount, location.pathname, navigate]);
 
   const openNewConnect = () => {
-    setReauthAccount(null);
-    setConnectOpen(true);
+    openSettingsModal(navigate, location, 'providers', {
+      provider: 'qianwen',
+      action: 'add',
+    });
   };
 
   const openReauth = (account: QianwenAccountDisplay) => {
-    setReauthAccount(account);
-    setConnectOpen(true);
+    openSettingsModal(navigate, location, 'providers', {
+      provider: 'qianwen',
+      action: 'reauth',
+      qianwenAccountId: account.id,
+    });
   };
 
   return (
@@ -45,16 +61,6 @@ export const QianwenQuotaPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={openNewConnect}
-              disabled={refreshingAll}
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
-            >
-              <Link2 className="h-3.5 w-3.5" />
-              <span>连接千问账号</span>
-            </button>
-
             <button
               type="button"
               onClick={refreshAllAccounts}
@@ -89,7 +95,7 @@ export const QianwenQuotaPage: React.FC = () => {
               暂未连接任何千问账号
             </h3>
             <p className="mt-1.5 max-w-md text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              点击上方「连接千问账号」，使用官方 OAuth Device Flow 在浏览器一键授权登录，即可查看 Token Plan 套餐档位、到期时间与实时用量。
+              前往「设置 → 供应商与账号」，使用官方 OAuth Device Flow 在浏览器一键授权登录，即可查看 Token Plan 套餐档位、到期时间与实时用量。
             </p>
             <button
               type="button"
@@ -97,7 +103,7 @@ export const QianwenQuotaPage: React.FC = () => {
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
               <Link2 className="h-4 w-4" />
-              <span>连接千问账号</span>
+              <span>前往设置连接千问账号</span>
             </button>
           </div>
         ) : (
@@ -133,15 +139,6 @@ export const QianwenQuotaPage: React.FC = () => {
         )}
       </main>
 
-      <QianwenConnectModal
-        open={connectOpen}
-        reauthAccount={reauthAccount}
-        onClose={() => {
-          setConnectOpen(false);
-          setReauthAccount(null);
-        }}
-      />
-      <QianwenDeleteConfirmModal />
     </>
   );
 };

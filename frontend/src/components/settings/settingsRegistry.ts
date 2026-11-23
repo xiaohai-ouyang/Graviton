@@ -1,5 +1,5 @@
 import type React from 'react';
-import { Shield, SlidersHorizontal, Sparkles, Terminal } from 'lucide-react';
+import { Shield, SlidersHorizontal, Sparkles, Terminal, Users } from 'lucide-react';
 import { SettingsSectionId } from '../../store/useSettingsModalStore';
 
 export interface SettingsSectionMeta {
@@ -19,6 +19,13 @@ export interface SettingsSearchEntry {
 }
 
 export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
+  {
+    id: 'providers',
+    label: '供应商与账号',
+    title: '供应商与账号',
+    subtitle: '连接或管理 Antigravity 与千问账号，连接后自动出现在左侧「额度」菜单中',
+    icon: Users,
+  },
   {
     id: 'general',
     label: '常规与外观',
@@ -50,13 +57,28 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
 ];
 
 export const SETTINGS_SECTION_MAP: Record<SettingsSectionId, SettingsSectionMeta> = {
-  general: SETTINGS_SECTIONS[0],
-  environment: SETTINGS_SECTIONS[1],
-  ai: SETTINGS_SECTIONS[2],
-  about: SETTINGS_SECTIONS[3],
+  providers: SETTINGS_SECTIONS.find((s) => s.id === 'providers')!,
+  general: SETTINGS_SECTIONS.find((s) => s.id === 'general')!,
+  environment: SETTINGS_SECTIONS.find((s) => s.id === 'environment')!,
+  ai: SETTINGS_SECTIONS.find((s) => s.id === 'ai')!,
+  about: SETTINGS_SECTIONS.find((s) => s.id === 'about')!,
 };
 
 export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
+  {
+    id: 'provider-antigravity',
+    section: 'providers',
+    title: 'Antigravity 账号管理',
+    description: '通过 OAuth 登录、导入 Refresh Token 或收录本机客户端账号管理 Antigravity',
+    keywords: ['antigravity', 'google', 'oauth', 'token', 'refresh token', 'capture', '添加账号', '收录', '导入', '供应商', '账号'],
+  },
+  {
+    id: 'provider-qianwen',
+    section: 'providers',
+    title: '千问账号连接',
+    description: '通过 OAuth Device Flow 连接或重新授权千问 Token Plan 账号',
+    keywords: ['qianwen', 'qwen', '千问', '通义', 'token plan', 'device flow', 'oauth', '连接', '重新授权', '供应商', '账号'],
+  },
   {
     id: 'theme',
     section: 'general',

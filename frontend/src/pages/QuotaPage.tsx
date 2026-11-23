@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDownWideNarrow,
   PictureInPicture2,
@@ -9,31 +10,42 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
+import { useQianwenStore } from '../store/useQianwenStore';
+import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
 import { getGroupEffectivePct } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
 import { AccountDetailModal } from '../components/AccountDetailModal';
-import { DeleteConfirmModal } from '../components/DeleteConfirmModal';
-import { AddAccountModal } from '../components/AddAccountModal';
 
 type SortMode = 'default' | 'gemini' | 'claude';
 
 export const QuotaPage: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     accounts,
+    hasLoaded,
     loading,
     capturing,
     refreshingAll,
     refreshProgress,
     refreshAllQuotas,
-    captureCurrentAccount,
     widgetOpen,
     toggleWidget,
   } = useAccountStore();
+  const qwCount = useQianwenStore((s) => s.accounts.length);
 
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [detailAccountId, setDetailAccountId] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
+
+  // Auto-fallback when the last Antigravity account is removed, but never
+  // while the settings modal is open on top of this background page
+  useEffect(() => {
+    if (isSettingsPath(location.pathname)) return;
+    if (hasLoaded && !loading && accounts.length === 0) {
+      navigate(qwCount > 0 ? '/quota/qianwen' : '/overview', { replace: true });
+    }
+  }, [hasLoaded, loading, accounts.length, qwCount, location.pathname, navigate]);
 
   const currentAccount = useMemo(
     () => accounts.find((a) => a.isCurrent) ?? null,
@@ -61,7 +73,7 @@ export const QuotaPage: React.FC = () => {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div>
             <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-              额度
+              Antigravity · 额度
             </h2>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
               {currentAccount ? (
@@ -82,16 +94,6 @@ export const QuotaPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              onClick={() => setAddOpen(true)}
-              disabled={capturing || refreshingAll}
-              aria-label="添加账号"
-              className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-3.5 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              <span>添加账号</span>
-            </button>
-
             <button
               onClick={refreshAllQuotas}
               disabled={capturing || refreshingAll || accounts.length === 0}
@@ -140,14 +142,19 @@ export const QuotaPage: React.FC = () => {
               暂未收录任何 Antigravity 账号
             </h3>
             <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              点击上方「添加账号」，即可自动识别并收录本机当前登录的 Antigravity 账号，查看各模型组配额并在多账号间快速切换。
+              前往「设置 → 供应商与账号」，通过 OAuth 登录、导入 Token 或收录本机当前登录的 Antigravity 账号，查看各模型组配额并在多账号间快速切换。
             </p>
             <button
-              onClick={captureCurrentAccount}
+              onClick={() =>
+                openSettingsModal(navigate, location, 'providers', {
+                  provider: 'antigravity',
+                  action: 'add',
+                })
+              }
               className="mt-5 inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
               <UserPlus className="h-4 w-4" />
-              <span>收录当前登录账号</span>
+              <span>前往设置添加 Antigravity 账号</span>
             </button>
           </div>
         ) : (
@@ -240,12 +247,10 @@ export const QuotaPage: React.FC = () => {
         )}
       </main>
 
-      <AddAccountModal open={addOpen} onClose={() => setAddOpen(false)} />
       <AccountDetailModal
         account={detailAccount}
         onClose={() => setDetailAccountId(null)}
       />
-      <DeleteConfirmModal />
     </>
   );
 };

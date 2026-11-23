@@ -19,7 +19,7 @@ export const DeleteConfirmModal: React.FC = () => {
             initial={shouldAnimate ? { opacity: 0 } : false}
             animate={{ opacity: 1 }}
             transition={shouldAnimate ? { duration: 0.14 } : { duration: 0 }}
-            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs"
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-xs"
           />
         </Dialog.Overlay>
         <Dialog.Content asChild>
@@ -31,7 +31,7 @@ export const DeleteConfirmModal: React.FC = () => {
                 ? { duration: 0.15, ease: [0.22, 1, 0.36, 1] }
                 : { duration: 0 }
             }
-            className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-card p-6 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+            className="fixed left-1/2 top-1/2 z-[60] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-neutral-200 bg-card p-6 shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
           >
           <div className="flex items-start gap-3.5">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
