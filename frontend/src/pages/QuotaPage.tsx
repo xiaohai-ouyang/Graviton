@@ -12,7 +12,7 @@ import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
 import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
-import { getGroupEffectivePct } from '../utils/quota';
+import { sortAntigravityAccounts } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
 import { AccountDetailModal } from '../components/AccountDetailModal';
 
@@ -54,12 +54,7 @@ export const QuotaPage: React.FC = () => {
 
   const sortedAccounts = useMemo(() => {
     if (sortMode === 'default') return accounts;
-    const keyword = sortMode === 'gemini' ? 'gemini' : 'claude';
-    return [...accounts].sort((a, b) => {
-      const scoreA = getGroupEffectivePct(a, keyword);
-      const scoreB = getGroupEffectivePct(b, keyword);
-      return scoreB - scoreA;
-    });
+    return sortAntigravityAccounts(accounts, sortMode, { pinCurrent: false });
   }, [accounts, sortMode]);
 
   const detailAccount = useMemo(

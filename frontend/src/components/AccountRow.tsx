@@ -17,7 +17,7 @@ import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { useNowTick } from '../hooks/useNowTick';
-import { formatRelativeTime } from '../utils/quota';
+import { formatRelativeTime, isPaidTier } from '../utils/quota';
 
 interface AccountRowProps {
   account: AccountDisplay;
@@ -70,7 +70,7 @@ export const AccountRow: React.FC<AccountRowProps> = ({ account }) => {
 
               <span
                 className={`rounded-md px-2 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${
-                  tier === 'PRO' || tier === 'ULTRA' || tier === 'ENTERPRISE'
+                  isPaidTier(tier)
                     ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
                     : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
                 }`}

@@ -16,7 +16,7 @@ const DEFAULT_PREFS: PersistedOverviewPrefs = {
   viewMode: 'card',
   quotaDisplayMode: 'remaining',
   maskAccount: false,
-  bestDimension: 'overall',
+  bestDimension: 'gemini',
 };
 
 function loadPersistedPrefs(): PersistedOverviewPrefs {
@@ -28,10 +28,7 @@ function loadPersistedPrefs(): PersistedOverviewPrefs {
       viewMode: parsed.viewMode === 'table' ? 'table' : 'card',
       quotaDisplayMode: parsed.quotaDisplayMode === 'used' ? 'used' : 'remaining',
       maskAccount: Boolean(parsed.maskAccount),
-      bestDimension:
-        parsed.bestDimension === 'gemini' || parsed.bestDimension === 'claude'
-          ? parsed.bestDimension
-          : 'overall',
+      bestDimension: parsed.bestDimension === 'claude' ? 'claude' : 'gemini',
     };
   } catch {
     return DEFAULT_PREFS;

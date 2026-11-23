@@ -8,6 +8,7 @@ import {
   formatBucketLabel,
   formatRelativeTime,
   getQuotaTextColor,
+  isPaidTier,
 } from '../utils/quota';
 import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
@@ -97,7 +98,7 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                   </Dialog.Title>
                   <span
                     className={`rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
-                      tier === 'PRO' || tier === 'ULTRA' || tier === 'ENTERPRISE'
+                      isPaidTier(tier)
                         ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900'
                         : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
                     }`}

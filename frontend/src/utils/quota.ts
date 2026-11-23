@@ -160,17 +160,19 @@ export function getGroupEffectivePct(account: AccountDisplay, keyword: string): 
   return Math.min(...pcts);
 }
 
-export type BestAccountDimension = 'overall' | 'gemini' | 'claude';
+export type BestAccountDimension = 'gemini' | 'claude';
 
 export interface BestAccountCandidate {
   account: AccountDisplay;
   score: number; // 0-100, 当前维度得分
   minGroupPct: number; // 0-100 或 -1, 用于平局比较
+  tierRank: number;
 }
 
 export interface BestAccountSelection {
   currentScore: number; // 当前账号在选定维度的得分，无当前账号/受限/未知时为 -1
   bestSwitchCandidate: BestAccountCandidate | null;
+  hasBetterCandidate: boolean;
   isCurrentAlreadyBest: boolean;
 }
 
@@ -201,26 +203,72 @@ export function getAccountDimensionScore(
   account: AccountDisplay,
   dimension: BestAccountDimension
 ): number {
-  if (dimension === 'gemini') return getGroupEffectivePct(account, 'gemini');
   if (dimension === 'claude') return getGroupEffectivePct(account, 'claude');
-  return getAccountOverallScore(account).avg;
+  return getGroupEffectivePct(account, 'gemini');
 }
 
-const TIER_RANK: Record<string, number> = {
-  ULTRA: 4,
-  ENTERPRISE: 3,
-  PRO: 2,
-  FREE: 1,
-};
+/**
+ * Subscription tier priority: Ultra 20x > Ultra 5x > Ultra > Enterprise > Team > Pro > Free.
+ */
+export function getTierRank(tier?: string): number {
+  const upper = (tier || 'FREE').toUpperCase().trim();
+  if (upper.includes('ULTRA')) {
+    if (upper.includes('20X') || upper.includes('20_X') || upper.includes('20-X')) {
+      return 60;
+    }
+    if (upper.includes('5X') || upper.includes('5_X') || upper.includes('5-X')) {
+      return 50;
+    }
+    return 45;
+  }
+  if (upper.includes('ENTERPRISE')) return 30;
+  if (upper.includes('TEAM')) return 25;
+  if (upper.includes('PRO')) return 20;
+  return 10;
+}
 
-function getTierRank(account: AccountDisplay): number {
-  return TIER_RANK[(account.subscriptionTier || 'FREE').toUpperCase()] ?? 0;
+export function isPaidTier(tier?: string): boolean {
+  return getTierRank(tier) > 10;
+}
+
+/**
+ * Sorts Antigravity accounts by tier priority (Ultra 20x -> Ultra 5x -> Pro -> Free),
+ * ranking accounts within the same tier by the selected dimension score, then overall score.
+ */
+export function sortAntigravityAccounts(
+  accounts: AccountDisplay[],
+  dimension: BestAccountDimension,
+  options?: { pinCurrent?: boolean }
+): AccountDisplay[] {
+  const pinCurrent = options?.pinCurrent ?? true;
+  return [...accounts].sort((a, b) => {
+    if (pinCurrent && a.isCurrent !== b.isCurrent) {
+      return Number(b.isCurrent) - Number(a.isCurrent);
+    }
+
+    const tierDiff = getTierRank(b.subscriptionTier) - getTierRank(a.subscriptionTier);
+    if (tierDiff !== 0) return tierDiff;
+
+    const forbiddenDiff = Number(Boolean(a.isForbidden)) - Number(Boolean(b.isForbidden));
+    if (forbiddenDiff !== 0) return forbiddenDiff;
+
+    const dimDiff =
+      getAccountDimensionScore(b, dimension) - getAccountDimensionScore(a, dimension);
+    if (dimDiff !== 0) return dimDiff;
+
+    const overallA = getAccountOverallScore(a);
+    const overallB = getAccountOverallScore(b);
+    if (overallB.avg !== overallA.avg) return overallB.avg - overallA.avg;
+    return overallB.min - overallA.min;
+  });
 }
 
 /**
  * Picks the best non-current Antigravity account to switch to for the given
- * dimension, ordered by dimension score, then overall average, then weakest
- * group, then subscription tier. Forbidden / unknown-score accounts are skipped.
+ * dimension. Usable accounts (score > 0) are prioritized by subscription tier
+ * (Ultra 20x -> Ultra 5x -> Pro -> Free), then by dimension score within the
+ * same tier, then overall average and weakest group. Falls back to lower tiers
+ * when higher tiers are exhausted (0% remaining).
  */
 export function pickBestAntigravityAccount(
   accounts: AccountDisplay[],
@@ -231,38 +279,54 @@ export function pickBestAntigravityAccount(
   const currentScore = currentUsable
     ? getAccountDimensionScore(current!, dimension)
     : -1;
+  const currentTier = currentUsable ? getTierRank(current!.subscriptionTier) : -1;
+  const currentHasQuota = currentUsable && currentScore > 0;
 
   let best: BestAccountCandidate | null = null;
   let bestOverall = { avg: -1, min: -1 };
-  let bestTier = -1;
 
   for (const acc of accounts) {
     if (acc.isCurrent || acc.isForbidden) continue;
     const score = getAccountDimensionScore(acc, dimension);
     if (score < 0) continue;
     const overall = getAccountOverallScore(acc);
-    const tier = getTierRank(acc);
+    const tierRank = getTierRank(acc.subscriptionTier);
+    const hasQuota = score > 0 ? 1 : 0;
+    const bestHasQuota = best && best.score > 0 ? 1 : 0;
 
     const better =
       !best ||
-      score > best.score ||
-      (score === best.score &&
-        (overall.avg > bestOverall.avg ||
-          (overall.avg === bestOverall.avg &&
-            (overall.min > bestOverall.min ||
-              (overall.min === bestOverall.min && tier > bestTier)))));
+      hasQuota > bestHasQuota ||
+      (hasQuota === bestHasQuota &&
+        (tierRank > best.tierRank ||
+          (tierRank === best.tierRank &&
+            (score > best.score ||
+              (score === best.score &&
+                (overall.avg > bestOverall.avg ||
+                  (overall.avg === bestOverall.avg && overall.min > bestOverall.min)))))));
 
     if (better) {
-      best = { account: acc, score, minGroupPct: overall.min };
+      best = { account: acc, score, minGroupPct: overall.min, tierRank };
       bestOverall = overall;
-      bestTier = tier;
     }
   }
 
-  const isCurrentAlreadyBest =
-    currentUsable && currentScore >= 0 && (!best || currentScore >= best.score);
+  const bestHasQuota = Boolean(best && best.score > 0);
+  const hasBetterCandidate = Boolean(
+    best &&
+      bestHasQuota &&
+      (!currentHasQuota ||
+        best.tierRank > currentTier ||
+        (best.tierRank === currentTier && best.score > currentScore))
+  );
+  const isCurrentAlreadyBest = currentHasQuota && !hasBetterCandidate;
 
-  return { currentScore, bestSwitchCandidate: best, isCurrentAlreadyBest };
+  return {
+    currentScore,
+    bestSwitchCandidate: best,
+    hasBetterCandidate,
+    isCurrentAlreadyBest,
+  };
 }
 
 export interface ProviderGroupAggregate {
