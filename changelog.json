@@ -1,6 +1,30 @@
 {
   "releases": [
     {
+      "version": "0.1.0-rc.13",
+      "date": "2026-11-23",
+      "title": "高密度 Bento 概览、Ultra 等级识别与供应商品牌 Logo",
+      "summary": "重构首页概览为高密度供应商聚合 Bento 卡片与分组表格双视图，将账号接入统一迁入设置中心，新增 Ultra 订阅等级识别与按等级优先的最佳账号推荐，并全面换装千问与 Antigravity 品牌 Logo。",
+      "changes": [
+        {
+          "type": "feat",
+          "text": "首页概览重构为高密度供应商聚合 Bento Grid 与独立分组表格双视图：支持多账号均值聚合、已用/剩余显示切换、截图账号打码与偏好持久化，并支持按 Gemini / Claude 维度一键切换至最优 Antigravity 账号"
+        },
+        {
+          "type": "feat",
+          "text": "支持识别 Antigravity Ultra 20x / 5x 订阅等级并适配付费徽章；多账号排序与最佳账号推荐按订阅等级优先，默认聚焦 Gemini 维度"
+        },
+        {
+          "type": "feat",
+          "text": "侧边栏「额度」子菜单动态仅展示已连接供应商并补充智能路由回退，账号删除确认弹窗统一托管至全局层，新增千问与 Antigravity 品牌 Logo 资源及通用 ProviderLogo 组件"
+        },
+        {
+          "type": "change",
+          "text": "将 Antigravity 与千问的账号添加及连接管理统一迁入「设置 → 供应商与账号」（支持深链意图直达），精简概览顶栏与额度页冗余入口，卡片/表格视图按所选维度过滤配额，并全量替换各页面的供应商占位图标为品牌 Logo"
+        }
+      ]
+    },
+    {
       "version": "0.1.0-rc.12",
       "date": "2026-11-22",
       "title": "设置页重构为模态弹窗并修复弹层交互细节",
