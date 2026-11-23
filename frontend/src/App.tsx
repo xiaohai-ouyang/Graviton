@@ -12,7 +12,9 @@ import { useResetTimeStore } from './store/useResetTimeStore';
 import {
   BackgroundLocationSnapshot,
   getBackgroundLocation,
+  isEmptyQuotaPath,
   isSettingsPath,
+  resolveSafeQuotaFallback,
   SettingsRouteState,
   useSettingsModalStore,
 } from './store/useSettingsModalStore';
@@ -22,6 +24,8 @@ import { hasOtherDialogOpen } from './utils/dialog';
 import { Sidebar } from './components/Sidebar';
 import { FeedbackBanner } from './components/FeedbackBanner';
 import { ChangelogModal } from './components/ChangelogModal';
+import { DeleteConfirmModal } from './components/DeleteConfirmModal';
+import { QianwenDeleteConfirmModal } from './components/QianwenDeleteConfirmModal';
 import { UpdateModal } from './components/UpdateModal';
 import { UpdateStatusBar } from './components/UpdateStatusBar';
 import { SettingsModal } from './components/settings/SettingsModal';
@@ -33,6 +37,25 @@ import { EnvironmentPage } from './pages/EnvironmentPage';
 interface AnimatedRoutesProps {
   backgroundLocation: BackgroundLocationSnapshot;
 }
+
+/** /quota index redirect that waits for both provider stores before choosing a target. */
+const QuotaIndexRedirect: React.FC = () => {
+  const agCount = useAccountStore((s) => s.accounts.length);
+  const agHasLoaded = useAccountStore((s) => s.hasLoaded);
+  const qwCount = useQianwenStore((s) => s.accounts.length);
+  const qwHasLoaded = useQianwenStore((s) => s.hasLoaded);
+
+  if (!agHasLoaded || !qwHasLoaded) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-neutral-400">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800 dark:border-neutral-700 dark:border-t-neutral-200" />
+        <p className="text-xs">正在加载额度数据...</p>
+      </div>
+    );
+  }
+
+  return <Navigate to={resolveSafeQuotaFallback(agCount, qwCount)} replace />;
+};
 
 const AnimatedRoutes: React.FC<AnimatedRoutesProps> = ({ backgroundLocation }) => {
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
@@ -54,7 +77,7 @@ const AnimatedRoutes: React.FC<AnimatedRoutesProps> = ({ backgroundLocation }) =
         <Routes location={backgroundLocation}>
           <Route path="/" element={<Navigate to="/overview" replace />} />
           <Route path="/overview" element={<OverviewPage />} />
-          <Route path="/quota" element={<Navigate to="/quota/antigravity" replace />} />
+          <Route path="/quota" element={<QuotaIndexRedirect />} />
           <Route path="/quota/antigravity" element={<QuotaPage />} />
           <Route path="/quota/qianwen" element={<QianwenQuotaPage />} />
           <Route path="/env" element={<EnvironmentPage />} />
@@ -90,6 +113,24 @@ const AppShell: React.FC = () => {
           return;
         }
         e.preventDefault();
+        const agState = useAccountStore.getState();
+        const qwState = useQianwenStore.getState();
+        // Background quota page may have been emptied while settings was open
+        if (
+          isEmptyQuotaPath(
+            backgroundLocation.pathname,
+            agState.accounts.length,
+            agState.hasLoaded,
+            qwState.accounts.length,
+            qwState.hasLoaded
+          )
+        ) {
+          navigate(
+            resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length),
+            { replace: true }
+          );
+          return;
+        }
         const routeState = location.state as SettingsRouteState | null | undefined;
         if (routeState?.fromModalTrigger) {
           navigate(-1);
@@ -134,6 +175,8 @@ const AppShell: React.FC = () => {
       </div>
 
       <SettingsModal />
+      <DeleteConfirmModal />
+      <QianwenDeleteConfirmModal />
       <ChangelogModal />
       <UpdateModal />
       <FeedbackBanner />

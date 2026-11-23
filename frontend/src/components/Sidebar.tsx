@@ -19,7 +19,10 @@ import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
 import {
   getBackgroundLocation,
+  isEmptyQuotaPath,
   isSettingsPath,
+  openSettingsModal,
+  resolveSafeQuotaFallback,
   SettingsRouteState,
   useSettingsModalStore,
 } from '../store/useSettingsModalStore';
@@ -52,6 +55,24 @@ export const Sidebar: React.FC = () => {
 
   const handleToggleSettings = () => {
     if (settingsOpen) {
+      const agState = useAccountStore.getState();
+      const qwState = useQianwenStore.getState();
+      // Background quota page may have been emptied while settings was open
+      if (
+        isEmptyQuotaPath(
+          backgroundLocation.pathname,
+          agState.accounts.length,
+          agState.hasLoaded,
+          qwState.accounts.length,
+          qwState.hasLoaded
+        )
+      ) {
+        navigate(
+          resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length),
+          { replace: true }
+        );
+        return;
+      }
       const routeState = location.state as SettingsRouteState | null | undefined;
       if (routeState?.fromModalTrigger) {
         navigate(-1);
@@ -72,10 +93,11 @@ export const Sidebar: React.FC = () => {
     });
   };
 
-  const quotaProviders = [
-    { to: '/quota/antigravity', label: 'Antigravity', count: agCount },
-    { to: '/quota/qianwen', label: '千问', count: qwCount },
+  const allQuotaProviders = [
+    { id: 'antigravity', to: '/quota/antigravity', label: 'Antigravity', count: agCount },
+    { id: 'qianwen', to: '/quota/qianwen', label: '千问', count: qwCount },
   ] as const;
+  const connectedQuotaProviders = allQuotaProviders.filter((p) => p.count > 0);
 
   const updateStatus = updateState?.status;
   const updateReady = updateStatus === 'ready';
@@ -155,7 +177,11 @@ export const Sidebar: React.FC = () => {
             aria-expanded={!collapsed ? quotaExpanded : undefined}
             onClick={() => {
               if (collapsed) {
-                navigateMainRoute('/quota/antigravity');
+                if (connectedQuotaProviders.length > 0) {
+                  navigateMainRoute(connectedQuotaProviders[0].to);
+                } else {
+                  openSettingsModal(navigate, location, 'providers');
+                }
               } else {
                 setQuotaExpanded((prev) => !prev);
               }
@@ -200,7 +226,21 @@ export const Sidebar: React.FC = () => {
                   transition={shouldAnimate ? { duration: 0.15 } : { duration: 0 }}
                   className="ml-3 space-y-0.5 overflow-hidden border-l border-neutral-200/80 pl-2.5 dark:border-neutral-800"
                 >
-                  {quotaProviders.map((provider) => {
+                  {connectedQuotaProviders.length === 0 && (
+                    <div className="rounded-lg px-2.5 py-2">
+                      <p className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                        暂未连接供应商
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openSettingsModal(navigate, location, 'providers')}
+                        className="mt-1.5 inline-flex items-center rounded-md border border-neutral-200 bg-card px-2 py-1 text-[11px] font-medium text-neutral-600 shadow-2xs transition-colors hover:bg-neutral-50 hover:text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-neutral-100"
+                      >
+                        前往设置连接
+                      </button>
+                    </div>
+                  )}
+                  {connectedQuotaProviders.map((provider) => {
                     const isActive = backgroundLocation.pathname === provider.to;
                     return (
                       <button
