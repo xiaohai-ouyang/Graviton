@@ -287,3 +287,14 @@ func TestQuota_AttemptTimeoutFallsBack(t *testing.T) {
 	assert.Equal(t, "PRO", tier)
 	assert.Less(t, elapsed, time.Second)
 }
+
+func TestNormalizeSubscriptionTier_UltraVariants(t *testing.T) {
+	assert.Equal(t, "ULTRA 20X", NormalizeSubscriptionTier("g1-ultra-20x-tier"))
+	assert.Equal(t, "ULTRA 20X", NormalizeSubscriptionTier("g1-ultra-tier Google AI Ultra 20x"))
+	assert.Equal(t, "ULTRA 5X", NormalizeSubscriptionTier("g1-ultra-5x-tier"))
+	assert.Equal(t, "ULTRA 5X", NormalizeSubscriptionTier("g1-ultra-tier Google AI Ultra 5x"))
+	assert.Equal(t, "ULTRA", NormalizeSubscriptionTier("g1-ultra-tier"))
+	assert.Equal(t, "PRO", NormalizeSubscriptionTier("g1-pro-tier Pro Tier"))
+	assert.Equal(t, "FREE", NormalizeSubscriptionTier("free-tier"))
+	assert.Equal(t, "FREE", NormalizeSubscriptionTier(""))
+}

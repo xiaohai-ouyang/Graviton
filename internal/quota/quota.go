@@ -256,12 +256,19 @@ func (s *QuotaService) doJSONPost(ctx context.Context, endpoint, accessToken str
 	return nil
 }
 
-// NormalizeSubscriptionTier normalizes tier string to FREE, PRO, ULTRA, etc.
+// NormalizeSubscriptionTier normalizes tier string to FREE, PRO, ULTRA, ULTRA 5X, ULTRA 20X, etc.
 func NormalizeSubscriptionTier(raw string) string {
 	lower := strings.ToLower(strings.TrimSpace(raw))
 	switch {
 	case strings.Contains(lower, "ultra"):
-		return "ULTRA"
+		switch {
+		case strings.Contains(lower, "20x") || strings.Contains(lower, "20_x") || strings.Contains(lower, "20-x"):
+			return "ULTRA 20X"
+		case strings.Contains(lower, "5x") || strings.Contains(lower, "5_x") || strings.Contains(lower, "5-x"):
+			return "ULTRA 5X"
+		default:
+			return "ULTRA"
+		}
 	case strings.Contains(lower, "pro"):
 		return "PRO"
 	case strings.Contains(lower, "enterprise"):
@@ -271,6 +278,13 @@ func NormalizeSubscriptionTier(raw string) string {
 	default:
 		return "FREE"
 	}
+}
+
+func combineTierFields(t *Tier) string {
+	if t == nil {
+		return ""
+	}
+	return strings.TrimSpace(t.ID + " " + t.Name)
 }
 
 // FetchProjectAndTier calls loadCodeAssist across fallback endpoints.
@@ -309,23 +323,14 @@ func (s *QuotaService) fetchProjectAndTier(ctx context.Context, accessToken stri
 		s.recordSuccessfulEndpoint("load", ep)
 
 		// Tier precedence: paidTier -> currentTier -> allowedTiers -> default FREE
-		rawTier := ""
-		if loadResp.PaidTier != nil {
-			if loadResp.PaidTier.ID != "" {
-				rawTier = loadResp.PaidTier.ID
-			} else {
-				rawTier = loadResp.PaidTier.Name
-			}
-		} else if loadResp.CurrentTier != nil {
-			if loadResp.CurrentTier.ID != "" {
-				rawTier = loadResp.CurrentTier.ID
-			} else {
-				rawTier = loadResp.CurrentTier.Name
-			}
-		} else {
+		rawTier := combineTierFields(loadResp.PaidTier)
+		if rawTier == "" {
+			rawTier = combineTierFields(loadResp.CurrentTier)
+		}
+		if rawTier == "" {
 			for _, t := range loadResp.AllowedTiers {
 				if t.IsDefault || strings.Contains(strings.ToLower(t.ID), "free") {
-					rawTier = t.ID
+					rawTier = combineTierFields(&t)
 					break
 				}
 			}
