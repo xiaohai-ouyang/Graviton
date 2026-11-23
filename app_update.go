@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,7 +73,7 @@ func (a *App) initUpdater() {
 	a.updater.Start()
 }
 
-// getUpdateBusyReasons lists human-readable reasons blocking an immediate restart-update.
+// getUpdateBusyReasons lists human-readable reasons blocking an immediate restart.
 func (a *App) getUpdateBusyReasons() []string {
 	var reasons []string
 	a.mu.Lock()
@@ -90,7 +91,7 @@ func (a *App) getUpdateBusyReasons() []string {
 	return reasons
 }
 
-// onPotentialIdleForUpdate immediately installs a deferred update once nothing is busy.
+// onPotentialIdleForUpdate immediately restarts into an already-installed update once nothing is busy.
 func (a *App) onPotentialIdleForUpdate() {
 	if a.updater == nil || !a.updater.IsWaitingIdle() {
 		return
@@ -100,50 +101,53 @@ func (a *App) onPotentialIdleForUpdate() {
 		a.updater.SetWaitingIdle(reasons)
 		return
 	}
-	_ = a.executeInstallNow(true)
+	_ = a.executeRestartNow(true)
 }
 
-// executeInstallNow persists the pre-update version, launches the detached helper, and quits.
-func (a *App) executeInstallNow(fromWaitingOnly bool) error {
+func (a *App) resolveUpdateExePath() (string, error) {
+	if a.updater != nil && a.updater.ExePath() != "" {
+		return a.updater.ExePath(), nil
+	}
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("获取当前程序路径失败: %w", err)
+	}
+	return exePath, nil
+}
+
+// executeRestartNow launches the detached restart helper and quits the current process.
+func (a *App) executeRestartNow(fromWaitingOnly bool) error {
 	if a.updater == nil || a.storageMgr == nil {
 		return appservice.NewAppError("UPDATE_UNAVAILABLE", "更新功能不可用")
 	}
 	if a.updater.Mode() == updater.ModeDev {
 		return appservice.NewAppError("UPDATE_DEV_MODE", "开发模式不支持自动安装更新，请使用正式构建版本")
 	}
-	filePath, started, err := a.updater.TryBeginInstall(fromWaitingOnly)
+	started, err := a.updater.TryBeginRestart(fromWaitingOnly)
 	if err != nil {
-		return appservice.NewAppError("UPDATE_NOT_READY", err.Error())
+		return appservice.NewAppError("UPDATE_NOT_INSTALLED", err.Error())
 	}
 	if !started {
 		return nil
 	}
-	exePath, err := os.Executable()
+	exePath, err := a.resolveUpdateExePath()
 	if err != nil {
-		a.updater.RevertInstallingToReady()
-		return appservice.NewAppError("UPDATE_PATH_ERROR", fmt.Sprintf("获取当前程序路径失败: %v", err))
-	}
-
-	if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf != nil {
-		sf.UpdatedFromVersion = a.GetAppInfo().Version
-		_ = a.storageMgr.SaveSettings(sf)
+		a.updater.RevertRestarting()
+		return appservice.NewAppError("UPDATE_PATH_ERROR", err.Error())
 	}
 
 	cacheDir := filepath.Join(a.storageMgr.BaseDir(), "updates")
-	launch := a.launchUpdateFn
+	launch := a.launchRestartFn
 	if launch == nil {
-		launch = updater.LaunchApplyHelper
+		launch = updater.LaunchRestartHelper
 	}
-	if err := launch(updater.ApplyParams{
-		Mode:           a.updater.Mode(),
-		CurrentPID:     os.Getpid(),
-		ExePath:        exePath,
-		InstallDir:     filepath.Dir(exePath),
-		DownloadedFile: filePath,
-		ScriptPath:     filepath.Join(cacheDir, "apply_update.ps1"),
-		LogPath:        filepath.Join(cacheDir, "apply_update.log"),
+	if err := launch(updater.RestartParams{
+		CurrentPID: os.Getpid(),
+		ExePath:    exePath,
+		ScriptPath: filepath.Join(cacheDir, "restart_app.ps1"),
+		LogPath:    filepath.Join(cacheDir, "apply_update.log"),
 	}); err != nil {
-		a.updater.RevertInstallingToReady()
+		a.updater.RevertRestarting()
 		return appservice.NewAppError("UPDATE_LAUNCH_FAILED", err.Error())
 	}
 	if a.quitAppFn != nil {
@@ -200,28 +204,81 @@ func (a *App) SkipUpdateVersion(version string) (updater.UpdateState, error) {
 	return a.updater.State(), nil
 }
 
-// RequestInstallUpdate installs immediately when idle, otherwise defers until tasks finish.
-func (a *App) RequestInstallUpdate() (updater.UpdateState, error) {
-	if a.updater == nil {
+// InstallUpdate installs the downloaded & verified update in place while the app stays open.
+// Upon success the state transitions to "installed" so the UI prompts the user to restart.
+func (a *App) InstallUpdate() (updater.UpdateState, error) {
+	if a.updater == nil || a.storageMgr == nil {
 		return a.GetUpdateState(), appservice.NewAppError("UPDATE_UNAVAILABLE", "更新功能不可用")
 	}
 	if a.updater.Mode() == updater.ModeDev {
 		return a.updater.State(), appservice.NewAppError("UPDATE_DEV_MODE", "开发模式不支持自动安装更新，请使用正式构建版本")
 	}
-	if _, err := a.updater.ReadyFilePath(); err != nil {
+	filePath, started, err := a.updater.TryBeginInstall()
+	if err != nil {
 		return a.updater.State(), appservice.NewAppError("UPDATE_NOT_READY", err.Error())
+	}
+	if !started {
+		return a.updater.State(), nil
+	}
+	exePath, err := a.resolveUpdateExePath()
+	if err != nil {
+		a.updater.RevertInstallingToReady()
+		return a.updater.State(), appservice.NewAppError("UPDATE_PATH_ERROR", err.Error())
+	}
+
+	cacheDir := filepath.Join(a.storageMgr.BaseDir(), "updates")
+	install := a.installUpdateFn
+	if install == nil {
+		install = updater.InstallInPlace
+	}
+	if err := install(updater.InstallParams{
+		Mode:           a.updater.Mode(),
+		ExePath:        exePath,
+		InstallDir:     filepath.Dir(exePath),
+		DownloadedFile: filePath,
+		ScriptPath:     filepath.Join(cacheDir, "install_update.ps1"),
+		LogPath:        filepath.Join(cacheDir, "apply_update.log"),
+	}); err != nil {
+		a.updater.RevertInstallingToReady()
+		if errors.Is(err, updater.ErrInstallCancelled) {
+			return a.updater.State(), appservice.NewAppError("UPDATE_INSTALL_CANCELLED", err.Error())
+		}
+		return a.updater.State(), appservice.NewAppError("UPDATE_INSTALL_FAILED", err.Error())
+	}
+
+	// Record pre-update version as soon as installation succeeds so even a manual restart later
+	// shows the one-shot "updated to vX" banner on next launch.
+	if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf != nil {
+		sf.UpdatedFromVersion = a.GetAppInfo().Version
+		_ = a.storageMgr.SaveSettings(sf)
+	}
+
+	a.updater.MarkInstalled()
+	return a.updater.State(), nil
+}
+
+// RestartToApplyUpdate restarts the app to run the already-installed update, or defers until idle.
+func (a *App) RestartToApplyUpdate() (updater.UpdateState, error) {
+	if a.updater == nil || a.storageMgr == nil {
+		return a.GetUpdateState(), appservice.NewAppError("UPDATE_UNAVAILABLE", "更新功能不可用")
+	}
+	if a.updater.Mode() == updater.ModeDev {
+		return a.updater.State(), appservice.NewAppError("UPDATE_DEV_MODE", "开发模式不支持自动安装更新，请使用正式构建版本")
+	}
+	if !a.updater.IsInstalled() {
+		return a.updater.State(), appservice.NewAppError("UPDATE_NOT_INSTALLED", "当前没有已安装待重启的更新")
 	}
 	if reasons := a.getUpdateBusyReasons(); len(reasons) > 0 {
 		a.updater.SetWaitingIdle(reasons)
 		return a.updater.State(), nil
 	}
-	if err := a.executeInstallNow(false); err != nil {
+	if err := a.executeRestartNow(false); err != nil {
 		return a.updater.State(), err
 	}
 	return a.updater.State(), nil
 }
 
-// CancelDeferredUpdate cancels a waiting-idle restart reservation.
+// CancelDeferredUpdate cancels a waiting-idle restart reservation, returning to installed state.
 func (a *App) CancelDeferredUpdate() updater.UpdateState {
 	if a.updater != nil {
 		a.updater.CancelWaiting()

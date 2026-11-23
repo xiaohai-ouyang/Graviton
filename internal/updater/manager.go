@@ -29,8 +29,9 @@ const (
 	StatusDownloading = "downloading"
 	StatusVerifying   = "verifying"
 	StatusReady       = "ready"
-	StatusWaitingIdle = "waiting_idle"
 	StatusInstalling  = "installing"
+	StatusInstalled   = "installed"
+	StatusWaitingIdle = "waiting_idle"
 	StatusUpToDate    = "up_to_date"
 	StatusError       = "error"
 )
@@ -82,9 +83,10 @@ type Manager struct {
 	onSettings     func(Settings)
 	onState        func(UpdateState)
 
-	state    UpdateState
-	release  *ReleaseInfo
-	filePath string
+	state      UpdateState
+	release    *ReleaseInfo
+	filePath   string
+	restarting bool
 
 	runMu   sync.Mutex
 	ctx     context.Context
@@ -165,7 +167,7 @@ func (m *Manager) Stop() {
 }
 
 // cleanupStaleFiles removes old cached installers, partial downloads, helper scripts and
-// the portable .bak left over from a successful update, while preserving apply_update.log.
+// leftover .bak/.new binaries from previous updates, while preserving apply_update.log.
 func (m *Manager) cleanupStaleFiles() {
 	if entries, err := os.ReadDir(m.cacheDir); err == nil {
 		for _, entry := range entries {
@@ -178,8 +180,14 @@ func (m *Manager) cleanupStaleFiles() {
 			}
 		}
 	}
-	if m.exePath != "" && m.mode == ModePortable {
+	if m.exePath != "" {
 		_ = os.Remove(m.exePath + ".bak")
+		_ = os.Remove(m.exePath + ".new")
+		if matches, err := filepath.Glob(m.exePath + ".bak.*"); err == nil {
+			for _, p := range matches {
+				_ = os.Remove(p)
+			}
+		}
 	}
 }
 
@@ -234,12 +242,13 @@ func (m *Manager) ApplySettings(autoCheck bool, mirrorURL string) error {
 	return nil
 }
 
-// SkipVersion records a version the user chose to skip and resets an offered update.
+// SkipVersion records a version the user chose to skip and resets an offered update
+// (only before installation begins).
 func (m *Manager) SkipVersion(version string) {
 	m.mu.Lock()
 	m.settings.SkippedVersion = version
 	m.state.SkippedVersion = version
-	if m.state.LatestVersion == version && (m.state.Status == StatusReady || m.state.Status == StatusWaitingIdle) {
+	if m.state.LatestVersion == version && m.state.Status == StatusReady {
 		m.resetOfferLocked()
 	}
 	m.mu.Unlock()
@@ -275,10 +284,10 @@ func (m *Manager) resetOfferLocked() {
 	m.state.ErrorMessage = ""
 }
 
-// SetWaitingIdle marks a deferred restart with the reasons the app is still busy.
+// SetWaitingIdle marks a deferred restart after installation with the reasons the app is still busy.
 func (m *Manager) SetWaitingIdle(reasons []string) {
 	m.mu.Lock()
-	if m.state.Status == StatusReady || m.state.Status == StatusWaitingIdle {
+	if m.state.Status == StatusInstalled || m.state.Status == StatusWaitingIdle {
 		m.state.Status = StatusWaitingIdle
 		m.state.PendingRestart = true
 		m.state.BusyReasons = reasons
@@ -287,48 +296,56 @@ func (m *Manager) SetWaitingIdle(reasons []string) {
 	m.emit()
 }
 
-// CancelWaiting returns a deferred restart to ready.
+// CancelWaiting returns a deferred restart to installed (still awaiting restart).
 func (m *Manager) CancelWaiting() {
 	m.mu.Lock()
 	if m.state.Status == StatusWaitingIdle {
-		m.state.Status = StatusReady
-		m.state.PendingRestart = false
+		m.state.Status = StatusInstalled
+		m.state.PendingRestart = true
 		m.state.BusyReasons = nil
 	}
 	m.mu.Unlock()
 	m.emit()
 }
 
-// TryBeginInstall atomically transitions ready/waiting_idle -> installing.
-// Returns (filePath, true, nil) to the single winner, ("", false, nil) if already installing
-// or if fromWaitingOnly is true and status is no longer waiting_idle, or an error if not ready.
-func (m *Manager) TryBeginInstall(fromWaitingOnly bool) (string, bool, error) {
+// TryBeginInstall atomically transitions ready -> installing.
+// Returns (filePath, true, nil) to the single winner, ("", false, nil) if already installing,
+// or an error if no verified installer is ready.
+func (m *Manager) TryBeginInstall() (string, bool, error) {
 	m.mu.Lock()
 	if m.state.Status == StatusInstalling {
 		m.mu.Unlock()
 		return "", false, nil
 	}
-	if fromWaitingOnly {
-		if m.state.Status != StatusWaitingIdle || m.filePath == "" {
-			m.mu.Unlock()
-			return "", false, nil
-		}
-	} else {
-		if (m.state.Status != StatusReady && m.state.Status != StatusWaitingIdle) || m.filePath == "" {
-			m.mu.Unlock()
-			return "", false, errors.New("当前没有已就绪的更新安装包")
-		}
+	if m.state.Status != StatusReady || m.filePath == "" {
+		m.mu.Unlock()
+		return "", false, errors.New("当前没有已就绪的更新安装包")
 	}
 	path := m.filePath
 	m.state.Status = StatusInstalling
 	m.state.PendingRestart = false
 	m.state.BusyReasons = nil
+	m.state.ErrorMessage = ""
 	m.mu.Unlock()
 	m.emit()
 	return path, true, nil
 }
 
-// RevertInstallingToReady recovers from a failed apply-helper launch so the user can retry.
+// MarkInstalled transitions installing -> installed after in-place installation succeeds.
+func (m *Manager) MarkInstalled() {
+	m.mu.Lock()
+	if m.state.Status == StatusInstalling {
+		m.state.Status = StatusInstalled
+		m.state.PendingRestart = true
+		m.state.BusyReasons = nil
+		m.state.ErrorMessage = ""
+		m.filePath = ""
+	}
+	m.mu.Unlock()
+	m.emit()
+}
+
+// RevertInstallingToReady recovers from a failed or cancelled in-place install so the user can retry.
 func (m *Manager) RevertInstallingToReady() {
 	m.mu.Lock()
 	if m.state.Status == StatusInstalling {
@@ -340,19 +357,72 @@ func (m *Manager) RevertInstallingToReady() {
 	m.emit()
 }
 
-// IsWaitingIdle reports whether an install is deferred until the app becomes idle.
+// TryBeginRestart atomically claims the single restart transition from installed/waiting_idle.
+// Returns (true, nil) to the single winner, (false, nil) if a restart is already in flight
+// or fromWaitingOnly is true and status is no longer waiting_idle, or an error if not installed.
+func (m *Manager) TryBeginRestart(fromWaitingOnly bool) (bool, error) {
+	m.mu.Lock()
+	if m.restarting {
+		m.mu.Unlock()
+		return false, nil
+	}
+	if fromWaitingOnly {
+		if m.state.Status != StatusWaitingIdle {
+			m.mu.Unlock()
+			return false, nil
+		}
+	} else {
+		if m.state.Status != StatusInstalled && m.state.Status != StatusWaitingIdle {
+			m.mu.Unlock()
+			return false, errors.New("当前没有已安装待重启的更新")
+		}
+	}
+	m.restarting = true
+	m.state.Status = StatusInstalled
+	m.state.PendingRestart = true
+	m.state.BusyReasons = nil
+	m.mu.Unlock()
+	m.emit()
+	return true, nil
+}
+
+// RevertRestarting releases the restart claim if spawning the restart helper fails.
+func (m *Manager) RevertRestarting() {
+	m.mu.Lock()
+	m.restarting = false
+	if m.state.Status == StatusWaitingIdle || m.state.Status == StatusInstalled {
+		m.state.Status = StatusInstalled
+		m.state.PendingRestart = true
+		m.state.BusyReasons = nil
+	}
+	m.mu.Unlock()
+	m.emit()
+}
+
+// IsInstalled reports whether an update has already been installed and is awaiting restart.
+func (m *Manager) IsInstalled() bool {
+	s := m.snapshot().Status
+	return s == StatusInstalled || s == StatusWaitingIdle
+}
+
+// IsWaitingIdle reports whether a restart is deferred until the app becomes idle.
 func (m *Manager) IsWaitingIdle() bool {
 	return m.snapshot().Status == StatusWaitingIdle
 }
 
-// ReadyFilePath returns the verified installer path when status is ready/waiting_idle.
+// ReadyFilePath returns the verified installer path when status is ready.
 func (m *Manager) ReadyFilePath() (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if (m.state.Status != StatusReady && m.state.Status != StatusWaitingIdle) || m.filePath == "" {
+	if m.state.Status != StatusReady || m.filePath == "" {
 		return "", errors.New("当前没有已就绪的更新安装包")
 	}
 	return m.filePath, nil
+}
+
+// ExePath returns the executable path recorded at startup.
+func (m *Manager) ExePath() string {
+	return m.exePath
 }
 
 // Mode returns the detected install mode.
@@ -382,9 +452,9 @@ func (m *Manager) backgroundCheck() {
 	if !enabled {
 		return
 	}
-	// Never disturb an offered, deferred or in-flight update.
+	// Never disturb an offered, installed, deferred or in-flight update.
 	switch status {
-	case StatusDownloading, StatusVerifying, StatusReady, StatusWaitingIdle, StatusInstalling:
+	case StatusDownloading, StatusVerifying, StatusReady, StatusInstalling, StatusInstalled, StatusWaitingIdle:
 		return
 	}
 	_, _ = m.Check(context.Background(), false)
@@ -402,7 +472,7 @@ func (m *Manager) Check(ctx context.Context, manual bool) (UpdateState, error) {
 	}
 
 	m.mu.Lock()
-	if m.state.Status == StatusWaitingIdle || m.state.Status == StatusInstalling {
+	if m.state.Status == StatusWaitingIdle || m.state.Status == StatusInstalling || m.state.Status == StatusInstalled {
 		snap := m.state
 		m.mu.Unlock()
 		return snap, nil

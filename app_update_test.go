@@ -24,24 +24,35 @@ import (
 )
 
 type updateMockHooks struct {
-	launchCalls atomic.Int32
-	quitCalls   atomic.Int32
-	mu          sync.Mutex
-	lastParams  updater.ApplyParams
-	launchErr   error
+	installCalls      atomic.Int32
+	restartCalls      atomic.Int32
+	quitCalls         atomic.Int32
+	mu                sync.Mutex
+	lastInstallParams updater.InstallParams
+	lastRestartParams updater.RestartParams
+	installErr        error
+	restartErr        error
 }
 
 // newReadyUpdateApp builds a test App whose updater is already in ready state,
-// backed by an httptest release server serving the given payload and mocked launch/quit hooks.
+// backed by an httptest release server serving the given payload and mocked install/restart/quit hooks.
 func newReadyUpdateApp(t *testing.T, channel string) (*App, *httptest.Server, *updateMockHooks) {
 	t.Helper()
 	app := newTestApp(t)
 	hooks := &updateMockHooks{}
-	app.launchUpdateFn = func(p updater.ApplyParams) error {
-		hooks.launchCalls.Add(1)
+	app.installUpdateFn = func(p updater.InstallParams) error {
+		hooks.installCalls.Add(1)
 		hooks.mu.Lock()
-		hooks.lastParams = p
-		err := hooks.launchErr
+		hooks.lastInstallParams = p
+		err := hooks.installErr
+		hooks.mu.Unlock()
+		return err
+	}
+	app.launchRestartFn = func(p updater.RestartParams) error {
+		hooks.restartCalls.Add(1)
+		hooks.mu.Lock()
+		hooks.lastRestartParams = p
+		err := hooks.restartErr
 		hooks.mu.Unlock()
 		return err
 	}
@@ -101,14 +112,79 @@ func newReadyUpdateApp(t *testing.T, channel string) (*App, *httptest.Server, *u
 	return app, srv, hooks
 }
 
-func TestRequestInstallUpdate_BusyDefersWithReasons(t *testing.T) {
+func TestInstallUpdate_TransitionsToInstalledWithoutQuitting(t *testing.T) {
+	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+
+	state, err := app.InstallUpdate()
+	require.NoError(t, err)
+	assert.Equal(t, updater.StatusInstalled, state.Status)
+	assert.True(t, state.PendingRestart)
+	assert.Equal(t, int32(1), hooks.installCalls.Load())
+	assert.Equal(t, int32(0), hooks.restartCalls.Load())
+	assert.Equal(t, int32(0), hooks.quitCalls.Load())
+
+	hooks.mu.Lock()
+	assert.Equal(t, updater.ModePortable, hooks.lastInstallParams.Mode)
+	assert.NotEmpty(t, hooks.lastInstallParams.DownloadedFile)
+	assert.NotEmpty(t, hooks.lastInstallParams.ExePath)
+	hooks.mu.Unlock()
+
+	// Pre-update version must already be persisted so even a manual restart shows the notice.
+	sf, _, err := app.storageMgr.LoadSettings()
+	require.NoError(t, err)
+	assert.Equal(t, app.GetAppInfo().Version, sf.UpdatedFromVersion)
+}
+
+func TestInstallUpdate_FailureOrCancelRevertsToReady(t *testing.T) {
+	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+	hooks.installErr = updater.ErrInstallCancelled
+
+	state, err := app.InstallUpdate()
+	require.Error(t, err)
+	var appErr *appservice.AppError
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, "UPDATE_INSTALL_CANCELLED", appErr.Code)
+	assert.Equal(t, updater.StatusReady, state.Status)
+	assert.False(t, state.PendingRestart)
+	assert.Equal(t, int32(0), hooks.quitCalls.Load())
+
+	hooks.mu.Lock()
+	hooks.installErr = errors.New("mock install failure")
+	hooks.mu.Unlock()
+	state, err = app.InstallUpdate()
+	require.Error(t, err)
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, "UPDATE_INSTALL_FAILED", appErr.Code)
+	assert.Equal(t, updater.StatusReady, state.Status)
+}
+
+func TestRestartToApplyUpdate_RejectsBeforeInstall(t *testing.T) {
+	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+
+	_, err := app.RestartToApplyUpdate()
+	require.Error(t, err)
+	var appErr *appservice.AppError
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, "UPDATE_NOT_INSTALLED", appErr.Code)
+	assert.Equal(t, int32(0), hooks.restartCalls.Load())
+	assert.Equal(t, int32(0), hooks.quitCalls.Load())
+}
+
+func TestRestartToApplyUpdate_BusyDefersWithReasons(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
 	app.procMgr = envmgr.NewProcessManager(envmgr.RunnerCallbacks{})
+
+	// Installing succeeds even while account operations are busy.
 	app.mu.Lock()
 	app.switchingIDs["acc-1"] = true
 	app.mu.Unlock()
 
-	state, err := app.RequestInstallUpdate()
+	state, err := app.InstallUpdate()
+	require.NoError(t, err)
+	require.Equal(t, updater.StatusInstalled, state.Status)
+
+	// Requesting restart while busy defers to waiting_idle.
+	state, err = app.RestartToApplyUpdate()
 	require.NoError(t, err)
 	assert.Equal(t, updater.StatusWaitingIdle, state.Status)
 	assert.True(t, state.PendingRestart)
@@ -117,30 +193,30 @@ func TestRequestInstallUpdate_BusyDefersWithReasons(t *testing.T) {
 	// Still busy: idle hook keeps waiting and refreshes reasons.
 	app.onPotentialIdleForUpdate()
 	assert.Equal(t, updater.StatusWaitingIdle, app.updater.State().Status)
-	assert.Equal(t, int32(0), hooks.launchCalls.Load())
+	assert.Equal(t, int32(0), hooks.restartCalls.Load())
 
-	// Release the account operation: the idle hook must fire the install immediately.
+	// Release the account operation: the idle hook must fire the restart immediately.
 	app.mu.Lock()
 	delete(app.switchingIDs, "acc-1")
 	app.mu.Unlock()
 	app.onPotentialIdleForUpdate()
-	assert.Equal(t, updater.StatusInstalling, app.updater.State().Status)
-	assert.Equal(t, int32(1), hooks.launchCalls.Load())
+	assert.Equal(t, int32(1), hooks.restartCalls.Load())
 	assert.Equal(t, int32(1), hooks.quitCalls.Load())
 	hooks.mu.Lock()
-	assert.Equal(t, updater.ModePortable, hooks.lastParams.Mode)
-	assert.NotEmpty(t, hooks.lastParams.DownloadedFile)
-	assert.NotEmpty(t, hooks.lastParams.ExePath)
+	assert.NotEmpty(t, hooks.lastRestartParams.ExePath)
 	hooks.mu.Unlock()
 }
 
-func TestOnPotentialIdleForUpdate_ConcurrentCallsLaunchOnlyOnce(t *testing.T) {
+func TestOnPotentialIdleForUpdate_ConcurrentCallsRestartOnlyOnce(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+	_, err := app.InstallUpdate()
+	require.NoError(t, err)
+
 	app.mu.Lock()
 	app.switchingIDs["acc-1"] = true
 	app.mu.Unlock()
 
-	_, err := app.RequestInstallUpdate()
+	_, err = app.RestartToApplyUpdate()
 	require.NoError(t, err)
 	require.Equal(t, updater.StatusWaitingIdle, app.updater.State().Status)
 
@@ -158,58 +234,62 @@ func TestOnPotentialIdleForUpdate_ConcurrentCallsLaunchOnlyOnce(t *testing.T) {
 	}
 	wg.Wait()
 
-	assert.Equal(t, int32(1), hooks.launchCalls.Load())
+	assert.Equal(t, int32(1), hooks.restartCalls.Load())
 	assert.Equal(t, int32(1), hooks.quitCalls.Load())
-	assert.Equal(t, updater.StatusInstalling, app.updater.State().Status)
 }
 
-func TestExecuteInstallNow_LaunchFailureRevertsToReady(t *testing.T) {
+func TestRestartToApplyUpdate_LaunchFailureRevertsToInstalled(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
-	hooks.launchErr = errors.New("mock launch error")
+	_, err := app.InstallUpdate()
+	require.NoError(t, err)
 
-	_, err := app.RequestInstallUpdate()
+	hooks.restartErr = errors.New("mock restart launch error")
+	_, err = app.RestartToApplyUpdate()
 	require.Error(t, err)
 	var appErr *appservice.AppError
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, "UPDATE_LAUNCH_FAILED", appErr.Code)
-	assert.Equal(t, updater.StatusReady, app.updater.State().Status)
-	assert.False(t, app.updater.State().PendingRestart)
+	assert.Equal(t, updater.StatusInstalled, app.updater.State().Status)
+	assert.True(t, app.updater.State().PendingRestart)
 	assert.Equal(t, int32(0), hooks.quitCalls.Load())
 }
 
-func TestCancelDeferredUpdate_IdleDoesNotInstall(t *testing.T) {
+func TestCancelDeferredUpdate_IdleDoesNotRestart(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+	_, err := app.InstallUpdate()
+	require.NoError(t, err)
+
 	app.mu.Lock()
 	app.switchingIDs["acc-1"] = true
 	app.mu.Unlock()
 
-	state, err := app.RequestInstallUpdate()
+	state, err := app.RestartToApplyUpdate()
 	require.NoError(t, err)
 	require.Equal(t, updater.StatusWaitingIdle, state.Status)
 
 	cancelled := app.CancelDeferredUpdate()
-	assert.Equal(t, updater.StatusReady, cancelled.Status)
-	assert.False(t, cancelled.PendingRestart)
+	assert.Equal(t, updater.StatusInstalled, cancelled.Status)
+	assert.True(t, cancelled.PendingRestart)
 	assert.Empty(t, cancelled.BusyReasons)
 
 	app.mu.Lock()
 	delete(app.switchingIDs, "acc-1")
 	app.mu.Unlock()
 	app.onPotentialIdleForUpdate()
-	assert.Equal(t, updater.StatusReady, app.updater.State().Status, "cancelled reservation must not auto-install")
-	assert.Equal(t, int32(0), hooks.launchCalls.Load())
+	assert.Equal(t, updater.StatusInstalled, app.updater.State().Status, "cancelled reservation must not auto-restart")
+	assert.Equal(t, int32(0), hooks.restartCalls.Load())
 }
 
-func TestRequestInstallUpdate_DevModeRejected(t *testing.T) {
+func TestInstallUpdate_DevModeRejected(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelDev)
 
-	_, err := app.RequestInstallUpdate()
+	_, err := app.InstallUpdate()
 	require.Error(t, err)
 	var appErr *appservice.AppError
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, "UPDATE_DEV_MODE", appErr.Code)
 	assert.Equal(t, updater.StatusReady, app.updater.State().Status)
-	assert.Equal(t, int32(0), hooks.launchCalls.Load())
+	assert.Equal(t, int32(0), hooks.installCalls.Load())
 }
 
 func TestOpenReleasePage_RestrictedToProjectRepo(t *testing.T) {

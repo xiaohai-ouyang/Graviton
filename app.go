@@ -41,11 +41,12 @@ type App struct {
 	widgetToken string
 	widgetMgr   *widget.Manager
 	trayIcon       *tray.Tray
-	procMgr        *envmgr.ProcessManager
-	updater        *updater.Manager
-	launchUpdateFn func(updater.ApplyParams) error
-	quitAppFn      func()
-	projectsMu     sync.Mutex
+	procMgr         *envmgr.ProcessManager
+	updater         *updater.Manager
+	installUpdateFn func(updater.InstallParams) error
+	launchRestartFn func(updater.RestartParams) error
+	quitAppFn       func()
+	projectsMu      sync.Mutex
 
 	mu                sync.Mutex
 	theme             string

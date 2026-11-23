@@ -179,6 +179,13 @@ func TestManager_WaitingIdleCancelFlow(t *testing.T) {
 	_, err := m.Check(context.Background(), true)
 	require.NoError(t, err)
 
+	_, started, err := m.TryBeginInstall()
+	require.NoError(t, err)
+	require.True(t, started)
+	m.MarkInstalled()
+	require.Equal(t, StatusInstalled, m.State().Status)
+	assert.True(t, m.State().PendingRestart)
+
 	m.SetWaitingIdle([]string{"「环境」中有 1 个托管命令正在运行"})
 	assert.True(t, m.IsWaitingIdle())
 	assert.Equal(t, StatusWaitingIdle, m.State().Status)
@@ -187,8 +194,8 @@ func TestManager_WaitingIdleCancelFlow(t *testing.T) {
 
 	m.CancelWaiting()
 	assert.False(t, m.IsWaitingIdle())
-	assert.Equal(t, StatusReady, m.State().Status)
-	assert.False(t, m.State().PendingRestart)
+	assert.Equal(t, StatusInstalled, m.State().Status)
+	assert.True(t, m.State().PendingRestart)
 	assert.Empty(t, m.State().BusyReasons)
 }
 
@@ -247,14 +254,27 @@ func TestManager_BackgroundErrorStaysSilent(t *testing.T) {
 	assert.Empty(t, state.ErrorMessage)
 }
 
-func TestManager_CheckDoesNotClobberWaitingIdle(t *testing.T) {
+func TestManager_CheckDoesNotClobberInstalledOrWaitingIdle(t *testing.T) {
 	ts := newUpdateTestServer(t, "v0.1.0-rc.9", true, []byte("payload"))
 	m := newTestManager(t, ts, Settings{AutoCheckEnabled: true})
 	_, err := m.Check(context.Background(), true)
 	require.NoError(t, err)
 
-	m.SetWaitingIdle([]string{"「环境」中有 1 个托管命令正在运行"})
+	_, started, err := m.TryBeginInstall()
+	require.NoError(t, err)
+	require.True(t, started)
+	m.MarkInstalled()
+
 	state, err := m.Check(context.Background(), true)
+	require.NoError(t, err)
+	assert.Equal(t, StatusInstalled, state.Status)
+
+	// Skipping version after install must not reset installed state.
+	m.SkipVersion("0.1.0-rc.9")
+	assert.Equal(t, StatusInstalled, m.State().Status)
+
+	m.SetWaitingIdle([]string{"「环境」中有 1 个托管命令正在运行"})
+	state, err = m.Check(context.Background(), true)
 	require.NoError(t, err)
 	assert.Equal(t, StatusWaitingIdle, state.Status)
 }
@@ -265,13 +285,13 @@ func TestManager_TryBeginInstallAtomicAndRevert(t *testing.T) {
 	_, err := m.Check(context.Background(), true)
 	require.NoError(t, err)
 
-	path, started, err := m.TryBeginInstall(false)
+	path, started, err := m.TryBeginInstall()
 	require.NoError(t, err)
 	assert.True(t, started)
 	assert.NotEmpty(t, path)
 	assert.Equal(t, StatusInstalling, m.State().Status)
 
-	path2, started2, err2 := m.TryBeginInstall(false)
+	path2, started2, err2 := m.TryBeginInstall()
 	require.NoError(t, err2)
 	assert.False(t, started2)
 	assert.Empty(t, path2)
