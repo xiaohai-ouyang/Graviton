@@ -31,15 +31,37 @@ interface OverviewTableViewProps {
 
 const ProviderTableColGroup: React.FC = () => (
   <colgroup>
-    <col className="w-[210px]" />
-    <col className="w-[115px]" />
-    <col />
-    <col className="w-[140px]" />
+    <col className="w-[190px]" />
     <col className="w-[96px]" />
+    <col />
+    <col className="w-[132px]" />
     <col className="w-[116px]" />
   </colgroup>
 );
 
+const QuotaRow: React.FC<{
+  label: string;
+  formatted: ReturnType<typeof formatQuotaByMode>;
+}> = ({ label, formatted }) => (
+  <div className="flex items-center gap-2 text-[10px]">
+    <span
+      className="w-[88px] shrink-0 truncate text-neutral-500 dark:text-neutral-400"
+      title={label}
+    >
+      {label}
+    </span>
+    <div className="min-w-0 flex-1">
+      <ThinQuotaBar barPct={formatted.barPct} remainingPct={formatted.remainingPct} />
+    </div>
+    <span
+      className={`w-9 shrink-0 text-right font-mono font-semibold tabular-nums ${getQuotaTextColor(
+        formatted.remainingPct
+      )}`}
+    >
+      {formatted.shortValue}
+    </span>
+  </div>
+);
 export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -129,15 +151,14 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-xs">
+            <table className="w-full min-w-[780px] table-fixed border-collapse text-left text-xs">
               <ProviderTableColGroup />
               <thead>
                 <tr className="border-b border-neutral-200/80 bg-neutral-50/70 text-[11px] font-medium text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-400">
                   <th className="px-4 py-2.5">账号</th>
                   <th className="px-3 py-2.5">套餐 / 状态</th>
                   <th className="px-4 py-2.5">{quotaColLabel}</th>
-                  <th className="px-3 py-2.5">最近重置</th>
-                  <th className="px-3 py-2.5">更新时间</th>
+                  <th className="px-3 py-2.5">重置 / 更新</th>
                   <th className="px-4 py-2.5 text-right">操作</th>
                 </tr>
               </thead>
@@ -227,9 +248,9 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                       <td className="px-4 py-3">
                         {groupItems.length > 0 ? (
                           <div
-                            className={`grid gap-x-3 gap-y-1.5 ${adaptiveGridCols(
+                            className={`grid gap-y-1.5 ${adaptiveGridCols(
                               groupItems.length,
-                              'grid-cols-2'
+                              'grid-cols-1'
                             )}`}
                           >
                             {groupItems.map((item) => {
@@ -238,24 +259,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                                 quotaDisplayMode
                               );
                               return (
-                                <div key={item.label} className="space-y-0.5">
-                                  <div className="flex items-baseline justify-between gap-1 text-[10px]">
-                                    <span className="truncate text-neutral-500 dark:text-neutral-400">
-                                      {item.label}
-                                    </span>
-                                    <span
-                                      className={`font-mono font-semibold tabular-nums ${getQuotaTextColor(
-                                        formatted.remainingPct
-                                      )}`}
-                                    >
-                                      {formatted.shortValue}
-                                    </span>
-                                  </div>
-                                  <ThinQuotaBar
-                                    barPct={formatted.barPct}
-                                    remainingPct={formatted.remainingPct}
-                                  />
-                                </div>
+                                <QuotaRow key={item.label} label={item.label} formatted={formatted} />
                               );
                             })}
                           </div>
@@ -268,7 +272,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                           </span>
                         )}
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+                      <td className="whitespace-nowrap px-3 py-3 text-[11px]"><div className="truncate text-neutral-500 dark:text-neutral-400">
                         {earliestReset ? (
                           <ResetTimeText
                             resetTime={earliestReset}
@@ -278,10 +282,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                         ) : (
                           '—'
                         )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-neutral-400 dark:text-neutral-500">
-                        {formatRelativeTime(acc.lastRefreshedAt, nowMs)}
-                      </td>
+                      </div><div className="mt-0.5 hidden truncate text-[10px] text-neutral-400 xl:block dark:text-neutral-500">更新于 {formatRelativeTime(acc.lastRefreshedAt, nowMs)}</div></td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
                           {!acc.isCurrent && !acc.isForbidden && (
@@ -364,15 +365,14 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-xs">
+            <table className="w-full min-w-[780px] table-fixed border-collapse text-left text-xs">
               <ProviderTableColGroup />
               <thead>
                 <tr className="border-b border-neutral-200/80 bg-neutral-50/70 text-[11px] font-medium text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-400">
                   <th className="px-4 py-2.5">账号</th>
                   <th className="px-3 py-2.5">套餐 / 状态</th>
                   <th className="px-4 py-2.5">{quotaColLabel}</th>
-                  <th className="px-3 py-2.5">最近重置</th>
-                  <th className="px-3 py-2.5">更新时间</th>
+                  <th className="px-3 py-2.5">重置 / 更新</th>
                   <th className="px-4 py-2.5 text-right">操作</th>
                 </tr>
               </thead>
@@ -435,9 +435,9 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                           </span>
                         ) : hasPersonal && personal?.cycles?.length ? (
                           <div
-                            className={`grid gap-x-3 gap-y-1.5 ${adaptiveGridCols(
+                            className={`grid gap-y-1.5 ${adaptiveGridCols(
                               personal.cycles.length,
-                              'grid-cols-2'
+                              'grid-cols-1'
                             )}`}
                           >
                             {personal.cycles.map((c) => {
@@ -446,24 +446,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                                 quotaDisplayMode
                               );
                               return (
-                                <div key={c.cycle} className="space-y-0.5">
-                                  <div className="flex items-baseline justify-between gap-1 text-[10px]">
-                                    <span className="truncate text-neutral-500 dark:text-neutral-400">
-                                      {c.label || c.cycle}
-                                    </span>
-                                    <span
-                                      className={`font-mono font-semibold tabular-nums ${getQuotaTextColor(
-                                        formatted.remainingPct
-                                      )}`}
-                                    >
-                                      {formatted.shortValue}
-                                    </span>
-                                  </div>
-                                  <ThinQuotaBar
-                                    barPct={formatted.barPct}
-                                    remainingPct={formatted.remainingPct}
-                                  />
-                                </div>
+                                <QuotaRow key={c.cycle} label={c.label || c.cycle} formatted={formatted} />
                               );
                             })}
                           </div>
@@ -500,7 +483,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                           </span>
                         )}
                       </td>
-                      <td className="truncate whitespace-nowrap px-3 py-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+                      <td className="whitespace-nowrap px-3 py-3 text-[11px]"><div className="truncate text-neutral-500 dark:text-neutral-400">
                         {earliestReset ? (
                           <ResetTimeText
                             resetTime={earliestReset}
@@ -510,10 +493,7 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                         ) : (
                           '—'
                         )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-neutral-400 dark:text-neutral-500">
-                        {formatRelativeTime(quota?.lastRefreshedAt, nowMs)}
-                      </td>
+                      </div><div className="mt-0.5 hidden truncate text-[10px] text-neutral-400 xl:block dark:text-neutral-500">更新于 {formatRelativeTime(quota?.lastRefreshedAt, nowMs)}</div></td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center justify-end gap-1.5">
                           {quota?.authExpired && (
