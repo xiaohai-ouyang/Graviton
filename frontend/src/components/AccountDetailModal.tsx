@@ -187,7 +187,7 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                                 <QuotaProgressBar
                                   percentage={pct}
                                   size="md"
-                                  className="pt-0.5"
+                                  className="mt-0.5"
                                   ariaLabel={`${formatBucketLabel(b.displayName || b.window || b.bucketId)} 剩余额度`}
                                 />
 

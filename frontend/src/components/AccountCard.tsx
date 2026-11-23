@@ -190,7 +190,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({ account, onOpenDetail 
                           <QuotaProgressBar
                             percentage={bucketPct}
                             size="md"
-                            className="pt-0.5"
+                            className="mt-0.5"
                             ariaLabel={`${formatBucketLabel(b.displayName || b.window || b.bucketId)} 剩余额度`}
                           />
                         </div>
