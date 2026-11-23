@@ -6,6 +6,8 @@ import {
   BatchImportResult,
   BatchRefreshResult,
   ChangelogRelease,
+  DeepSeekAccountDisplay,
+  DeepSeekBatchRefreshResult,
   LogEntry,
   OAuthStartResult,
   ProcessState,
@@ -561,6 +563,59 @@ export const api = {
   async deleteQianwenAccount(id: string): Promise<void> {
     try {
       await WailsApp.DeleteQianwenAccount(id);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  // --- DeepSeek Balance APIs ---
+  async listDeepSeekAccounts(): Promise<DeepSeekAccountDisplay[]> {
+    try {
+      return (await WailsApp.ListDeepSeekAccounts()) || [];
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async addDeepSeekAccount(name: string, apiKey: string): Promise<DeepSeekAccountDisplay> {
+    try {
+      return await WailsApp.AddDeepSeekAccount(name, apiKey);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async updateDeepSeekAccount(
+    id: string,
+    name: string,
+    apiKey: string
+  ): Promise<DeepSeekAccountDisplay> {
+    try {
+      return await WailsApp.UpdateDeepSeekAccount(id, name, apiKey);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async refreshDeepSeekAccount(id: string): Promise<DeepSeekAccountDisplay> {
+    try {
+      return await WailsApp.RefreshDeepSeekAccount(id);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async refreshAllDeepSeekAccounts(): Promise<DeepSeekBatchRefreshResult[]> {
+    try {
+      return (await WailsApp.RefreshAllDeepSeekAccounts()) || [];
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async deleteDeepSeekAccount(id: string): Promise<void> {
+    try {
+      await WailsApp.DeleteDeepSeekAccount(id);
     } catch (e) {
       throw parseError(e);
     }

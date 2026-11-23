@@ -31,6 +31,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { api, parseError } from '../../services/api';
 import { useAccountStore } from '../../store/useAccountStore';
 import { useAppInfoStore } from '../../store/useAppInfoStore';
+import { useDeepSeekStore } from '../../store/useDeepSeekStore';
 import { useEnvStore } from '../../store/useEnvStore';
 import { useMotionStore } from '../../store/useMotionStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
@@ -261,6 +262,7 @@ export const SettingsModal: React.FC = () => {
     const bg = getBackgroundLocation(location);
     const agState = useAccountStore.getState();
     const qwState = useQianwenStore.getState();
+    const dsState = useDeepSeekStore.getState();
     // Background quota page may have been emptied while settings was open
     if (
       isEmptyQuotaPath(
@@ -268,12 +270,21 @@ export const SettingsModal: React.FC = () => {
         agState.accounts.length,
         agState.hasLoaded,
         qwState.accounts.length,
-        qwState.hasLoaded
+        qwState.hasLoaded,
+        dsState.accounts.length,
+        dsState.hasLoaded
       )
     ) {
-      navigate(resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length), {
-        replace: true,
-      });
+      navigate(
+        resolveSafeQuotaFallback(
+          agState.accounts.length,
+          qwState.accounts.length,
+          dsState.accounts.length
+        ),
+        {
+          replace: true,
+        }
+      );
       return;
     }
     const routeState = location.state as SettingsRouteState | null | undefined;

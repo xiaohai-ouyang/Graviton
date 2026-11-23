@@ -5,9 +5,14 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ProviderLogo } from '../components/ProviderLogo';
 import { QianwenAccountCard } from '../components/QianwenAccountCard';
 import { useAccountStore } from '../store/useAccountStore';
+import { useDeepSeekStore } from '../store/useDeepSeekStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
-import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
+import {
+  isSettingsPath,
+  openSettingsModal,
+  resolveSafeQuotaFallback,
+} from '../store/useSettingsModalStore';
 import { QianwenAccountDisplay } from '../types';
 import { adaptiveGridCols } from '../utils/layout';
 
@@ -23,6 +28,7 @@ export const QianwenQuotaPage: React.FC = () => {
     refreshAllAccounts,
   } = useQianwenStore();
   const agCount = useAccountStore((s) => s.accounts.length);
+  const dsCount = useDeepSeekStore((s) => s.accounts.length);
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   // Auto-fallback when the last Qianwen account is removed, but never
@@ -30,9 +36,9 @@ export const QianwenQuotaPage: React.FC = () => {
   useEffect(() => {
     if (isSettingsPath(location.pathname)) return;
     if (hasLoaded && !loading && accounts.length === 0) {
-      navigate(agCount > 0 ? '/quota/antigravity' : '/overview', { replace: true });
+      navigate(resolveSafeQuotaFallback(agCount, 0, dsCount), { replace: true });
     }
-  }, [hasLoaded, loading, accounts.length, agCount, location.pathname, navigate]);
+  }, [hasLoaded, loading, accounts.length, agCount, dsCount, location.pathname, navigate]);
 
   const openNewConnect = () => {
     openSettingsModal(navigate, location, 'providers', {

@@ -1,8 +1,9 @@
 import React from 'react';
 import antigravityLogo from '../assets/images/logo-antigravity.png';
 import qwenLogo from '../assets/images/logo-qwen.png';
+import deepseekLogo from '../assets/images/logo-deepseek.svg';
 
-export type ProviderId = 'antigravity' | 'qianwen';
+export type ProviderId = 'antigravity' | 'qianwen' | 'deepseek';
 export type ProviderLogoSize = 'xs' | 'sm' | 'row' | 'md' | 'avatar' | 'lg';
 
 interface ProviderLogoProps {
@@ -19,6 +20,10 @@ const PROVIDER_META: Record<ProviderId, { src: string; alt: string }> = {
   qianwen: {
     src: qwenLogo,
     alt: '千问',
+  },
+  deepseek: {
+    src: deepseekLogo,
+    alt: 'DeepSeek',
   },
 };
 
@@ -55,6 +60,29 @@ export const ProviderLogo: React.FC<ProviderLogoProps> = ({
     return (
       <span
         className={`flex shrink-0 items-center justify-center border border-neutral-200/80 bg-white dark:border-neutral-700/80 dark:bg-neutral-800/90 ${boxClasses[size]} ${className}`}
+      >
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          className="h-full w-full select-none object-contain"
+        />
+      </span>
+    );
+  }
+
+  if (provider === 'deepseek') {
+    const dsBoxClasses: Record<Exclude<ProviderLogoSize, 'xs'>, string> = {
+      sm: 'h-6 w-6 rounded-lg p-1 shadow-2xs',
+      row: 'h-7 w-7 rounded-lg p-1 shadow-2xs',
+      md: 'h-8 w-8 rounded-lg p-1.5 shadow-2xs',
+      avatar: 'h-9 w-9 rounded-xl p-1.5 shadow-2xs',
+      lg: 'h-14 w-14 rounded-2xl p-3 shadow-xs',
+    };
+
+    return (
+      <span
+        className={`flex shrink-0 items-center justify-center border border-blue-200/80 bg-blue-50/75 dark:border-blue-900/60 dark:bg-blue-950/45 ${dsBoxClasses[size]} ${className}`}
       >
         <img
           src={src}

@@ -3,9 +3,10 @@ import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'r
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { AnimatePresence, motion, MotionConfig } from 'motion/react';
 import { EventsOn } from '../wailsjs/runtime/runtime';
-import { BatchRefreshResult, QianwenBatchRefreshResult, UpdateState } from './types';
+import { BatchRefreshResult, DeepSeekBatchRefreshResult, QianwenBatchRefreshResult, UpdateState } from './types';
 import { useAccountStore } from './store/useAccountStore';
 import { useAppInfoStore } from './store/useAppInfoStore';
+import { useDeepSeekStore } from './store/useDeepSeekStore';
 import { useMotionStore } from './store/useMotionStore';
 import { useQianwenStore } from './store/useQianwenStore';
 import { useResetTimeStore } from './store/useResetTimeStore';
@@ -26,26 +27,30 @@ import { FeedbackBanner } from './components/FeedbackBanner';
 import { ChangelogModal } from './components/ChangelogModal';
 import { DeleteConfirmModal } from './components/DeleteConfirmModal';
 import { QianwenDeleteConfirmModal } from './components/QianwenDeleteConfirmModal';
+import { DeepSeekDeleteConfirmModal } from './components/DeepSeekDeleteConfirmModal';
 import { UpdateModal } from './components/UpdateModal';
 import { UpdateStatusBar } from './components/UpdateStatusBar';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { OverviewPage } from './pages/OverviewPage';
 import { QuotaPage } from './pages/QuotaPage';
 import { QianwenQuotaPage } from './pages/QianwenQuotaPage';
+import { DeepSeekQuotaPage } from './pages/DeepSeekQuotaPage';
 import { EnvironmentPage } from './pages/EnvironmentPage';
 
 interface AnimatedRoutesProps {
   backgroundLocation: BackgroundLocationSnapshot;
 }
 
-/** /quota index redirect that waits for both provider stores before choosing a target. */
+/** /quota index redirect that waits for all provider stores before choosing a target. */
 const QuotaIndexRedirect: React.FC = () => {
   const agCount = useAccountStore((s) => s.accounts.length);
   const agHasLoaded = useAccountStore((s) => s.hasLoaded);
   const qwCount = useQianwenStore((s) => s.accounts.length);
   const qwHasLoaded = useQianwenStore((s) => s.hasLoaded);
+  const dsCount = useDeepSeekStore((s) => s.accounts.length);
+  const dsHasLoaded = useDeepSeekStore((s) => s.hasLoaded);
 
-  if (!agHasLoaded || !qwHasLoaded) {
+  if (!agHasLoaded || !qwHasLoaded || !dsHasLoaded) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-neutral-400">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-neutral-300 border-t-neutral-800 dark:border-neutral-700 dark:border-t-neutral-200" />
@@ -54,7 +59,7 @@ const QuotaIndexRedirect: React.FC = () => {
     );
   }
 
-  return <Navigate to={resolveSafeQuotaFallback(agCount, qwCount)} replace />;
+  return <Navigate to={resolveSafeQuotaFallback(agCount, qwCount, dsCount)} replace />;
 };
 
 const AnimatedRoutes: React.FC<AnimatedRoutesProps> = ({ backgroundLocation }) => {
@@ -80,6 +85,7 @@ const AnimatedRoutes: React.FC<AnimatedRoutesProps> = ({ backgroundLocation }) =
           <Route path="/quota" element={<QuotaIndexRedirect />} />
           <Route path="/quota/antigravity" element={<QuotaPage />} />
           <Route path="/quota/qianwen" element={<QianwenQuotaPage />} />
+          <Route path="/quota/deepseek" element={<DeepSeekQuotaPage />} />
           <Route path="/env" element={<EnvironmentPage />} />
           <Route path="*" element={<Navigate to="/overview" replace />} />
         </Routes>
@@ -115,6 +121,7 @@ const AppShell: React.FC = () => {
         e.preventDefault();
         const agState = useAccountStore.getState();
         const qwState = useQianwenStore.getState();
+        const dsState = useDeepSeekStore.getState();
         // Background quota page may have been emptied while settings was open
         if (
           isEmptyQuotaPath(
@@ -122,11 +129,17 @@ const AppShell: React.FC = () => {
             agState.accounts.length,
             agState.hasLoaded,
             qwState.accounts.length,
-            qwState.hasLoaded
+            qwState.hasLoaded,
+            dsState.accounts.length,
+            dsState.hasLoaded
           )
         ) {
           navigate(
-            resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length),
+            resolveSafeQuotaFallback(
+              agState.accounts.length,
+              qwState.accounts.length,
+              dsState.accounts.length
+            ),
             { replace: true }
           );
           return;
@@ -177,6 +190,7 @@ const AppShell: React.FC = () => {
       <SettingsModal />
       <DeleteConfirmModal />
       <QianwenDeleteConfirmModal />
+      <DeepSeekDeleteConfirmModal />
       <ChangelogModal />
       <UpdateModal />
       <FeedbackBanner />
@@ -195,6 +209,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     loadAccounts();
     void useQianwenStore.getState().loadAccounts();
+    void useDeepSeekStore.getState().loadAccounts();
     loadWidgetStatus();
     void loadAppInfo();
     const cleanupTheme = initTheme();
@@ -215,6 +230,15 @@ export const App: React.FC = () => {
         useQianwenStore.getState().applyQuotaProgress(result);
       }
     );
+    const offDeepSeekUpdated = EventsOn('deepseek:updated', () => {
+      void useDeepSeekStore.getState().loadAccounts();
+    });
+    const offDeepSeekProgress = EventsOn(
+      'deepseek:quota_progress',
+      (result: DeepSeekBatchRefreshResult) => {
+        useDeepSeekStore.getState().applyQuotaProgress(result);
+      }
+    );
     const offWidget = EventsOn('widget:status', (open: boolean) => {
       setWidgetOpen(Boolean(open));
     });
@@ -230,6 +254,8 @@ export const App: React.FC = () => {
       offQuotaProgress();
       offQianwenUpdated();
       offQianwenProgress();
+      offDeepSeekUpdated();
+      offDeepSeekProgress();
       offWidget();
       offUpdate();
     };

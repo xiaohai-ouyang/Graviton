@@ -23,7 +23,7 @@ export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     id: 'providers',
     label: '供应商与账号',
     title: '供应商与账号',
-    subtitle: '连接或管理 Antigravity 与千问账号，连接后自动出现在左侧「额度」菜单中',
+    subtitle: '连接或管理 Antigravity、千问与 DeepSeek 账号，连接后自动出现在左侧「额度」菜单中',
     icon: Users,
   },
   {
@@ -78,6 +78,13 @@ export const SETTINGS_SEARCH_ENTRIES: SettingsSearchEntry[] = [
     title: '千问账号连接',
     description: '通过 OAuth Device Flow 连接或重新授权千问 Token Plan 账号',
     keywords: ['qianwen', 'qwen', '千问', '通义', 'token plan', 'device flow', 'oauth', '连接', '重新授权', '供应商', '账号'],
+  },
+  {
+    id: 'provider-deepseek',
+    section: 'providers',
+    title: 'DeepSeek 余额管理',
+    description: '添加或管理 DeepSeek API Key，查询人民币/美元余额、充值与赠金明细',
+    keywords: ['deepseek', 'ds', '深度求索', 'api key', 'apikey', 'balance', '余额', '赠金', '充值', 'cny', 'usd', '供应商', '账号'],
   },
   {
     id: 'theme',

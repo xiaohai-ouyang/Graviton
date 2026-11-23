@@ -30,6 +30,7 @@ export const SETTINGS_SECTION_ALIASES: Record<string, SettingsSectionId> = {
   provider: 'providers',
   antigravity: 'providers',
   qianwen: 'providers',
+  deepseek: 'providers',
   appearance: 'general',
   widget: 'general',
   client: 'environment',
@@ -99,10 +100,11 @@ export function getBackgroundLocation(location: {
 }
 
 export interface ProviderSettingsIntent {
-  provider: 'antigravity' | 'qianwen';
-  action: 'add' | 'reauth';
+  provider: 'antigravity' | 'qianwen' | 'deepseek';
+  action: 'add' | 'reauth' | 'edit';
   antigravityTab?: 'oauth' | 'token' | 'capture';
   qianwenAccountId?: string;
+  deepseekAccountId?: string;
 }
 
 interface SettingsModalState {
@@ -162,9 +164,14 @@ export function openSettingsModal(
 }
 
 /** First connected provider quota page, or overview when nothing is connected. */
-export function resolveSafeQuotaFallback(agCount: number, qwCount: number): string {
+export function resolveSafeQuotaFallback(
+  agCount: number,
+  qwCount: number,
+  dsCount = 0
+): string {
   if (agCount > 0) return '/quota/antigravity';
   if (qwCount > 0) return '/quota/qianwen';
+  if (dsCount > 0) return '/quota/deepseek';
   return '/overview';
 }
 
@@ -174,9 +181,12 @@ export function isEmptyQuotaPath(
   agCount: number,
   agLoaded: boolean,
   qwCount: number,
-  qwLoaded: boolean
+  qwLoaded: boolean,
+  dsCount = 0,
+  dsLoaded = true
 ): boolean {
   if (pathname === '/quota/antigravity') return agLoaded && agCount === 0;
   if (pathname === '/quota/qianwen') return qwLoaded && qwCount === 0;
+  if (pathname === '/quota/deepseek') return dsLoaded && dsCount === 0;
   return false;
 }

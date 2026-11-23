@@ -8,9 +8,14 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAccountStore } from '../store/useAccountStore';
+import { useDeepSeekStore } from '../store/useDeepSeekStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
-import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
+import {
+  isSettingsPath,
+  openSettingsModal,
+  resolveSafeQuotaFallback,
+} from '../store/useSettingsModalStore';
 import { adaptiveGridCols } from '../utils/layout';
 import { sortAntigravityAccounts } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
@@ -34,6 +39,7 @@ export const QuotaPage: React.FC = () => {
     toggleWidget,
   } = useAccountStore();
   const qwCount = useQianwenStore((s) => s.accounts.length);
+  const dsCount = useDeepSeekStore((s) => s.accounts.length);
 
   const [sortMode, setSortMode] = useState<SortMode>('default');
   const [detailAccountId, setDetailAccountId] = useState<string | null>(null);
@@ -44,9 +50,9 @@ export const QuotaPage: React.FC = () => {
   useEffect(() => {
     if (isSettingsPath(location.pathname)) return;
     if (hasLoaded && !loading && accounts.length === 0) {
-      navigate(qwCount > 0 ? '/quota/qianwen' : '/overview', { replace: true });
+      navigate(resolveSafeQuotaFallback(0, qwCount, dsCount), { replace: true });
     }
-  }, [hasLoaded, loading, accounts.length, qwCount, location.pathname, navigate]);
+  }, [hasLoaded, loading, accounts.length, qwCount, dsCount, location.pathname, navigate]);
 
   const currentAccount = useMemo(
     () => accounts.find((a) => a.isCurrent) ?? null,

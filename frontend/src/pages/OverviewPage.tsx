@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Eye,
   EyeOff,
+  KeyRound,
   LayoutGrid,
   Link2,
   PictureInPicture2,
@@ -14,11 +15,13 @@ import { motion } from 'motion/react';
 import { ProviderLogo } from '../components/ProviderLogo';
 import {
   AntigravityProviderCard,
+  DeepSeekProviderCard,
   QianwenProviderCard,
 } from '../components/overview/ProviderBentoCards';
 import { OverviewTableView } from '../components/overview/OverviewTableView';
 import { useNowTick } from '../hooks/useNowTick';
 import { useAccountStore } from '../store/useAccountStore';
+import { useDeepSeekStore } from '../store/useDeepSeekStore';
 import { useMotionStore } from '../store/useMotionStore';
 import {
   OverviewViewMode,
@@ -61,6 +64,13 @@ export const OverviewPage: React.FC = () => {
   } = useQianwenStore();
 
   const {
+    accounts: dsAccounts,
+    hasLoaded: dsHasLoaded,
+    refreshingAll: dsRefreshingAll,
+    refreshAllAccounts: refreshAllDs,
+  } = useDeepSeekStore();
+
+  const {
     viewMode,
     quotaDisplayMode,
     maskAccount,
@@ -69,17 +79,19 @@ export const OverviewPage: React.FC = () => {
     toggleMaskAccount,
   } = useOverviewPrefsStore();
 
-  const anyRefreshingAll = agRefreshingAll || qwRefreshingAll;
-  const totalCount = agAccounts.length + qwAccounts.length;
-  const isLoading = (!agHasLoaded || !qwHasLoaded) && totalCount === 0;
+  const anyRefreshingAll = agRefreshingAll || qwRefreshingAll || dsRefreshingAll;
+  const totalCount = agAccounts.length + qwAccounts.length + dsAccounts.length;
+  const isLoading = (!agHasLoaded || !qwHasLoaded || !dsHasLoaded) && totalCount === 0;
 
-  const connectedProviders: ('antigravity' | 'qianwen')[] = [];
+  const connectedProviders: ('antigravity' | 'qianwen' | 'deepseek')[] = [];
   if (agAccounts.length > 0) connectedProviders.push('antigravity');
   if (qwAccounts.length > 0) connectedProviders.push('qianwen');
+  if (dsAccounts.length > 0) connectedProviders.push('deepseek');
 
   const subtitleParts: string[] = [];
   if (agAccounts.length > 0) subtitleParts.push(`Antigravity ${agAccounts.length}`);
   if (qwAccounts.length > 0) subtitleParts.push(`千问 ${qwAccounts.length}`);
+  if (dsAccounts.length > 0) subtitleParts.push(`DeepSeek ${dsAccounts.length}`);
   const headerSubtitle =
     subtitleParts.length > 0
       ? `已连接 ${subtitleParts.join(' · ')}`
@@ -92,6 +104,9 @@ export const OverviewPage: React.FC = () => {
     }
     if (qwAccounts.length > 0 && !qwRefreshingAll) {
       tasks.push(refreshAllQw());
+    }
+    if (dsAccounts.length > 0 && !dsRefreshingAll) {
+      tasks.push(refreshAllDs());
     }
     await Promise.all(tasks);
   };
@@ -236,7 +251,7 @@ export const OverviewPage: React.FC = () => {
             <p className="text-xs">正在加载各供应商额度概览...</p>
           </div>
         ) : totalCount === 0 ? (
-          <div className="mx-auto max-w-2xl rounded-2xl border border-dashed border-neutral-300 bg-card/60 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-dashed border-neutral-300 bg-card/60 p-8 text-center dark:border-neutral-800 dark:bg-neutral-900/40">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200">
               <LayoutGrid className="h-6 w-6" />
             </div>
@@ -244,10 +259,10 @@ export const OverviewPage: React.FC = () => {
               尚未连接任何 AI 供应商账号
             </h3>
             <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-              前往「设置 → 供应商与账号」接入任意供应商后，左侧「额度」菜单与此处 Bento 面板将自动按供应商聚合展示实时额度。
+              前往「设置 → 供应商与账号」接入任意供应商后，左侧「额度」菜单与此处 Bento 面板将自动按供应商聚合展示实时额度与余额。
             </p>
 
-            <div className="mt-6 grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
+            <div className="mt-6 grid grid-cols-1 gap-3 text-left sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() =>
@@ -301,6 +316,33 @@ export const OverviewPage: React.FC = () => {
                   前往设置连接
                 </span>
               </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  openSettingsModal(navigate, location, 'providers', {
+                    provider: 'deepseek',
+                    action: 'add',
+                  })
+                }
+                className="group flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-card p-4 shadow-2xs transition-all hover:border-blue-300 hover:shadow-xs dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-blue-800"
+              >
+                <div className="flex items-center gap-2.5">
+                  <ProviderLogo provider="deepseek" size="md" />
+                  <div>
+                    <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                      连接 DeepSeek
+                    </div>
+                    <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                      API Key 查询实时余额与赠金明细
+                    </div>
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 group-hover:text-blue-700 dark:text-blue-400 dark:group-hover:text-blue-300">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  前往设置添加
+                </span>
+              </button>
             </div>
           </div>
         ) : viewMode === 'table' ? (
@@ -315,6 +357,12 @@ export const OverviewPage: React.FC = () => {
             )}
             {qwAccounts.length > 0 && (
               <QianwenProviderCard
+                nowMs={nowMs}
+                singleProviderLayout={connectedProviders.length === 1}
+              />
+            )}
+            {dsAccounts.length > 0 && (
+              <DeepSeekProviderCard
                 nowMs={nowMs}
                 singleProviderLayout={connectedProviders.length === 1}
               />

@@ -1,4 +1,4 @@
-import { appservice, buildinfo, client, envmgr, qianwen, storage, updater } from '../../wailsjs/go/models';
+import { appservice, buildinfo, client, deepseek, envmgr, qianwen, storage, updater } from '../../wailsjs/go/models';
 
 export type AppInfo = buildinfo.AppInfo;
 export type ChangelogRelease = buildinfo.ChangelogRelease;
@@ -68,3 +68,8 @@ export interface QianwenAuthEvent {
   account?: QianwenAccountDisplay;
   error?: string;
 }
+
+export type DeepSeekAccountDisplay = deepseek.AccountDisplay;
+export type DeepSeekBatchRefreshResult = deepseek.BatchRefreshResult;
+export type DeepSeekBalanceSnapshot = storage.DeepSeekBalanceSnapshot;
+export type DeepSeekBalanceInfo = storage.DeepSeekBalanceInfo;

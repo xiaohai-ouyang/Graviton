@@ -12,10 +12,19 @@ import { ResetTimeText } from '../ResetTimeText';
 import { BestAntigravitySwitchBar, shortBucketWindow } from './ProviderBentoCards';
 import { ThinQuotaBar } from './ThinQuotaBar';
 import { useAccountStore } from '../../store/useAccountStore';
+import { useDeepSeekStore } from '../../store/useDeepSeekStore';
 import { useOverviewPrefsStore } from '../../store/useOverviewPrefsStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
 import { useResetTimeStore } from '../../store/useResetTimeStore';
 import { openSettingsModal } from '../../store/useSettingsModalStore';
+import {
+  formatCurrencyAmount,
+  getBalanceInfoTone,
+  getDeepSeekAmountColorClass,
+  getDeepSeekBadgeClass,
+  getDeepSeekStatusBadge,
+  maskDeepSeekKeyPreview,
+} from '../../utils/deepseek';
 import { adaptiveGridCols } from '../../utils/layout';
 import {
   formatQuotaByMode,
@@ -87,6 +96,14 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
     refreshAccount: refreshQwAccount,
     refreshAllAccounts: refreshAllQw,
   } = useQianwenStore();
+
+  const {
+    accounts: dsAccounts,
+    refreshingAll: dsRefreshingAll,
+    refreshingIds: dsRefreshingIds,
+    refreshAccount: refreshDsAccount,
+    refreshAllAccounts: refreshAllDs,
+  } = useDeepSeekStore();
 
   const sortedAgAccounts = useMemo(
     () => sortAntigravityAccounts(agAccounts, bestDimension, { pinCurrent: true }),
@@ -518,6 +535,185 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                             disabled={isRefreshing}
                             title="刷新千问额度"
                             aria-label={`刷新 ${displayName} 额度`}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-neutral-200 bg-card text-neutral-600 hover:bg-neutral-100 disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                          >
+                            <RefreshCw
+                              className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`}
+                            />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* DeepSeek Provider Table Section */}
+      {dsAccounts.length > 0 && (
+        <section className="overflow-hidden rounded-2xl border border-neutral-200/85 bg-card shadow-xs dark:border-neutral-800/90 dark:bg-neutral-900/90">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-neutral-200/80 px-4 py-3 dark:border-neutral-800">
+            <button
+              type="button"
+              onClick={() => navigate('/quota/deepseek')}
+              className="group inline-flex min-w-0 items-center gap-2 text-left"
+            >
+              <ProviderLogo provider="deepseek" size="sm" />
+              <span className="truncate text-sm font-semibold tracking-tight text-neutral-900 group-hover:underline dark:text-neutral-100">
+                DeepSeek
+              </span>
+              <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-700 dark:bg-blue-950/70 dark:text-blue-300">
+                {dsAccounts.length}
+              </span>
+            </button>
+
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void refreshAllDs()}
+                disabled={dsRefreshingAll}
+                title="刷新全部 DeepSeek 账号"
+                aria-label="刷新全部 DeepSeek 账号"
+                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+              >
+                <RefreshCw className={`h-3 w-3 ${dsRefreshingAll ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/quota/deepseek')}
+                title="查看 DeepSeek 余额详情"
+                className="inline-flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+              >
+                <span>详情</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px] table-fixed border-collapse text-left text-xs">
+              <ProviderTableColGroup />
+              <thead>
+                <tr className="border-b border-neutral-200/80 bg-neutral-50/70 text-[11px] font-medium text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950/60 dark:text-neutral-400">
+                  <th className="px-4 py-2.5">账号</th>
+                  <th className="px-3 py-2.5">状态</th>
+                  <th className="px-4 py-2.5">账户余额（总余额 / 充值 / 赠金）</th>
+                  <th className="px-3 py-2.5">更新时间</th>
+                  <th className="px-4 py-2.5 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800/80">
+                {dsAccounts.map((acc) => {
+                  const isRefreshing = Boolean(dsRefreshingIds[acc.id]);
+                  const balance = acc.balance;
+                  const infos = balance?.balanceInfos || [];
+                  const status = getDeepSeekStatusBadge(balance);
+                  const rawName = acc.name || acc.keyPreview || 'DeepSeek 账号';
+                  const displayName = maskAccount ? maskAccountIdentity(rawName) : rawName;
+                  const displayKey = maskAccount
+                    ? maskDeepSeekKeyPreview(acc.keyPreview)
+                    : acc.keyPreview;
+
+                  return (
+                    <tr
+                      key={`ds-${acc.id}`}
+                      className="transition-colors hover:bg-neutral-50/80 dark:hover:bg-neutral-800/35"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="min-w-0">
+                          <span
+                            className="block truncate font-medium text-neutral-900 dark:text-neutral-100"
+                            title={maskAccount ? undefined : rawName}
+                          >
+                            {displayName}
+                          </span>
+                          {displayKey && (
+                            <span className="block truncate font-mono text-[10px] text-neutral-400 dark:text-neutral-500">
+                              {displayKey}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3">
+                        <span
+                          className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${getDeepSeekBadgeClass(
+                            status.tone
+                          )}`}
+                        >
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {balance?.authInvalid ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-300">
+                            <KeyRound className="h-3 w-3 shrink-0" />
+                            API Key 已失效
+                          </span>
+                        ) : infos.length > 0 ? (
+                          <div className="space-y-1">
+                            {infos.map((info) => {
+                              const tone = getBalanceInfoTone(
+                                Boolean(balance?.isAvailable),
+                                info
+                              );
+                              return (
+                                <div
+                                  key={info.currency}
+                                  className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5"
+                                >
+                                  <span
+                                    className={`font-mono text-xs font-bold tabular-nums ${getDeepSeekAmountColorClass(
+                                      tone
+                                    )}`}
+                                  >
+                                    {formatCurrencyAmount(info.currency, info.totalBalance)}
+                                  </span>
+                                  <span className="font-mono text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400">
+                                    充值 {formatCurrencyAmount(info.currency, info.toppedUpBalance)}
+                                  </span>
+                                  <span className="font-mono text-[10px] tabular-nums text-neutral-500 dark:text-neutral-400">
+                                    赠金 {formatCurrencyAmount(info.currency, info.grantedBalance)}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
+                            {balance?.errorMessage || '暂无余额明细'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-[11px] text-neutral-500 dark:text-neutral-400">
+                        {formatRelativeTime(balance?.lastRefreshedAt, nowMs)}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-right">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {balance?.authInvalid && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openSettingsModal(navigate, location, 'providers', {
+                                  provider: 'deepseek',
+                                  action: 'edit',
+                                  deepseekAccountId: acc.id,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-neutral-950 dark:hover:bg-amber-400"
+                            >
+                              <KeyRound className="h-3 w-3" />
+                              <span>更新 Key</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => void refreshDsAccount(acc.id)}
+                            disabled={isRefreshing}
+                            title="刷新 DeepSeek 余额"
+                            aria-label={`刷新 ${displayName} 余额`}
                             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-neutral-200 bg-card text-neutral-600 hover:bg-neutral-100 disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
                           >
                             <RefreshCw

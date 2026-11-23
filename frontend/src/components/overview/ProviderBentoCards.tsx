@@ -19,12 +19,22 @@ import { ProviderLogo } from '../ProviderLogo';
 import { ResetTimeText } from '../ResetTimeText';
 import { ThinQuotaBar } from './ThinQuotaBar';
 import { useAccountStore } from '../../store/useAccountStore';
+import { useDeepSeekStore } from '../../store/useDeepSeekStore';
 import { useMotionStore } from '../../store/useMotionStore';
 import { useOverviewPrefsStore } from '../../store/useOverviewPrefsStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
 import { useResetTimeStore } from '../../store/useResetTimeStore';
 import { openSettingsModal } from '../../store/useSettingsModalStore';
 import { AccountDisplay, QianwenAccountDisplay, QuotaBucket } from '../../types';
+import {
+  aggregateDeepSeekBalances,
+  formatCurrencyAmount,
+  getBalanceInfoTone,
+  getDeepSeekAmountColorClass,
+  getDeepSeekBadgeClass,
+  getDeepSeekStatusBadge,
+  maskDeepSeekKeyPreview,
+} from '../../utils/deepseek';
 import { adaptiveGridCols } from '../../utils/layout';
 import {
   aggregateAntigravityGroups,
@@ -902,6 +912,294 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
                 <span className="inline-flex items-center gap-1">
                   <Clock className="h-2.5 w-2.5" />
                   {formatRelativeTime(quota?.lastRefreshedAt, nowMs)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+export const DeepSeekProviderCard: React.FC<ProviderBentoCardProps> = ({
+  nowMs,
+  singleProviderLayout,
+}) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const maskAccount = useOverviewPrefsStore((s) => s.maskAccount);
+
+  const {
+    accounts,
+    refreshingAll,
+    refreshingIds,
+    refreshAccount,
+    refreshAllAccounts,
+  } = useDeepSeekStore();
+
+  const [expanded, setExpanded] = useState(false);
+
+  const summary = useMemo(() => aggregateDeepSeekBalances(accounts), [accounts]);
+
+  if (accounts.length === 0) return null;
+
+  const hiddenCount = Math.max(0, accounts.length - DEFAULT_VISIBLE_ACCOUNTS);
+  const visibleAccounts = expanded ? accounts : accounts.slice(0, DEFAULT_VISIBLE_ACCOUNTS);
+
+  return (
+    <section className="break-inside-avoid rounded-2xl border border-neutral-200/85 bg-card p-4 shadow-xs dark:border-neutral-800/90 dark:bg-neutral-900/90">
+      {/* Provider Header */}
+      <div className="flex items-center justify-between gap-2 pb-3">
+        <button
+          type="button"
+          onClick={() => navigate('/quota/deepseek')}
+          className="group inline-flex min-w-0 items-center gap-2 text-left"
+        >
+          <ProviderLogo provider="deepseek" size="sm" />
+          <span className="truncate text-sm font-semibold tracking-tight text-neutral-900 group-hover:underline dark:text-neutral-100">
+            DeepSeek
+          </span>
+          <span className="rounded-md bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-blue-700 dark:bg-blue-950/70 dark:text-blue-300">
+            {accounts.length}
+          </span>
+        </button>
+
+        <div className="flex shrink-0 items-center gap-1.5">
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpanded((prev) => !prev)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+            >
+              <span>{expanded ? '收起账号' : `展开其余 ${hiddenCount} 个账号`}</span>
+              {expanded ? (
+                <ChevronUp className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void refreshAllAccounts()}
+            disabled={refreshingAll}
+            title="刷新全部 DeepSeek 账号"
+            aria-label="刷新全部 DeepSeek 账号"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshingAll ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/quota/deepseek')}
+            title="查看 DeepSeek 余额详情"
+            className="inline-flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+          >
+            <span>详情</span>
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Multi-Account Currency Aggregate Box */}
+      {accounts.length >= 2 && (
+        <div className="mb-3 rounded-xl border border-neutral-200/75 bg-neutral-50/75 p-3 dark:border-neutral-800/80 dark:bg-neutral-950/60">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+              全部 {accounts.length} 个账号
+            </span>
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="text-neutral-500 dark:text-neutral-400">
+                可用 {summary.availableCount} / {accounts.length}
+              </span>
+              {summary.invalidKeyCount > 0 && (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700 dark:bg-amber-950/70 dark:text-amber-300">
+                  {summary.invalidKeyCount} 个失效
+                </span>
+              )}
+            </div>
+          </div>
+
+          {summary.currencies.length > 0 && (
+            <div
+              className={`mt-2.5 grid gap-2.5 ${adaptiveGridCols(
+                summary.currencies.length,
+                'grid-cols-2'
+              )}`}
+            >
+              {summary.currencies.map((cur) => (
+                <div
+                  key={cur.currency}
+                  className="rounded-lg border border-neutral-200/70 bg-card/80 px-2.5 py-2 dark:border-neutral-800/80 dark:bg-neutral-900/70"
+                >
+                  <div className="flex items-baseline justify-between gap-1.5 text-[11px]">
+                    <span className="font-medium text-neutral-500 dark:text-neutral-400">
+                      {cur.currency} 合计
+                    </span>
+                    <span className="font-mono text-xs font-bold tabular-nums text-neutral-900 dark:text-neutral-100">
+                      {formatCurrencyAmount(cur.currency, cur.totalBalance)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-neutral-400 dark:text-neutral-500">
+                    <span className="truncate font-mono tabular-nums">
+                      充值 {formatCurrencyAmount(cur.currency, cur.toppedUpBalance)}
+                    </span>
+                    <span className="truncate font-mono tabular-nums">
+                      赠金 {formatCurrencyAmount(cur.currency, cur.grantedBalance)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Account Sub-Cards */}
+      <div
+        className={
+          singleProviderLayout && visibleAccounts.length > 1
+            ? 'grid grid-cols-1 gap-2.5 lg:grid-cols-2'
+            : 'space-y-2.5'
+        }
+      >
+        {visibleAccounts.map((acc) => {
+          const isRefreshing = Boolean(refreshingIds[acc.id]);
+          const balance = acc.balance;
+          const infos = balance?.balanceInfos || [];
+          const status = getDeepSeekStatusBadge(balance);
+          const rawName = acc.name || acc.keyPreview || 'DeepSeek 账号';
+          const displayName = maskAccount ? maskAccountIdentity(rawName) : rawName;
+          const displayKey = maskAccount
+            ? maskDeepSeekKeyPreview(acc.keyPreview)
+            : acc.keyPreview;
+
+          return (
+            <div
+              key={acc.id}
+              className="flex flex-col rounded-xl border border-neutral-200/75 bg-neutral-50/45 p-3 transition-colors hover:border-neutral-300/90 dark:border-neutral-800/80 dark:bg-neutral-950/45 dark:hover:border-neutral-700/80"
+            >
+              {/* Account Header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className="truncate text-xs font-semibold text-neutral-900 dark:text-neutral-100"
+                    title={maskAccount ? undefined : rawName}
+                  >
+                    {displayName}
+                  </span>
+                  {displayKey && (
+                    <span className="hidden shrink-0 font-mono text-[10px] text-neutral-400 sm:inline dark:text-neutral-500">
+                      {displayKey}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${getDeepSeekBadgeClass(
+                      status.tone
+                    )}`}
+                  >
+                    {status.label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void refreshAccount(acc.id)}
+                    disabled={isRefreshing}
+                    title="刷新 DeepSeek 余额"
+                    aria-label={`刷新 ${displayName} 余额`}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-200/70 hover:text-neutral-800 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              {balance?.authInvalid && (
+                <div className="mt-2.5 flex items-center justify-between gap-2 rounded-lg border border-amber-200/90 bg-amber-50/80 px-2.5 py-2 text-[11px] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">API Key 已失效，请在设置中更新</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openSettingsModal(navigate, location, 'providers', {
+                        provider: 'deepseek',
+                        action: 'edit',
+                        deepseekAccountId: acc.id,
+                      })
+                    }
+                    className="shrink-0 rounded-md bg-amber-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-neutral-950 dark:hover:bg-amber-400"
+                  >
+                    更新 Key
+                  </button>
+                </div>
+              )}
+
+              {infos.length > 0 ? (
+                <div
+                  className={`mt-2.5 grid gap-2.5 ${adaptiveGridCols(
+                    infos.length,
+                    'grid-cols-2'
+                  )} ${balance?.authInvalid ? 'opacity-65' : ''}`}
+                >
+                  {infos.map((info) => {
+                    const tone = getBalanceInfoTone(Boolean(balance?.isAvailable), info);
+                    return (
+                      <div
+                        key={info.currency}
+                        className="rounded-lg border border-neutral-200/70 bg-card/75 px-2.5 py-2 dark:border-neutral-800/75 dark:bg-neutral-900/60"
+                      >
+                        <div className="flex items-baseline justify-between gap-1.5">
+                          <span
+                            className={`font-mono text-base font-bold tracking-tight tabular-nums ${getDeepSeekAmountColorClass(
+                              tone
+                            )}`}
+                          >
+                            {formatCurrencyAmount(info.currency, info.totalBalance)}
+                          </span>
+                          <span className="rounded bg-neutral-100 px-1 py-0.5 font-mono text-[9px] font-semibold text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                            {info.currency}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[10px] text-neutral-500 dark:text-neutral-400">
+                          <span className="font-mono tabular-nums">
+                            充值 {formatCurrencyAmount(info.currency, info.toppedUpBalance)}
+                          </span>
+                          <span className="font-mono tabular-nums">
+                            赠金 {formatCurrencyAmount(info.currency, info.grantedBalance)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                !balance?.authInvalid && (
+                  <p className="mt-2.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+                    暂无余额明细
+                  </p>
+                )
+              )}
+
+              {balance?.errorMessage && !balance?.authInvalid && (
+                <div className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-rose-200/80 bg-rose-50/80 px-2.5 py-1.5 text-[11px] text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/35 dark:text-rose-300">
+                  <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                  <span className="line-clamp-2 break-all leading-snug">
+                    {balance.errorMessage}
+                  </span>
+                </div>
+              )}
+
+              {/* Micro Footer */}
+              <div className="mt-2.5 flex items-center justify-between border-t border-neutral-200/60 pt-2 text-[10px] text-neutral-400 dark:border-neutral-800/70 dark:text-neutral-500">
+                <span className="inline-flex items-center gap-1">
+                  <Clock className="h-2.5 w-2.5" />
+                  {formatRelativeTime(balance?.lastRefreshedAt, nowMs)}
                 </span>
               </div>
             </div>

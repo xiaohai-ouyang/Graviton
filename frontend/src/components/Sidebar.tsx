@@ -18,6 +18,7 @@ import { ProviderLogo } from './ProviderLogo';
 import { ThemeToggle } from './ThemeToggle';
 import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
+import { useDeepSeekStore } from '../store/useDeepSeekStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
 import {
@@ -38,6 +39,7 @@ export const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const agCount = useAccountStore((s) => s.accounts.length);
   const qwCount = useQianwenStore((s) => s.accounts.length);
+  const dsCount = useDeepSeekStore((s) => s.accounts.length);
   const { appInfo, openChangelog } = useAppInfoStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
   const lastSection = useSettingsModalStore((s) => s.lastSection);
@@ -60,6 +62,7 @@ export const Sidebar: React.FC = () => {
     if (settingsOpen) {
       const agState = useAccountStore.getState();
       const qwState = useQianwenStore.getState();
+      const dsState = useDeepSeekStore.getState();
       // Background quota page may have been emptied while settings was open
       if (
         isEmptyQuotaPath(
@@ -67,11 +70,17 @@ export const Sidebar: React.FC = () => {
           agState.accounts.length,
           agState.hasLoaded,
           qwState.accounts.length,
-          qwState.hasLoaded
+          qwState.hasLoaded,
+          dsState.accounts.length,
+          dsState.hasLoaded
         )
       ) {
         navigate(
-          resolveSafeQuotaFallback(agState.accounts.length, qwState.accounts.length),
+          resolveSafeQuotaFallback(
+            agState.accounts.length,
+            qwState.accounts.length,
+            dsState.accounts.length
+          ),
           { replace: true }
         );
         return;
@@ -99,6 +108,7 @@ export const Sidebar: React.FC = () => {
   const allQuotaProviders = [
     { id: 'antigravity', to: '/quota/antigravity', label: 'Antigravity', count: agCount },
     { id: 'qianwen', to: '/quota/qianwen', label: '千问', count: qwCount },
+    { id: 'deepseek', to: '/quota/deepseek', label: 'DeepSeek', count: dsCount },
   ] as const;
   const connectedQuotaProviders = allQuotaProviders.filter((p) => p.count > 0);
 

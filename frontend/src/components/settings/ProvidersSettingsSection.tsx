@@ -9,10 +9,13 @@ import {
   Clock,
   Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   KeyRound,
   Link2,
   Loader2,
   MonitorDown,
+  Pencil,
   RefreshCw,
   Trash2,
   UserPlus,
@@ -24,17 +27,24 @@ import { ProviderLogo } from '../ProviderLogo';
 import { useNowTick } from '../../hooks/useNowTick';
 import { api, parseError } from '../../services/api';
 import { useAccountStore } from '../../store/useAccountStore';
+import { useDeepSeekStore } from '../../store/useDeepSeekStore';
 import { useMotionStore } from '../../store/useMotionStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
 import { useSettingsModalStore } from '../../store/useSettingsModalStore';
 import {
   BatchImportResult,
+  DeepSeekAccountDisplay,
   OAuthCompletionEvent,
   OAuthStartResult,
   QianwenAccountDisplay,
   QianwenAuthEvent,
   QianwenAuthStartResponse,
 } from '../../types';
+import {
+  formatCurrencyAmount,
+  getDeepSeekBadgeClass,
+  getDeepSeekStatusBadge,
+} from '../../utils/deepseek';
 import { formatRelativeTime } from '../../utils/quota';
 
 interface ProvidersSettingsSectionProps {
@@ -68,6 +78,8 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
   const capturing = useAccountStore((s) => s.capturing);
   const qwAccounts = useQianwenStore((s) => s.accounts);
   const qwHasLoaded = useQianwenStore((s) => s.hasLoaded);
+  const dsAccounts = useDeepSeekStore((s) => s.accounts);
+  const dsHasLoaded = useDeepSeekStore((s) => s.hasLoaded);
 
   const pendingProviderIntent = useSettingsModalStore((s) => s.pendingProviderIntent);
 
@@ -101,6 +113,15 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
   const [qwCopiedUrl, setQwCopiedUrl] = useState(false);
   const [qwCopiedCode, setQwCopiedCode] = useState(false);
 
+  // DeepSeek embedded add/edit panel
+  const [dsPanelOpen, setDsPanelOpen] = useState(false);
+  const [dsEditTarget, setDsEditTarget] = useState<DeepSeekAccountDisplay | null>(null);
+  const [dsNameInput, setDsNameInput] = useState('');
+  const [dsKeyInput, setDsKeyInput] = useState('');
+  const [dsShowKey, setDsShowKey] = useState(false);
+  const [dsSaving, setDsSaving] = useState(false);
+  const [dsErrorMsg, setDsErrorMsg] = useState<string | null>(null);
+
   const oauthSessionRef = useRef<OAuthStartResult | null>(null);
   oauthSessionRef.current = oauthSession;
   const qwSessionRef = useRef<QianwenAuthStartResponse | null>(null);
@@ -108,6 +129,7 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
   const qwReauthTargetRef = useRef<QianwenAccountDisplay | null>(null);
   qwReauthTargetRef.current = qwReauthTarget;
   const pendingQwReauthIdRef = useRef<string | null>(null);
+  const pendingDsEditIdRef = useRef<string | null>(null);
 
   // --- Antigravity OAuth session lifecycle ---
 
@@ -410,14 +432,18 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
     if (!intent) return;
 
     const anchorId =
-      intent.provider === 'antigravity' ? 'provider-antigravity' : 'provider-qianwen';
+      intent.provider === 'antigravity'
+        ? 'provider-antigravity'
+        : intent.provider === 'qianwen'
+          ? 'provider-qianwen'
+          : 'provider-deepseek';
 
     if (intent.provider === 'antigravity') {
       if (intent.antigravityTab) {
         setActiveTab(intent.antigravityTab);
       }
       setAgAddOpen(true);
-    } else {
+    } else if (intent.provider === 'qianwen') {
       if (intent.action === 'reauth' && intent.qianwenAccountId) {
         if (qwSessionRef.current) {
           void api.cancelQianwenAuth().catch(() => {});
@@ -434,6 +460,24 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
         setQwReauthTarget(null);
       }
       setQwConnectOpen(true);
+    } else {
+      setDsErrorMsg(null);
+      setDsKeyInput('');
+      setDsShowKey(false);
+      if ((intent.action === 'edit' || intent.action === 'reauth') && intent.deepseekAccountId) {
+        const target =
+          useDeepSeekStore
+            .getState()
+            .accounts.find((a) => a.id === intent.deepseekAccountId) ?? null;
+        pendingDsEditIdRef.current = target ? null : intent.deepseekAccountId;
+        setDsEditTarget(target);
+        setDsNameInput(target?.name ?? '');
+      } else {
+        pendingDsEditIdRef.current = null;
+        setDsEditTarget(null);
+        setDsNameInput('');
+      }
+      setDsPanelOpen(true);
     }
 
     window.requestAnimationFrame(() => {
@@ -454,6 +498,91 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
       setQwReauthTarget(target);
     }
   }, [qwAccounts, qwHasLoaded]);
+
+  useEffect(() => {
+    const pendingId = pendingDsEditIdRef.current;
+    if (!pendingId || !dsHasLoaded) return;
+    const target = dsAccounts.find((a) => a.id === pendingId);
+    if (target) {
+      pendingDsEditIdRef.current = null;
+      setDsEditTarget(target);
+      setDsNameInput(target.name || '');
+    }
+  }, [dsAccounts, dsHasLoaded]);
+
+  const openDsEdit = (account: DeepSeekAccountDisplay) => {
+    setDsEditTarget(account);
+    setDsNameInput(account.name || '');
+    setDsKeyInput('');
+    setDsShowKey(false);
+    setDsErrorMsg(null);
+    setDsPanelOpen(true);
+  };
+
+  const toggleDsPanel = () => {
+    if (dsPanelOpen) {
+      setDsPanelOpen(false);
+      setDsEditTarget(null);
+      setDsNameInput('');
+      setDsKeyInput('');
+      setDsShowKey(false);
+      setDsErrorMsg(null);
+    } else {
+      setDsEditTarget(null);
+      setDsNameInput('');
+      setDsKeyInput('');
+      setDsShowKey(false);
+      setDsErrorMsg(null);
+      setDsPanelOpen(true);
+    }
+  };
+
+  const handleSubmitDeepSeek = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDsErrorMsg(null);
+
+    const trimmedName = dsNameInput.trim();
+    const trimmedKey = dsKeyInput.trim();
+
+    if (!dsEditTarget && !trimmedKey) {
+      setDsErrorMsg('请输入 DeepSeek API Key');
+      return;
+    }
+    if (dsEditTarget && !trimmedName && !trimmedKey) {
+      setDsErrorMsg('请输入账号别名或新的 API Key');
+      return;
+    }
+
+    setDsSaving(true);
+    try {
+      if (dsEditTarget) {
+        const updated = await api.updateDeepSeekAccount(dsEditTarget.id, trimmedName, trimmedKey);
+        await useDeepSeekStore.getState().loadAccounts();
+        useAccountStore.getState().setBanner({
+          type: 'success',
+          message: trimmedKey
+            ? `已更新 DeepSeek 账号「${updated.name}」的 API Key 并刷新余额`
+            : `已更新 DeepSeek 账号别名：${updated.name}`,
+        });
+      } else {
+        const added = await api.addDeepSeekAccount(trimmedName, trimmedKey);
+        await useDeepSeekStore.getState().loadAccounts();
+        useAccountStore.getState().setBanner({
+          type: 'success',
+          message: `DeepSeek 账号添加成功：${added.name}`,
+        });
+      }
+      setDsPanelOpen(false);
+      setDsEditTarget(null);
+      setDsNameInput('');
+      setDsKeyInput('');
+      setDsShowKey(false);
+    } catch (err) {
+      setDsErrorMsg(parseError(err).message);
+    } finally {
+      setDsSaving(false);
+    }
+  };
 
   const openQwReauth = (account: QianwenAccountDisplay) => {
     if (qwSessionRef.current) {
@@ -1146,6 +1275,299 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
                       type="button"
                       onClick={() => useQianwenStore.getState().confirmDeleteAccount(acc)}
                       aria-label={`移除千问账号 ${displayName}`}
+                      title="移除账号与本地凭据"
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-card text-neutral-500 shadow-2xs transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800/80 dark:text-neutral-400 dark:hover:border-rose-900/50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Provider Card 3: DeepSeek */}
+      <section className="rounded-2xl border border-neutral-200/80 bg-card/90 p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
+        <div
+          data-settings-entry-id="provider-deepseek"
+          className={`-m-2 p-2 transition-colors ${entryHighlightClass('provider-deepseek')}`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+            <div className="flex items-center gap-2.5">
+              <ProviderLogo provider="deepseek" size="md" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    DeepSeek
+                  </h3>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      dsAccounts.length > 0
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                    }`}
+                  >
+                    {dsHasLoaded
+                      ? dsAccounts.length > 0
+                        ? `已连接 ${dsAccounts.length} 个账号`
+                        : '未连接'
+                      : '加载中...'}
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  DeepSeek 开放平台余额查询 · API Key（Windows 凭据管理器加密保存）
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              {dsAccounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToQuota('/quota/deepseek')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-card px-2.5 py-1.5 text-xs font-medium text-neutral-700 shadow-2xs transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                >
+                  <span>查看余额</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={toggleDsPanel}
+                aria-expanded={dsPanelOpen}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+              >
+                {dsPanelOpen ? (
+                  <ChevronDown className="h-3.5 w-3.5 rotate-180" />
+                ) : (
+                  <KeyRound className="h-3.5 w-3.5" />
+                )}
+                <span>{dsPanelOpen ? '收起' : '添加 API Key'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Embedded Add / Edit DeepSeek Key Panel */}
+          <AnimatePresence initial={false}>
+            {dsPanelOpen && (
+              <motion.div
+                key="ds-form-panel"
+                initial={shouldAnimate ? { height: 0, opacity: 0 } : false}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={shouldAnimate ? { height: 0, opacity: 0 } : { opacity: 0 }}
+                transition={
+                  shouldAnimate
+                    ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                    : { duration: 0 }
+                }
+                className="overflow-hidden"
+              >
+                <form
+                  onSubmit={handleSubmitDeepSeek}
+                  className="mt-4 space-y-3.5 rounded-xl border border-neutral-200/70 bg-neutral-50/60 p-4 dark:border-neutral-800 dark:bg-neutral-950/40"
+                >
+                  {dsEditTarget && (
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300">
+                      <span className="truncate">
+                        正在编辑账号：
+                        <strong className="font-semibold">{dsEditTarget.name}</strong>
+                        {dsEditTarget.keyPreview && (
+                          <span className="ml-1.5 font-mono text-[11px] opacity-80">
+                            ({dsEditTarget.keyPreview})
+                          </span>
+                        )}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDsEditTarget(null);
+                          setDsNameInput('');
+                          setDsKeyInput('');
+                          setDsErrorMsg(null);
+                        }}
+                        className="shrink-0 text-[11px] font-medium text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-100"
+                      >
+                        改为添加新账号
+                      </button>
+                    </div>
+                  )}
+
+                  <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                    使用官方接口 <code className="rounded bg-neutral-200/70 px-1 py-0.5 text-[11px] dark:bg-neutral-800">https://api.deepseek.com/user/balance</code> 验证并查询实时余额。API Key 仅保存在 Windows 凭据管理器中，不会明文写入配置文件。
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        账号别名{dsEditTarget ? '' : '（可选）'}
+                      </label>
+                      <input
+                        type="text"
+                        value={dsNameInput}
+                        onChange={(e) => setDsNameInput(e.target.value)}
+                        placeholder={dsEditTarget ? '输入新别名' : '例如：个人主号 / 团队账号'}
+                        className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-card px-3 py-2 text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                        {dsEditTarget ? '新 API Key（留空则仅改名）' : 'DeepSeek API Key'}
+                      </label>
+                      <div className="relative mt-1.5">
+                        <input
+                          type={dsShowKey ? 'text' : 'password'}
+                          value={dsKeyInput}
+                          onChange={(e) => setDsKeyInput(e.target.value)}
+                          placeholder={
+                            dsEditTarget
+                              ? '输入新 Key 将立即校验并替换'
+                              : 'sk-...'
+                          }
+                          autoComplete="off"
+                          className="w-full rounded-lg border border-neutral-200 bg-card py-2 pl-3 pr-9 font-mono text-xs text-neutral-800 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setDsShowKey((prev) => !prev)}
+                          title={dsShowKey ? '隐藏 API Key' : '显示 API Key'}
+                          aria-label={dsShowKey ? '隐藏 API Key' : '显示 API Key'}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                        >
+                          {dsShowKey ? (
+                            <EyeOff className="h-3.5 w-3.5" />
+                          ) : (
+                            <Eye className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {dsErrorMsg && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{dsErrorMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={toggleDsPanel}
+                      disabled={dsSaving}
+                      className="rounded-lg border border-neutral-200 bg-card px-3 py-1.5 text-xs font-medium text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={
+                        dsSaving ||
+                        (!dsEditTarget && !dsKeyInput.trim()) ||
+                        (Boolean(dsEditTarget) && !dsNameInput.trim() && !dsKeyInput.trim())
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                    >
+                      {dsSaving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <KeyRound className="h-3.5 w-3.5" />
+                      )}
+                      <span>
+                        {dsSaving
+                          ? dsEditTarget && !dsKeyInput.trim()
+                            ? '正在保存...'
+                            : '正在验证并拉取余额...'
+                          : dsEditTarget
+                            ? dsKeyInput.trim()
+                              ? '验证并更新'
+                              : '保存别名'
+                            : '验证并添加'}
+                      </span>
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Connected DeepSeek account list */}
+          {dsAccounts.length > 0 && (
+            <ul className="mt-4 space-y-1.5">
+              {dsAccounts.map((acc) => {
+                const status = getDeepSeekStatusBadge(acc.balance);
+                const infos = acc.balance?.balanceInfos || [];
+                const balanceSummary = infos
+                  .map((info) => formatCurrencyAmount(info.currency, info.totalBalance))
+                  .join(' · ');
+
+                return (
+                  <li
+                    key={acc.id}
+                    className="flex items-center gap-2.5 rounded-xl border border-neutral-200/70 bg-neutral-50/50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-950/40"
+                  >
+                    <ProviderLogo provider="deepseek" size="row" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span
+                          className="truncate text-xs font-semibold text-neutral-900 dark:text-neutral-100"
+                          title={acc.name}
+                        >
+                          {acc.name}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${getDeepSeekBadgeClass(
+                            status.tone
+                          )}`}
+                        >
+                          {status.label}
+                        </span>
+                        {balanceSummary && (
+                          <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-neutral-700 dark:text-neutral-300">
+                            {balanceSummary}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+                        {acc.keyPreview && (
+                          <>
+                            <span className="font-mono text-[10px]">{acc.keyPreview}</span>
+                            <span>·</span>
+                          </>
+                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" />
+                          上次刷新：{formatRelativeTime(acc.balance?.lastRefreshedAt, nowMs)}
+                        </span>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openDsEdit(acc)}
+                      aria-label={`编辑 DeepSeek 账号 ${acc.name}`}
+                      title="修改别名或更换 API Key"
+                      className={`shrink-0 rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                        acc.balance?.authInvalid
+                          ? 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-500 dark:text-neutral-950 dark:hover:bg-amber-400'
+                          : 'inline-flex items-center gap-1 border border-neutral-200 bg-card text-neutral-600 shadow-2xs hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-800 dark:bg-neutral-800/80 dark:text-neutral-300 dark:hover:bg-neutral-700'
+                      }`}
+                    >
+                      {acc.balance?.authInvalid ? (
+                        '更新 Key'
+                      ) : (
+                        <>
+                          <Pencil className="h-3 w-3" />
+                          <span>编辑</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => useDeepSeekStore.getState().confirmDeleteAccount(acc)}
+                      aria-label={`移除 DeepSeek 账号 ${acc.name}`}
                       title="移除账号与本地凭据"
                       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-card text-neutral-500 shadow-2xs transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800/80 dark:text-neutral-400 dark:hover:border-rose-900/50 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
                     >
