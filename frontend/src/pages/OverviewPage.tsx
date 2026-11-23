@@ -7,7 +7,6 @@ import {
   Link2,
   PictureInPicture2,
   RefreshCw,
-  Settings,
   ShieldCheck,
   Sparkles,
   Table2,
@@ -144,16 +143,6 @@ export const OverviewPage: React.FC = () => {
             >
               <PictureInPicture2 className="h-3 w-3" />
               <span>{widgetOpen ? '悬浮窗已开' : '悬浮窗'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openSettingsModal(navigate, location, 'providers')}
-              title="管理供应商与账号"
-              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-neutral-200/90 bg-card px-2.5 text-[11px] font-medium text-neutral-700 shadow-2xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-800 dark:bg-neutral-800/80 dark:text-neutral-200 dark:hover:bg-neutral-700"
-            >
-              <Settings className="h-3 w-3" />
-              <span>设置</span>
             </button>
 
             <button

@@ -31,21 +31,20 @@ import {
   BestAccountDimension,
   formatQuotaByMode,
   formatRelativeTime,
-  getAccountOverallScore,
   getQuotaTextColor,
   maskAccountIdentity,
   pickBestAntigravityAccount,
+  sortAntigravityAccounts,
 } from '../../utils/quota';
 
 const DEFAULT_VISIBLE_ACCOUNTS = 3;
 
 export const BEST_DIMENSIONS: { id: BestAccountDimension; label: string }[] = [
-  { id: 'overall', label: '综合' },
   { id: 'gemini', label: 'Gemini' },
   { id: 'claude', label: 'Claude' },
 ];
 
-function shortBucketWindow(bucket: QuotaBucket): string {
+export function shortBucketWindow(bucket: QuotaBucket): string {
   const raw = (bucket.window || bucket.displayName || bucket.bucketId || '').toLowerCase();
   if (raw.includes('week') || raw.includes('7d')) return '周限';
   if (raw.includes('five hour') || raw.includes('5 hour') || raw.includes('5h')) return '5h';
@@ -86,11 +85,9 @@ export const BestAntigravitySwitchBar: React.FC<BestAntigravitySwitchBarProps> =
   const candidate = bestSelection.bestSwitchCandidate;
   const candidateSwitching = Boolean(candidate && switchingIds[candidate.account.id]);
   const anySwitching = Object.values(switchingIds).some(Boolean);
-  const hasBetterCandidate = Boolean(
-    candidate &&
-      (bestSelection.currentScore < 0 || candidate.score > bestSelection.currentScore)
-  );
-  const dimLabel = BEST_DIMENSIONS.find((d) => d.id === bestDimension)?.label ?? '综合';
+  const hasBetterCandidate = bestSelection.hasBetterCandidate;
+  const candidateTier = candidate ? candidate.account.subscriptionTier || 'FREE' : '';
+  const dimLabel = BEST_DIMENSIONS.find((d) => d.id === bestDimension)?.label ?? 'Gemini';
 
   const formatShortAccount = (email: string) => {
     const shown = maskAccount ? maskAccountIdentity(email) : email;
@@ -132,7 +129,7 @@ export const BestAntigravitySwitchBar: React.FC<BestAntigravitySwitchBarProps> =
           type="button"
           onClick={() => void switchAccount(candidate.account.id)}
           disabled={anySwitching}
-          title={`一键切换到 ${maskAccount ? maskAccountIdentity(candidate.account.email) : candidate.account.email}`}
+          title={`一键切换到 ${maskAccount ? maskAccountIdentity(candidate.account.email) : candidate.account.email} (${candidateTier})`}
           className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-neutral-900 px-2.5 py-1 text-[11px] font-medium text-white shadow-2xs transition-colors hover:bg-neutral-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
         >
           {candidateSwitching ? (
@@ -143,7 +140,7 @@ export const BestAntigravitySwitchBar: React.FC<BestAntigravitySwitchBarProps> =
           <span className="truncate">
             {candidateSwitching
               ? '正在切换...'
-              : `一键切至 ${formatShortAccount(candidate.account.email)} (${
+              : `一键切至 ${formatShortAccount(candidate.account.email)} (${candidateTier} · ${
                   formatQuotaByMode(candidate.score, quotaDisplayMode).shortValue
                 })`}
           </span>
@@ -152,7 +149,7 @@ export const BestAntigravitySwitchBar: React.FC<BestAntigravitySwitchBarProps> =
         <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
           <CheckCircle2 className="h-3 w-3 shrink-0" />
           <span>
-            当前已为{dimLabel}最高 (
+            当前已为{dimLabel}最优 (
             {formatQuotaByMode(bestSelection.currentScore, quotaDisplayMode).label})
           </span>
         </span>
@@ -178,6 +175,7 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
   const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
   const quotaDisplayMode = useOverviewPrefsStore((s) => s.quotaDisplayMode);
   const maskAccount = useOverviewPrefsStore((s) => s.maskAccount);
+  const bestDimension = useOverviewPrefsStore((s) => s.bestDimension);
 
   const {
     accounts,
@@ -191,12 +189,10 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
 
   const [expanded, setExpanded] = useState(false);
 
-  const sortedAccounts = useMemo(() => {
-    return [...accounts].sort((a, b) => {
-      if (a.isCurrent !== b.isCurrent) return Number(b.isCurrent) - Number(a.isCurrent);
-      return getAccountOverallScore(b).avg - getAccountOverallScore(a).avg;
-    });
-  }, [accounts]);
+  const sortedAccounts = useMemo(
+    () => sortAntigravityAccounts(accounts, bestDimension, { pinCurrent: true }),
+    [accounts, bestDimension]
+  );
 
   const groupAggregates = useMemo(() => aggregateAntigravityGroups(accounts), [accounts]);
   const currentAccount = useMemo(() => accounts.find((a) => a.isCurrent) ?? null, [accounts]);
@@ -253,6 +249,15 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
             className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           >
             <RefreshCw className={`h-3 w-3 ${refreshingAll ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/quota/antigravity')}
+            title="查看 Antigravity 额度详情"
+            className="inline-flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+          >
+            <span>详情</span>
+            <ArrowRight className="h-3 w-3" />
           </button>
         </div>
       </div>
@@ -328,7 +333,15 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
           const displayEmail = maskAccount ? maskAccountIdentity(acc.email) : acc.email;
           const tier = acc.subscriptionTier || 'FREE';
 
-          // Flatten groups -> compact 2-column metric cells
+          // Flatten groups -> compact 2-column metric cells (filtered by active Gemini/Claude tab when multi-account)
+          const allGroups = acc.groups || [];
+          const filterByDimension = accounts.length >= 2;
+          const visibleGroups = filterByDimension
+            ? allGroups.filter((g) =>
+                (g.displayName || '').toLowerCase().includes(bestDimension)
+              )
+            : allGroups;
+
           const metricCells: {
             key: string;
             label: string;
@@ -336,7 +349,7 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
             resetTime?: string;
           }[] = [];
 
-          for (const group of acc.groups || []) {
+          for (const group of visibleGroups) {
             const buckets = group.buckets || [];
             if (buckets.length === 0) continue;
             if (buckets.length === 1) {
@@ -419,7 +432,11 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
 
               {/* 2-Column Compact Quota Grid */}
               {metricCells.length > 0 ? (
-                <div className="mt-2.5 grid grid-cols-2 gap-x-3.5 gap-y-2.5">
+                <div
+                  className={`mt-2.5 grid gap-x-3.5 gap-y-2.5 ${
+                    metricCells.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
+                  }`}
+                >
                   {metricCells.map((cell) => {
                     const formatted = formatQuotaByMode(cell.remainingPct, quotaDisplayMode);
                     return (
@@ -455,6 +472,10 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
                     );
                   })}
                 </div>
+              ) : filterByDimension && allGroups.length > 0 ? (
+                <p className="mt-2.5 text-[11px] text-neutral-400 dark:text-neutral-500">
+                  暂无 {bestDimension === 'claude' ? 'Claude' : 'Gemini'} 配额数据
+                </p>
               ) : (
                 <div className="mt-2.5 space-y-1">
                   {(() => {
@@ -498,14 +519,6 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
                   <Clock className="h-2.5 w-2.5" />
                   {formatRelativeTime(acc.lastRefreshedAt, nowMs)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/quota/antigravity')}
-                  className="inline-flex items-center gap-0.5 font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-                >
-                  <span>详情</span>
-                  <ArrowRight className="h-2.5 w-2.5" />
-                </button>
               </div>
             </div>
           );
@@ -634,6 +647,15 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
             className="inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-40 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
           >
             <RefreshCw className={`h-3 w-3 ${refreshingAll ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/quota/qianwen')}
+            title="查看千问额度详情"
+            className="inline-flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[11px] font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+          >
+            <span>详情</span>
+            <ArrowRight className="h-3 w-3" />
           </button>
         </div>
       </div>
@@ -874,14 +896,6 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
                   <Clock className="h-2.5 w-2.5" />
                   {formatRelativeTime(quota?.lastRefreshedAt, nowMs)}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/quota/qianwen')}
-                  className="inline-flex items-center gap-0.5 font-medium text-neutral-500 transition-colors hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
-                >
-                  <span>详情</span>
-                  <ArrowRight className="h-2.5 w-2.5" />
-                </button>
               </div>
             </div>
           );
