@@ -106,7 +106,7 @@ export const OverviewPage: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-neutral-200/80 bg-card/85 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/85">
+      <header className="sticky top-0 z-30 border-b border-neutral-200/80 bg-card dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-3">
           <div className="flex items-baseline gap-2.5">
             <h2 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">

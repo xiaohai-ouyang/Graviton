@@ -51,7 +51,7 @@ export const QianwenQuotaPage: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-10 border-b border-neutral-200/80 bg-card/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80">
+      <header className="sticky top-0 z-30 border-b border-neutral-200/80 bg-card dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <ProviderLogo provider="qianwen" size="md" />
