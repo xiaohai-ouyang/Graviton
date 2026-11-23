@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountDisplay, QuotaGroup } from '../types';
 import { api } from '../services/api';
+import { Quit } from '../../wailsjs/runtime/runtime';
 import { useNowTick } from '../hooks/useNowTick';
 import {
   formatRelativeTime,
@@ -36,6 +37,7 @@ interface WidgetStateSnapshot {
 }
 
 const WIDGET_WIDTH = 340;
+const WIDGET_ORPHAN_TIMEOUT_MS = 10_000;
 
 function findGroup(account: AccountDisplay, keyword: string): QuotaGroup | undefined {
   const lower = keyword.toLowerCase();
@@ -122,6 +124,14 @@ export const WidgetApp: React.FC = () => {
   useEffect(() => {
     let es: EventSource | null = null;
     let cancelled = false;
+    // Watchdog: if the main process IPC stays unreachable, the widget is an orphan -> quit.
+    let disconnectedSince: number | null = Date.now();
+    const watchdog = window.setInterval(() => {
+      if (disconnectedSince !== null && Date.now() - disconnectedSince > WIDGET_ORPHAN_TIMEOUT_MS) {
+        window.clearInterval(watchdog);
+        Quit();
+      }
+    }, 2000);
 
     const init = async () => {
       const c = await api.getWidgetConnection();
@@ -129,6 +139,12 @@ export const WidgetApp: React.FC = () => {
       setConn({ port: c.port, token: c.token });
 
       es = new EventSource(`http://127.0.0.1:${c.port}/api/events?token=${encodeURIComponent(c.token)}`);
+      es.addEventListener('open', () => {
+        disconnectedSince = null;
+      });
+      es.addEventListener('error', () => {
+        if (disconnectedSince === null) disconnectedSince = Date.now();
+      });
       es.addEventListener('state', (evt) => {
         try {
           const parsed = JSON.parse((evt as MessageEvent).data) as WidgetStateSnapshot;
@@ -142,6 +158,7 @@ export const WidgetApp: React.FC = () => {
     void init();
     return () => {
       cancelled = true;
+      window.clearInterval(watchdog);
       es?.close();
     };
   }, []);

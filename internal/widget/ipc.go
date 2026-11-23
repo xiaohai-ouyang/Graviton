@@ -167,6 +167,9 @@ func (m *Manager) StartWidget() error {
 		return fmt.Errorf("failed to start widget process: %w", err)
 	}
 
+	// Safety net: child dies with the main process even if it is force-killed.
+	bindToJob(cmd)
+
 	m.mu.Lock()
 	m.cmd = cmd
 	m.mu.Unlock()
