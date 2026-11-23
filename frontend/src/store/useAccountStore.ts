@@ -15,6 +15,7 @@ interface RefreshProgress {
 
 interface AccountState {
   accounts: AccountDisplay[];
+  hasLoaded: boolean;
   loading: boolean;
   capturing: boolean;
   refreshingAll: boolean;
@@ -51,6 +52,7 @@ interface AccountState {
 
 export const useAccountStore = create<AccountState>((set, get) => ({
   accounts: [],
+  hasLoaded: false,
   loading: false,
   capturing: false,
   refreshingAll: false,
@@ -68,10 +70,11 @@ export const useAccountStore = create<AccountState>((set, get) => ({
     set({ loading: true });
     try {
       const accounts = await api.listAccounts();
-      set({ accounts, loading: false });
+      set({ accounts, hasLoaded: true, loading: false });
     } catch (e) {
       const err = parseError(e);
       set({
+        hasLoaded: true,
         loading: false,
         banner: { type: 'error', message: `加载账号列表失败: ${err.message}` },
       });

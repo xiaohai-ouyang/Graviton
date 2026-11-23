@@ -11,6 +11,7 @@ interface RefreshProgress {
 
 interface QianwenState {
   accounts: QianwenAccountDisplay[];
+  hasLoaded: boolean;
   loading: boolean;
   refreshingAll: boolean;
   refreshProgress: RefreshProgress | null;
@@ -28,6 +29,7 @@ interface QianwenState {
 
 export const useQianwenStore = create<QianwenState>((set, get) => ({
   accounts: [],
+  hasLoaded: false,
   loading: false,
   refreshingAll: false,
   refreshProgress: null,
@@ -38,10 +40,10 @@ export const useQianwenStore = create<QianwenState>((set, get) => ({
     set({ loading: true });
     try {
       const accounts = await api.listQianwenAccounts();
-      set({ accounts, loading: false });
+      set({ accounts, hasLoaded: true, loading: false });
     } catch (e) {
       const err = parseError(e);
-      set({ loading: false });
+      set({ hasLoaded: true, loading: false });
       useAccountStore.getState().setBanner({
         type: 'error',
         message: `加载千问账号列表失败: ${err.message}`,
