@@ -25,6 +25,7 @@ import { useQianwenStore } from '../../store/useQianwenStore';
 import { useResetTimeStore } from '../../store/useResetTimeStore';
 import { openSettingsModal } from '../../store/useSettingsModalStore';
 import { AccountDisplay, QianwenAccountDisplay, QuotaBucket } from '../../types';
+import { adaptiveGridCols } from '../../utils/layout';
 import {
   aggregateAntigravityGroups,
   BestAccountDimension,
@@ -282,7 +283,12 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
           </div>
 
           {groupAggregates.length > 0 && (
-            <div className="mt-2.5 grid grid-cols-2 gap-x-3.5 gap-y-2">
+            <div
+              className={`mt-2.5 grid gap-x-3.5 gap-y-2 ${adaptiveGridCols(
+                groupAggregates.length,
+                'grid-cols-2'
+              )}`}
+            >
               {groupAggregates.map((agg) => {
                 const formatted = formatQuotaByMode(agg.avgRemainingPct, quotaDisplayMode);
                 return (
@@ -319,7 +325,7 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
       {/* Account Sub-Cards */}
       <div
         className={
-          singleProviderLayout
+          singleProviderLayout && visibleAccounts.length > 1
             ? 'grid grid-cols-1 gap-2.5 lg:grid-cols-2'
             : 'space-y-2.5'
         }
@@ -430,9 +436,10 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
               {/* 2-Column Compact Quota Grid */}
               {metricCells.length > 0 ? (
                 <div
-                  className={`mt-2.5 grid gap-x-3.5 gap-y-2.5 ${
-                    metricCells.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                  }`}
+                  className={`mt-2.5 grid gap-x-3.5 gap-y-2.5 ${adaptiveGridCols(
+                    metricCells.length,
+                    'grid-cols-2'
+                  )}`}
                 >
                   {metricCells.map((cell) => {
                     const formatted = formatQuotaByMode(cell.remainingPct, quotaDisplayMode);
@@ -697,7 +704,7 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
       {/* Account Sub-Cards */}
       <div
         className={
-          singleProviderLayout
+          singleProviderLayout && visibleAccounts.length > 1
             ? 'grid grid-cols-1 gap-2.5 lg:grid-cols-2'
             : 'space-y-2.5'
         }
@@ -777,7 +784,12 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
                 </div>
               ) : hasPersonal && personal?.cycles?.length ? (
                 <div className="mt-2.5 space-y-2">
-                  <div className="grid grid-cols-2 gap-x-3.5 gap-y-2.5">
+                  <div
+                    className={`grid gap-x-3.5 gap-y-2.5 ${adaptiveGridCols(
+                      personal.cycles.length,
+                      'grid-cols-2'
+                    )}`}
+                  >
                     {personal.cycles.map((cycle) => {
                       const formatted = formatQuotaByMode(
                         Math.round(cycle.remainingPercentage),

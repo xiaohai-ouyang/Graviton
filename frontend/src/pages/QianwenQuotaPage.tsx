@@ -9,6 +9,7 @@ import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
 import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
 import { QianwenAccountDisplay } from '../types';
+import { adaptiveGridCols } from '../utils/layout';
 
 export const QianwenQuotaPage: React.FC = () => {
   const location = useLocation();
@@ -116,7 +117,13 @@ export const QianwenQuotaPage: React.FC = () => {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              className={`grid gap-4 ${adaptiveGridCols(
+                accounts.length,
+                'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
+                'grid-cols-1 md:grid-cols-2'
+              )}`}
+            >
               <AnimatePresence initial={false}>
                 {accounts.map((account) => (
                   <motion.div

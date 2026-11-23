@@ -4,6 +4,7 @@ import { AccountDisplay } from '../types';
 import { useAccountStore } from '../store/useAccountStore';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { useNowTick } from '../hooks/useNowTick';
+import { adaptiveGridCols } from '../utils/layout';
 import {
   formatBucketLabel,
   formatRelativeTime,
@@ -151,7 +152,12 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
               </div>
 
               {groups.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div
+                  className={`grid gap-3 ${adaptiveGridCols(
+                    groups.length,
+                    'grid-cols-1 sm:grid-cols-2'
+                  )}`}
+                >
                   {groups.map((group, gIdx) => (
                     <div
                       key={gIdx}
@@ -225,7 +231,13 @@ export const AccountDetailModal: React.FC<AccountDetailModalProps> = ({ account,
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                <div
+                  className={`grid gap-2 ${adaptiveGridCols(
+                    models.length,
+                    'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                    'grid-cols-1 sm:grid-cols-2'
+                  )}`}
+                >
                   {models.map((m, mIdx) => (
                     <div
                       key={mIdx}

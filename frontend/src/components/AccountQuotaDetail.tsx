@@ -6,6 +6,7 @@ import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { useNowTick } from '../hooks/useNowTick';
+import { adaptiveGridCols } from '../utils/layout';
 
 interface AccountQuotaDetailProps {
   account: AccountDisplay;
@@ -35,7 +36,13 @@ export const AccountQuotaDetail: React.FC<AccountQuotaDetailProps> = ({ account 
               <span>模型分组额度窗口 (retrieveUserQuotaSummary)</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              className={`grid gap-3 ${adaptiveGridCols(
+                groups.length,
+                'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+                'grid-cols-1 sm:grid-cols-2'
+              )}`}
+            >
               {groups.map((group, gIdx) => (
                 <div
                   key={gIdx}

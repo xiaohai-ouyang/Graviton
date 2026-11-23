@@ -16,6 +16,7 @@ import { useOverviewPrefsStore } from '../../store/useOverviewPrefsStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
 import { useResetTimeStore } from '../../store/useResetTimeStore';
 import { openSettingsModal } from '../../store/useSettingsModalStore';
+import { adaptiveGridCols } from '../../utils/layout';
 import {
   formatQuotaByMode,
   formatRelativeTime,
@@ -226,9 +227,10 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                       <td className="px-4 py-3">
                         {groupItems.length > 0 ? (
                           <div
-                            className={`grid gap-x-3 gap-y-1.5 ${
-                              groupItems.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                            }`}
+                            className={`grid gap-x-3 gap-y-1.5 ${adaptiveGridCols(
+                              groupItems.length,
+                              'grid-cols-2'
+                            )}`}
                           >
                             {groupItems.map((item) => {
                               const formatted = formatQuotaByMode(
@@ -433,9 +435,10 @@ export const OverviewTableView: React.FC<OverviewTableViewProps> = ({ nowMs }) =
                           </span>
                         ) : hasPersonal && personal?.cycles?.length ? (
                           <div
-                            className={`grid gap-x-3 gap-y-1.5 ${
-                              personal.cycles.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                            }`}
+                            className={`grid gap-x-3 gap-y-1.5 ${adaptiveGridCols(
+                              personal.cycles.length,
+                              'grid-cols-2'
+                            )}`}
                           >
                             {personal.cycles.map((c) => {
                               const formatted = formatQuotaByMode(

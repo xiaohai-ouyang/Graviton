@@ -11,6 +11,7 @@ import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
 import { useQianwenStore } from '../store/useQianwenStore';
 import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStore';
+import { adaptiveGridCols } from '../utils/layout';
 import { sortAntigravityAccounts } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
 import { AccountDetailModal } from '../components/AccountDetailModal';
@@ -215,7 +216,13 @@ export const QuotaPage: React.FC = () => {
             </div>
 
             {/* Multi-Account Quota Grid */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div
+              className={`grid gap-4 ${adaptiveGridCols(
+                sortedAccounts.length,
+                'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
+                'grid-cols-1 md:grid-cols-2'
+              )}`}
+            >
               <AnimatePresence initial={false}>
                 {sortedAccounts.map((account) => (
                   <motion.div
