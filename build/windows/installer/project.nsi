@@ -49,12 +49,16 @@ VIAddVersionKey "ProductName"     "${INFO_PRODUCTNAME}"
 ManifestDPIAware true
 
 !include "MUI.nsh"
+!include "LogicLib.nsh"
 
 !define MUI_ICON "..\icon.ico"
 !define MUI_UNICON "..\icon.ico"
 # !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\leftimage.bmp" #Include this to add a bitmap on the left side of the Welcome Page. Must be a size of 164x314
 !define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
+
+Var DirPageTopText
+!define MUI_DIRECTORYPAGE_TEXT_TOP "$DirPageTopText"
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
 # !insertmacro MUI_PAGE_LICENSE "resources\eula.txt" # Adds a EULA page to the installer
@@ -72,19 +76,100 @@ ManifestDPIAware true
 
 Name "${INFO_PRODUCTNAME}"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
-!ifdef WAILS_INSTALL_SCOPE
-  !if "${WAILS_INSTALL_SCOPE}" == "user"
-    InstallDir "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
-  !else
-    InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
-  !endif
-!else
-  InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
-!endif # Default installing folder ($PROGRAMFILES is Program Files folder).
+# Do not hardcode InstallDir here: leaving $INSTDIR empty unless /D=... is passed on CLI
+# lets .onInit detect and reuse an existing installation directory before falling back to default.
 ShowInstDetails show # This will always show the installation details.
 
+Function StripOuterQuotes
+    Exch $0
+    Push $1
+    StrCpy $1 $0 1
+    ${If} $1 == '"'
+        StrCpy $0 $0 "" 1
+    ${EndIf}
+    StrCpy $1 $0 1 -1
+    ${If} $1 == '"'
+        StrCpy $0 $0 -1
+    ${EndIf}
+    Pop $1
+    Exch $0
+FunctionEnd
+
+!macro DetectExistingDirFromRoot ROOT VIEW OUTVAR
+    ${If} ${OUTVAR} == ""
+        SetRegView ${VIEW}
+        ReadRegStr $R0 ${ROOT} "${UNINST_KEY}" "InstallLocation"
+        ${If} $R0 != ""
+            Push $R0
+            Call StripOuterQuotes
+            Pop $R0
+            ${If} ${FileExists} "$R0\*.*"
+                StrCpy ${OUTVAR} $R0
+            ${EndIf}
+        ${EndIf}
+    ${EndIf}
+    ${If} ${OUTVAR} == ""
+        SetRegView ${VIEW}
+        ReadRegStr $R0 ${ROOT} "${UNINST_KEY}" "UninstallString"
+        ${If} $R0 != ""
+            Push $R0
+            Call StripOuterQuotes
+            Pop $R0
+            ${GetParent} $R0 $R0
+            ${If} $R0 != ""
+            ${AndIf} ${FileExists} "$R0\*.*"
+                StrCpy ${OUTVAR} $R0
+            ${EndIf}
+        ${EndIf}
+    ${EndIf}
+    ${If} ${OUTVAR} == ""
+        SetRegView ${VIEW}
+        ReadRegStr $R0 ${ROOT} "${UNINST_KEY}" "DisplayIcon"
+        ${If} $R0 != ""
+            Push $R0
+            Call StripOuterQuotes
+            Pop $R0
+            ${GetParent} $R0 $R0
+            ${If} $R0 != ""
+            ${AndIf} ${FileExists} "$R0\*.*"
+                StrCpy ${OUTVAR} $R0
+            ${EndIf}
+        ${EndIf}
+    ${EndIf}
+!macroend
+
 Function .onInit
-   !insertmacro wails.checkArchitecture
+    !insertmacro wails.checkArchitecture
+
+    StrCpy $DirPageTopText "Setup will install ${INFO_PRODUCTNAME} in the following folder. To install in a different folder, click Browse and select another folder. Click Install to start the installation."
+
+    # Only probe registry when /D=<dir> was not explicitly supplied on the command line.
+    ${If} $INSTDIR == ""
+        Push $R0
+        Push $R1
+        StrCpy $R1 ""
+        !insertmacro DetectExistingDirFromRoot HKLM 64 $R1
+        !insertmacro DetectExistingDirFromRoot HKCU 64 $R1
+        !insertmacro DetectExistingDirFromRoot HKLM 32 $R1
+        !insertmacro DetectExistingDirFromRoot HKCU 32 $R1
+        SetRegView 64
+        ${If} $R1 != ""
+            StrCpy $INSTDIR $R1
+            StrCpy $DirPageTopText "An existing ${INFO_PRODUCTNAME} installation was detected and will be updated in the folder below. Click Install to update, or Browse to select a different folder."
+        ${Else}
+            !ifdef WAILS_INSTALL_SCOPE
+              !if "${WAILS_INSTALL_SCOPE}" == "user"
+                StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${INFO_PRODUCTNAME}"
+              !else
+                StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
+              !endif
+            !else
+              StrCpy $INSTDIR "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
+            !endif
+        ${EndIf}
+        Pop $R1
+        Pop $R0
+    ${EndIf}
 FunctionEnd
 
 Section
@@ -94,7 +179,20 @@ Section
 
     SetOutPath $INSTDIR
 
+    # If upgrading while Graviton is still running, rename the running binary aside
+    # so the new executable can be written cleanly without a file-lock error.
+    ${If} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        Delete "$INSTDIR\${PRODUCT_EXECUTABLE}.bak"
+        ClearErrors
+        Rename "$INSTDIR\${PRODUCT_EXECUTABLE}" "$INSTDIR\${PRODUCT_EXECUTABLE}.bak"
+    ${EndIf}
+
     !insertmacro wails.files
+
+    ${If} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}.bak"
+        Delete /REBOOTOK "$INSTDIR\${PRODUCT_EXECUTABLE}.bak"
+        SetRebootFlag false
+    ${EndIf}
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
@@ -103,6 +201,17 @@ Section
     !insertmacro wails.associateCustomProtocols
 
     !insertmacro wails.writeUninstaller
+
+    SetRegView 64
+    !ifdef WAILS_INSTALL_SCOPE
+      !if "${WAILS_INSTALL_SCOPE}" == "user"
+        WriteRegStr HKCU "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+      !else
+        WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+      !endif
+    !else
+      WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
+    !endif
 SectionEnd
 
 Section "uninstall"

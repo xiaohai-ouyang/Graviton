@@ -38,12 +38,32 @@ func DetectInstallMode(channel, exePath string) InstallMode {
 			if err != nil {
 				continue
 			}
-			loc, _, err := key.GetStringValue("InstallLocation")
+			loc := readInstallDirFromKey(key)
 			key.Close()
-			if err == nil && loc != "" && strings.EqualFold(filepath.Clean(loc), filepath.Clean(dir)) {
+			if loc != "" && strings.EqualFold(filepath.Clean(loc), filepath.Clean(dir)) {
 				return ModeNSIS
 			}
 		}
 	}
 	return ModePortable
+}
+
+func readInstallDirFromKey(key registry.Key) string {
+	if loc, _, err := key.GetStringValue("InstallLocation"); err == nil {
+		loc = strings.Trim(strings.TrimSpace(loc), `"`)
+		if loc != "" {
+			return loc
+		}
+	}
+	for _, valueName := range []string{"UninstallString", "DisplayIcon"} {
+		raw, _, err := key.GetStringValue(valueName)
+		if err != nil {
+			continue
+		}
+		cleaned := strings.Trim(strings.TrimSpace(raw), `"`)
+		if cleaned != "" {
+			return filepath.Dir(cleaned)
+		}
+	}
+	return ""
 }
