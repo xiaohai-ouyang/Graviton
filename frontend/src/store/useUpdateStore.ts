@@ -6,7 +6,8 @@ import { useAccountStore } from './useAccountStore';
 interface UpdateStoreState {
   state: UpdateState | null;
   modalOpen: boolean;
-  promptedVersion: string | null;
+  promptedReadyVersion: string | null;
+  promptedInstalledVersion: string | null;
   checking: boolean;
   savingSettings: boolean;
 
@@ -16,7 +17,8 @@ interface UpdateStoreState {
   checkForUpdates: () => Promise<void>;
   saveSettings: (autoCheck: boolean, mirrorURL: string) => Promise<boolean>;
   skipVersion: (version: string) => Promise<void>;
-  requestInstall: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  restartToApply: () => Promise<void>;
   cancelDeferred: () => Promise<void>;
   dismissUpdatedNotice: () => Promise<void>;
 }
@@ -28,7 +30,8 @@ const notify = (type: 'success' | 'error' | 'info', message: string) => {
 export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   state: null,
   modalOpen: false,
-  promptedVersion: null,
+  promptedReadyVersion: null,
+  promptedInstalledVersion: null,
   checking: false,
   savingSettings: false,
 
@@ -38,15 +41,24 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   },
 
   applyUpdateState: (next) => {
-    const { promptedVersion } = get();
+    const { promptedReadyVersion, promptedInstalledVersion } = get();
     const patch: Partial<UpdateStoreState> = { state: next };
-    // First ready offer for a version in this session: highlight + open the modal once.
+    // First ready offer for a version in this session: open modal to offer "立即安装".
     if (
       next.status === 'ready' &&
       next.latestVersion &&
-      next.latestVersion !== promptedVersion
+      next.latestVersion !== promptedReadyVersion
     ) {
-      patch.promptedVersion = next.latestVersion;
+      patch.promptedReadyVersion = next.latestVersion;
+      patch.modalOpen = true;
+    }
+    // Once installation completes, prompt the user to restart.
+    if (
+      next.status === 'installed' &&
+      next.latestVersion &&
+      next.latestVersion !== promptedInstalledVersion
+    ) {
+      patch.promptedInstalledVersion = next.latestVersion;
       patch.modalOpen = true;
     }
     set(patch);
@@ -96,12 +108,23 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
     }
   },
 
-  requestInstall: async () => {
+  installUpdate: async () => {
     try {
-      const st = await api.requestInstallUpdate();
+      const st = await api.installUpdate();
+      get().applyUpdateState(st);
+    } catch (e) {
+      const parsed = parseError(e);
+      notify(parsed.code === 'UPDATE_INSTALL_CANCELLED' ? 'info' : 'error', parsed.message);
+      await get().loadUpdateState();
+    }
+  },
+
+  restartToApply: async () => {
+    try {
+      const st = await api.restartToApplyUpdate();
       set({ state: st });
       if (st.status === 'waiting_idle') {
-        notify('info', '已预约更新：当前任务与托管进程全部结束后将自动重启更新');
+        notify('info', '已预约重启：当前任务与托管进程全部结束后将自动重启应用');
       }
     } catch (e) {
       notify('error', parseError(e).message);

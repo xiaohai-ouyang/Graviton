@@ -66,6 +66,8 @@ export function ImportProjectByPath(arg1:string):Promise<storage.ProjectRecord>;
 
 export function ImportRefreshTokens(arg1:string):Promise<appservice.BatchImportResult>;
 
+export function InstallUpdate():Promise<updater.UpdateState>;
+
 export function IsWidgetMode():Promise<boolean>;
 
 export function IsWidgetOpen():Promise<boolean>;
@@ -98,13 +100,13 @@ export function RefreshQianwenAccount(arg1:string):Promise<qianwen.AccountDispla
 
 export function ReorderProjects(arg1:Array<string>,arg2:Array<string>):Promise<Array<storage.ProjectRecord>>;
 
-export function RequestInstallUpdate():Promise<updater.UpdateState>;
-
 export function RescanProject(arg1:string):Promise<storage.ProjectRecord>;
 
 export function ResetGitBashPath():Promise<envmgr.ShellEnvironmentInfo>;
 
 export function RestartCommand(arg1:string,arg2:string):Promise<void>;
+
+export function RestartToApplyUpdate():Promise<updater.UpdateState>;
 
 export function SaveAIConfig(arg1:envmgr.AIConfig):Promise<void>;
 

@@ -114,6 +114,10 @@ export function ImportRefreshTokens(arg1) {
   return window['go']['main']['App']['ImportRefreshTokens'](arg1);
 }
 
+export function InstallUpdate() {
+  return window['go']['main']['App']['InstallUpdate']();
+}
+
 export function IsWidgetMode() {
   return window['go']['main']['App']['IsWidgetMode']();
 }
@@ -178,10 +182,6 @@ export function ReorderProjects(arg1, arg2) {
   return window['go']['main']['App']['ReorderProjects'](arg1, arg2);
 }
 
-export function RequestInstallUpdate() {
-  return window['go']['main']['App']['RequestInstallUpdate']();
-}
-
 export function RescanProject(arg1) {
   return window['go']['main']['App']['RescanProject'](arg1);
 }
@@ -192,6 +192,10 @@ export function ResetGitBashPath() {
 
 export function RestartCommand(arg1, arg2) {
   return window['go']['main']['App']['RestartCommand'](arg1, arg2);
+}
+
+export function RestartToApplyUpdate() {
+  return window['go']['main']['App']['RestartToApplyUpdate']();
 }
 
 export function SaveAIConfig(arg1) {

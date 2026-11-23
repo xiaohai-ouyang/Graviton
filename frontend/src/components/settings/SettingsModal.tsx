@@ -97,7 +97,8 @@ export const SettingsModal: React.FC = () => {
     savingSettings: savingUpdateSettings,
     checkForUpdates,
     saveSettings: saveUpdateSettings,
-    requestInstall,
+    installUpdate,
+    restartToApply,
     cancelDeferred,
     setModalOpen: setUpdateModalOpen,
   } = useUpdateStore();
@@ -362,15 +363,19 @@ export const SettingsModal: React.FC = () => {
     },
     ready: {
       label: '可安装',
+      badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300',
+    },
+    installing: {
+      label: '安装中',
+      badgeClass: 'bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300',
+    },
+    installed: {
+      label: '待重启',
       badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300',
     },
     waiting_idle: {
       label: '等待空闲',
       badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300',
-    },
-    installing: {
-      label: '安装中',
-      badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300',
     },
     up_to_date: {
       label: '已是最新',
@@ -1109,7 +1114,7 @@ export const SettingsModal: React.FC = () => {
                                       )}
                                     </div>
                                     <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      基于 GitHub Releases 的自动检查、后台下载与重启安装（强制 SHA-256 校验）
+                                      基于 GitHub Releases 的自动检查、后台下载、应用内安装与重启生效（强制 SHA-256 校验）
                                     </p>
                                   </div>
                                 </div>
@@ -1142,6 +1147,11 @@ export const SettingsModal: React.FC = () => {
                                             : `已下载 ${fmtMB(updateState.downloadedBytes)}`}
                                       </span>
                                     </div>
+                                  ) : updateState?.status === 'installing' ? (
+                                    <span className="inline-flex items-center gap-1.5 text-xs text-sky-700 dark:text-sky-300">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      正在安装 v{updateState.latestVersion}…
+                                    </span>
                                   ) : updateState?.status === 'ready' ? (
                                     <>
                                       <button
@@ -1153,11 +1163,29 @@ export const SettingsModal: React.FC = () => {
                                       </button>
                                       <button
                                         type="button"
-                                        onClick={() => void requestInstall()}
+                                        onClick={() => void installUpdate()}
+                                        className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                                      >
+                                        <Download className="h-3.5 w-3.5" />
+                                        立即安装
+                                      </button>
+                                    </>
+                                  ) : updateState?.status === 'installed' ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => setUpdateModalOpen(true)}
+                                        className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                                      >
+                                        查看详情
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void restartToApply()}
                                         className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                                       >
                                         <RotateCcw className="h-3.5 w-3.5" />
-                                        立即重启更新
+                                        立即重启
                                       </button>
                                     </>
                                   ) : updateState?.status === 'waiting_idle' ? (
@@ -1263,7 +1291,7 @@ export const SettingsModal: React.FC = () => {
                                     自动检查并后台下载更新
                                   </div>
                                   <div className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                    启动后延迟检查，之后每 6 小时检查一次；下载完成后等待您手动确认重启
+                                    启动后延迟检查，之后每 6 小时检查一次；下载完成后等待您点击安装，安装完毕再提示重启
                                   </div>
                                 </div>
                                 <button

@@ -2,9 +2,12 @@ import React from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowRight,
+  CheckCircle2,
   CircleAlert,
+  Download,
   ExternalLink,
   Hourglass,
+  Loader2,
   RotateCcw,
   ShieldCheck,
   X,
@@ -85,18 +88,41 @@ const ReleaseNotes: React.FC<{ notes: string }> = ({ notes }) => {
 };
 
 export const UpdateModal: React.FC = () => {
-  const { state, modalOpen, setModalOpen, requestInstall, cancelDeferred, skipVersion } =
-    useUpdateStore();
+  const {
+    state,
+    modalOpen,
+    setModalOpen,
+    installUpdate,
+    restartToApply,
+    cancelDeferred,
+    skipVersion,
+  } = useUpdateStore();
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   if (!state || !state.latestVersion) {
     return null;
   }
 
-  const isWaiting = state.status === 'waiting_idle';
   const isReady = state.status === 'ready';
+  const isInstalling = state.status === 'installing';
+  const isInstalled = state.status === 'installed';
+  const isWaiting = state.status === 'waiting_idle';
   const targetChannel = state.latestVersion.includes('-rc.') ? 'rc' : 'stable';
   const channelMeta = CHANNEL_META[targetChannel] || CHANNEL_META.stable;
+
+  const modalTitle = isWaiting
+    ? '已预约空闲重启'
+    : isInstalled
+      ? '更新已安装完成'
+      : isInstalling
+        ? '正在安装更新'
+        : '发现新版本';
+
+  const headerIconClass = isWaiting
+    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/70 dark:text-amber-300'
+    : isInstalled
+      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
+      : 'bg-sky-100 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300';
 
   const openGitHub = async () => {
     if (!state.releaseUrl) return;
@@ -144,13 +170,23 @@ export const UpdateModal: React.FC = () => {
             {/* Header */}
             <div className="flex items-center justify-between gap-3 border-b border-neutral-200/80 px-5 py-4 dark:border-neutral-800">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
-                  <RotateCcw className="h-4 w-4" />
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${headerIconClass}`}
+                >
+                  {isWaiting ? (
+                    <Hourglass className="h-4 w-4" />
+                  ) : isInstalled ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : isInstalling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Dialog.Title className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                      发现新版本
+                      {modalTitle}
                     </Dialog.Title>
                     <span className="inline-flex items-center gap-1 rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                       v{state.currentVersion}
@@ -167,10 +203,16 @@ export const UpdateModal: React.FC = () => {
                     <span className="rounded border border-neutral-200 px-1 py-0.5 text-[10px] font-medium text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
                       {INSTALL_MODE_LABEL[state.installMode] || state.installMode}
                     </span>
-                    {(isReady || isWaiting) && (
+                    {(isReady || isInstalling) && (
                       <span className="inline-flex items-center gap-1 rounded border border-emerald-200/80 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/60 dark:text-emerald-300">
                         <ShieldCheck className="h-3 w-3" />
-                        SHA-256 校验通过
+                        已下载 · SHA-256 校验通过
+                      </span>
+                    )}
+                    {(isInstalled || isWaiting) && (
+                      <span className="inline-flex items-center gap-1 rounded border border-emerald-200/80 bg-emerald-50 px-1 py-0.5 text-[10px] font-medium text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/60 dark:text-emerald-300">
+                        <CheckCircle2 className="h-3 w-3" />
+                        已安装 · 待重启生效
                       </span>
                     )}
                   </Dialog.Description>
@@ -190,14 +232,40 @@ export const UpdateModal: React.FC = () => {
 
             {/* Body */}
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {isInstalling && (
+                <div className="rounded-xl border border-sky-200/80 bg-sky-50 p-3.5 dark:border-sky-800/70 dark:bg-sky-950/50">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-sky-800 dark:text-sky-200">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    正在安装 v{state.latestVersion}，请稍候…
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-sky-700 dark:text-sky-300">
+                    {state.installMode === 'nsis'
+                      ? '请在系统弹出的权限提示中确认管理员授权；安装将在当前安装目录原地完成，完成后会提示您重启应用。'
+                      : '正在应用新版本程序文件，完成后会提示您重启应用以生效。'}
+                  </p>
+                </div>
+              )}
+
+              {isInstalled && (
+                <div className="rounded-xl border border-emerald-200/80 bg-emerald-50 p-3.5 dark:border-emerald-800/70 dark:bg-emerald-950/50">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    v{state.latestVersion} 已安装完成
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-emerald-700 dark:text-emerald-300">
+                    新版本已写入完成，点击「立即重启」即可切换到新版本；如果选择稍后重启，下次打开 Graviton 时也会自动运行新版本。
+                  </p>
+                </div>
+              )}
+
               {isWaiting && (
                 <div className="rounded-xl border border-amber-200/80 bg-amber-50 p-3.5 dark:border-amber-800/70 dark:bg-amber-950/50">
                   <div className="flex items-center gap-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
                     <Hourglass className="h-3.5 w-3.5" />
-                    已预约空闲重启更新
+                    已预约空闲后自动重启
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-                    以下任务全部结束后将立即自动重启并安装更新：
+                    更新已安装完成，以下任务全部结束后将立即自动重启应用以启用新版本：
                   </p>
                   <ul className="mt-2 space-y-1">
                     {(state.busyReasons || []).map((reason, idx) => (
@@ -257,12 +325,32 @@ export const UpdateModal: React.FC = () => {
                       </button>
                     </Dialog.Close>
                   </>
+                ) : isInstalled ? (
+                  <>
+                    <Dialog.Close asChild>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                      >
+                        稍后重启
+                      </button>
+                    </Dialog.Close>
+                    <button
+                      type="button"
+                      onClick={() => void restartToApply()}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      立即重启
+                    </button>
+                  </>
                 ) : (
                   <>
                     <button
                       type="button"
+                      disabled={isInstalling}
                       onClick={() => state.latestVersion && void skipVersion(state.latestVersion)}
-                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
                     >
                       跳过此版本
                     </button>
@@ -276,12 +364,16 @@ export const UpdateModal: React.FC = () => {
                     </Dialog.Close>
                     <button
                       type="button"
-                      disabled={!isReady}
-                      onClick={() => void requestInstall()}
+                      disabled={!isReady || isInstalling}
+                      onClick={() => void installUpdate()}
                       className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      立即重启更新
+                      {isInstalling ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Download className="h-3.5 w-3.5" />
+                      )}
+                      {isInstalling ? '正在安装…' : '立即安装'}
                     </button>
                   </>
                 )}

@@ -478,9 +478,17 @@ export const api = {
     }
   },
 
-  async requestInstallUpdate(): Promise<UpdateState> {
+  async installUpdate(): Promise<UpdateState> {
     try {
-      return await WailsApp.RequestInstallUpdate();
+      return await WailsApp.InstallUpdate();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async restartToApplyUpdate(): Promise<UpdateState> {
+    try {
+      return await WailsApp.RestartToApplyUpdate();
     } catch (e) {
       throw parseError(e);
     }
