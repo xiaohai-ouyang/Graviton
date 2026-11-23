@@ -46,6 +46,7 @@ Run from the repo root unless noted.
 ## Frontend conventions
 
 - Tailwind CSS v4 via `@tailwindcss/vite`; theme tokens live in `frontend/src/style.css` under `@theme`, not in a `tailwind.config.js`.
+- Dynamic multi-column grids (quota metrics, account cards, detail groups, etc.) must use `adaptiveGridCols` from `frontend/src/utils/layout.ts` so a single item always spans full width (`grid-cols-1`) and 2 items do not leave an empty 3rd column.
 - Components follow shadcn/ui Nova plus Radix primitives, Lucide icons, `motion/react` animations that respect the reduced-motion setting, and Zustand stores.
 - User-facing UI copy and error messages are Simplified Chinese; match the existing tone.
 - No CGO: SQLite uses `modernc.org/sqlite`. Do not swap in a CGO-based driver.
