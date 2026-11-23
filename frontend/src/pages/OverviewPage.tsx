@@ -7,12 +7,11 @@ import {
   Link2,
   PictureInPicture2,
   RefreshCw,
-  ShieldCheck,
-  Sparkles,
   Table2,
   UserPlus,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ProviderLogo } from '../components/ProviderLogo';
 import {
   AntigravityProviderCard,
   QianwenProviderCard,
@@ -260,9 +259,7 @@ export const OverviewPage: React.FC = () => {
                 className="group flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-card p-4 shadow-2xs transition-all hover:border-neutral-300 hover:shadow-xs dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-neutral-700"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900">
-                    <ShieldCheck className="h-4 w-4" />
-                  </span>
+                  <ProviderLogo provider="antigravity" size="md" />
                   <div>
                     <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                       连接 Antigravity
@@ -289,9 +286,7 @@ export const OverviewPage: React.FC = () => {
                 className="group flex flex-col justify-between gap-3 rounded-xl border border-neutral-200/90 bg-card p-4 shadow-2xs transition-all hover:border-indigo-300 hover:shadow-xs dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-indigo-800"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white dark:bg-indigo-500">
-                    <Sparkles className="h-4 w-4" />
-                  </span>
+                  <ProviderLogo provider="qianwen" size="md" />
                   <div>
                     <div className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                       连接千问 · Token Plan

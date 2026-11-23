@@ -5,7 +5,6 @@ import {
   PictureInPicture2,
   RefreshCw,
   UserPlus,
-  Users,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useAccountStore } from '../store/useAccountStore';
@@ -15,6 +14,7 @@ import { isSettingsPath, openSettingsModal } from '../store/useSettingsModalStor
 import { sortAntigravityAccounts } from '../utils/quota';
 import { AccountCard } from '../components/AccountCard';
 import { AccountDetailModal } from '../components/AccountDetailModal';
+import { ProviderLogo } from '../components/ProviderLogo';
 
 type SortMode = 'default' | 'gemini' | 'claude';
 
@@ -66,26 +66,29 @@ export const QuotaPage: React.FC = () => {
     <>
       <header className="sticky top-0 z-10 border-b border-neutral-200/80 bg-card/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Antigravity · 额度
-            </h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              {currentAccount ? (
-                <span className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                  当前客户端账号：
-                  <strong className="font-medium text-neutral-800 dark:text-neutral-200">
-                    {currentAccount.email}
-                  </strong>
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                  当前客户端账号：未知
-                </span>
-              )}
-            </p>
+          <div className="flex items-center gap-2.5">
+            <ProviderLogo provider="antigravity" size="md" />
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                Antigravity · 额度
+              </h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                {currentAccount ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                    当前客户端账号：
+                    <strong className="font-medium text-neutral-800 dark:text-neutral-200">
+                      {currentAccount.email}
+                    </strong>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+                    当前客户端账号：未知
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -130,9 +133,7 @@ export const QuotaPage: React.FC = () => {
           </div>
         ) : accounts.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-card/50 p-12 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              <Users className="h-7 w-7" />
-            </div>
+            <ProviderLogo provider="antigravity" size="lg" />
             <h3 className="mt-4 text-base font-semibold text-neutral-800 dark:text-neutral-200">
               暂未收录任何 Antigravity 账号
             </h3>

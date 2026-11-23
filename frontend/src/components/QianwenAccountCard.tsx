@@ -14,6 +14,7 @@ import { useQianwenStore } from '../store/useQianwenStore';
 import { useResetTimeStore } from '../store/useResetTimeStore';
 import { QianwenAccountDisplay } from '../types';
 import { formatRelativeTime, getQuotaTextColor } from '../utils/quota';
+import { ProviderLogo } from './ProviderLogo';
 import { QuotaProgressBar } from './QuotaProgressBar';
 import { ResetTimeText } from './ResetTimeText';
 
@@ -66,9 +67,7 @@ export const QianwenAccountCard: React.FC<QianwenAccountCardProps> = ({
       {/* Header */}
       <div className="flex items-start justify-between gap-3 border-b border-neutral-100 px-4 py-3.5 dark:border-neutral-800/80">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
-            千
-          </div>
+          <ProviderLogo provider="qianwen" size="avatar" />
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">

@@ -14,13 +14,13 @@ import {
   Loader2,
   MonitorDown,
   RefreshCw,
-  ShieldCheck,
   Trash2,
   UserPlus,
   XCircle,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { BrowserOpenURL, EventsOn } from '../../../wailsjs/runtime/runtime';
+import { ProviderLogo } from '../ProviderLogo';
 import { useNowTick } from '../../hooks/useNowTick';
 import { api, parseError } from '../../services/api';
 import { useAccountStore } from '../../store/useAccountStore';
@@ -487,9 +487,7 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900">
-                <ShieldCheck className="h-4 w-4" />
-              </div>
+              <ProviderLogo provider="antigravity" size="md" />
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -865,9 +863,7 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-                <Link2 className="h-4 w-4" />
-              </div>
+              <ProviderLogo provider="qianwen" size="md" />
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
@@ -1111,9 +1107,7 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
                     key={acc.id}
                     className="flex items-center gap-2.5 rounded-xl border border-neutral-200/70 bg-neutral-50/50 px-3 py-2 dark:border-neutral-800 dark:bg-neutral-950/40"
                   >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
-                      千
-                    </div>
+                    <ProviderLogo provider="qianwen" size="row" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span

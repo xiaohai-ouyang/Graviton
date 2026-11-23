@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Link2, RefreshCw, Sparkles } from 'lucide-react';
+import { Link2, RefreshCw } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { ProviderLogo } from '../components/ProviderLogo';
 import { QianwenAccountCard } from '../components/QianwenAccountCard';
 import { useAccountStore } from '../store/useAccountStore';
 import { useMotionStore } from '../store/useMotionStore';
@@ -51,13 +52,16 @@ export const QianwenQuotaPage: React.FC = () => {
     <>
       <header className="sticky top-0 z-10 border-b border-neutral-200/80 bg-card/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-              千问 · Token Plan
-            </h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              千问 AI 平台（platform.qianwenai.com）个人版与团队版实时额度监控
-            </p>
+          <div className="flex items-center gap-2.5">
+            <ProviderLogo provider="qianwen" size="md" />
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+                千问 · Token Plan
+              </h2>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                千问 AI 平台（platform.qianwenai.com）个人版与团队版实时额度监控
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -88,9 +92,7 @@ export const QianwenQuotaPage: React.FC = () => {
           </div>
         ) : accounts.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-card/50 p-12 text-center dark:border-neutral-800 dark:bg-neutral-900/30">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-              <Sparkles className="h-7 w-7" />
-            </div>
+            <ProviderLogo provider="qianwen" size="lg" />
             <h3 className="mt-4 text-base font-semibold text-neutral-800 dark:text-neutral-200">
               暂未连接任何千问账号
             </h3>

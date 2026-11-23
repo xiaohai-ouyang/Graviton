@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
+import { ProviderLogo } from './ProviderLogo';
 import { ThemeToggle } from './ThemeToggle';
 import { useAccountStore } from '../store/useAccountStore';
 import { useAppInfoStore } from '../store/useAppInfoStore';
@@ -261,7 +262,10 @@ export const Sidebar: React.FC = () => {
                             className="inset-0 absolute rounded-lg bg-neutral-900 shadow-xs dark:bg-neutral-100"
                           />
                         )}
-                        <span className="relative z-10 truncate">{provider.label}</span>
+                        <span className="relative z-10 flex min-w-0 items-center gap-2">
+                          <ProviderLogo provider={provider.id} size="xs" />
+                          <span className="truncate">{provider.label}</span>
+                        </span>
                         <span
                           className={`relative z-10 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                             isActive

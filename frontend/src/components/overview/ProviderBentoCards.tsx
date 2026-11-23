@@ -12,11 +12,10 @@ import {
   KeyRound,
   Loader2,
   RefreshCw,
-  ShieldCheck,
-  Sparkles,
   Zap,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ProviderLogo } from '../ProviderLogo';
 import { ResetTimeText } from '../ResetTimeText';
 import { ThinQuotaBar } from './ThinQuotaBar';
 import { useAccountStore } from '../../store/useAccountStore';
@@ -214,9 +213,7 @@ export const AntigravityProviderCard: React.FC<ProviderBentoCardProps> = ({
           onClick={() => navigate('/quota/antigravity')}
           className="group inline-flex min-w-0 items-center gap-2 text-left"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900">
-            <ShieldCheck className="h-3.5 w-3.5" />
-          </span>
+          <ProviderLogo provider="antigravity" size="sm" />
           <span className="truncate text-sm font-semibold tracking-tight text-neutral-900 group-hover:underline dark:text-neutral-100">
             Antigravity
           </span>
@@ -612,9 +609,7 @@ export const QianwenProviderCard: React.FC<ProviderBentoCardProps> = ({
           onClick={() => navigate('/quota/qianwen')}
           className="group inline-flex min-w-0 items-center gap-2 text-left"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white dark:bg-indigo-500">
-            <Sparkles className="h-3.5 w-3.5" />
-          </span>
+          <ProviderLogo provider="qianwen" size="sm" />
           <span className="truncate text-sm font-semibold tracking-tight text-neutral-900 group-hover:underline dark:text-neutral-100">
             千问 · Token Plan
           </span>
