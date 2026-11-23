@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"graviton/internal/appservice"
+	"graviton/internal/deepseek"
 	"graviton/internal/qianwen"
 	"graviton/internal/storage"
 
@@ -17,13 +18,15 @@ func newTestApp(t *testing.T) *App {
 	sm, err := storage.NewStorageManager(t.TempDir())
 	require.NoError(t, err)
 	return &App{
-		service:              appservice.NewAppService(sm, nil),
-		qianwenSvc:           qianwen.NewService(sm, nil, nil),
-		storageMgr:           sm,
-		refreshingIDs:        make(map[string]bool),
-		switchingIDs:         make(map[string]bool),
-		qianwenRefreshingIDs: make(map[string]bool),
-		stopAuto:             make(chan struct{}),
+		service:               appservice.NewAppService(sm, nil),
+		qianwenSvc:            qianwen.NewService(sm, nil, nil),
+		deepseekSvc:           deepseek.NewService(sm, nil, nil),
+		storageMgr:            sm,
+		refreshingIDs:         make(map[string]bool),
+		switchingIDs:          make(map[string]bool),
+		qianwenRefreshingIDs:  make(map[string]bool),
+		deepseekRefreshingIDs: make(map[string]bool),
+		stopAuto:              make(chan struct{}),
 	}
 }
 
@@ -55,6 +58,23 @@ func TestRefreshAllQuotas_RejectsConcurrentRefresh(t *testing.T) {
 
 	app.mu.Lock()
 	assert.True(t, app.refreshingAll)
+	app.mu.Unlock()
+}
+
+func TestRefreshAllDeepSeekAccounts_RejectsConcurrentRefresh(t *testing.T) {
+	app := newTestApp(t)
+	app.mu.Lock()
+	app.deepseekRefreshingAll = true
+	app.mu.Unlock()
+
+	_, err := app.RefreshAllDeepSeekAccounts()
+	require.Error(t, err)
+	var appErr *appservice.AppError
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, "BUSY", appErr.Code)
+
+	app.mu.Lock()
+	assert.True(t, app.deepseekRefreshingAll)
 	app.mu.Unlock()
 }
 

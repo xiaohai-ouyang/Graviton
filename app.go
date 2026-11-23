@@ -10,6 +10,7 @@ import (
 
 	"graviton/internal/appservice"
 	"graviton/internal/client"
+	"graviton/internal/deepseek"
 	"graviton/internal/envmgr"
 	"graviton/internal/qianwen"
 	"graviton/internal/storage"
@@ -32,9 +33,10 @@ type WidgetConnection struct {
 // App struct
 type App struct {
 	ctx        context.Context
-	service    *appservice.AppService
-	qianwenSvc *qianwen.Service
-	storageMgr *storage.StorageManager
+	service     *appservice.AppService
+	qianwenSvc  *qianwen.Service
+	deepseekSvc *deepseek.Service
+	storageMgr  *storage.StorageManager
 
 	isWidget    bool
 	widgetPort  int
@@ -56,8 +58,10 @@ type App struct {
 	refreshingAll        bool
 	refreshingIDs        map[string]bool
 	switchingIDs         map[string]bool
-	qianwenRefreshingAll bool
-	qianwenRefreshingIDs map[string]bool
+	qianwenRefreshingAll  bool
+	qianwenRefreshingIDs  map[string]bool
+	deepseekRefreshingAll bool
+	deepseekRefreshingIDs map[string]bool
 	lastUpdated          string
 	stopAuto             chan struct{}
 	quitting             bool
@@ -71,6 +75,7 @@ func NewApp() *App {
 	}
 	svc := appservice.NewAppService(sm, nil)
 	qwSvc := qianwen.NewService(sm, nil, nil)
+	dsSvc := deepseek.NewService(sm, nil, nil)
 	theme := "light"
 	resetTimeFormat := "countdown"
 	widgetLocked := false
@@ -88,17 +93,19 @@ func NewApp() *App {
 		}
 	}
 	return &App{
-		service:              svc,
-		qianwenSvc:           qwSvc,
-		storageMgr:           sm,
-		theme:                theme,
-		resetTimeFormat:      resetTimeFormat,
-		widgetLocked:         widgetLocked,
-		widgetAlwaysOnTop:    widgetAlwaysOnTop,
-		refreshingIDs:        make(map[string]bool),
-		switchingIDs:         make(map[string]bool),
-		qianwenRefreshingIDs: make(map[string]bool),
-		stopAuto:             make(chan struct{}),
+		service:               svc,
+		qianwenSvc:            qwSvc,
+		deepseekSvc:           dsSvc,
+		storageMgr:            sm,
+		theme:                 theme,
+		resetTimeFormat:       resetTimeFormat,
+		widgetLocked:          widgetLocked,
+		widgetAlwaysOnTop:     widgetAlwaysOnTop,
+		refreshingIDs:         make(map[string]bool),
+		switchingIDs:          make(map[string]bool),
+		qianwenRefreshingIDs:  make(map[string]bool),
+		deepseekRefreshingIDs: make(map[string]bool),
+		stopAuto:              make(chan struct{}),
 	}
 }
 
@@ -567,6 +574,11 @@ func (a *App) startAutoRefreshLoopWithInterval(interval time.Duration) {
 				if a.qianwenSvc != nil {
 					if qwList, err := a.qianwenSvc.ListAccounts(); err == nil && len(qwList) > 0 {
 						_, _ = a.RefreshAllQianwenAccounts()
+					}
+				}
+				if a.deepseekSvc != nil {
+					if dsList, err := a.deepseekSvc.ListAccounts(); err == nil && len(dsList) > 0 {
+						_, _ = a.RefreshAllDeepSeekAccounts()
 					}
 				}
 			}

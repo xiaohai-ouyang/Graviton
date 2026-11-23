@@ -286,6 +286,87 @@ export namespace client {
 
 }
 
+export namespace deepseek {
+	
+	export class AccountDisplay {
+	    id: string;
+	    name: string;
+	    keyPreview: string;
+	    createdAt: string;
+	    balance: storage.DeepSeekBalanceSnapshot;
+	
+	    static createFrom(source: any = {}) {
+	        return new AccountDisplay(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.keyPreview = source["keyPreview"];
+	        this.createdAt = source["createdAt"];
+	        this.balance = this.convertValues(source["balance"], storage.DeepSeekBalanceSnapshot);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BatchRefreshResult {
+	    accountId: string;
+	    label: string;
+	    success: boolean;
+	    account?: AccountDisplay;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BatchRefreshResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.accountId = source["accountId"];
+	        this.label = source["label"];
+	        this.success = source["success"];
+	        this.account = this.convertValues(source["account"], AccountDisplay);
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace envmgr {
 	
 	export class AIConfig {
@@ -529,6 +610,62 @@ export namespace qianwen {
 
 export namespace storage {
 	
+	export class DeepSeekBalanceInfo {
+	    currency: string;
+	    totalBalance: string;
+	    grantedBalance: string;
+	    toppedUpBalance: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeepSeekBalanceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.currency = source["currency"];
+	        this.totalBalance = source["totalBalance"];
+	        this.grantedBalance = source["grantedBalance"];
+	        this.toppedUpBalance = source["toppedUpBalance"];
+	    }
+	}
+	export class DeepSeekBalanceSnapshot {
+	    isAvailable: boolean;
+	    balanceInfos: DeepSeekBalanceInfo[];
+	    authInvalid: boolean;
+	    lastRefreshedAt: string;
+	    errorMessage?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeepSeekBalanceSnapshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isAvailable = source["isAvailable"];
+	        this.balanceInfos = this.convertValues(source["balanceInfos"], DeepSeekBalanceInfo);
+	        this.authInvalid = source["authInvalid"];
+	        this.lastRefreshedAt = source["lastRefreshedAt"];
+	        this.errorMessage = source["errorMessage"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ModelQuota {
 	    name: string;
 	    displayName?: string;

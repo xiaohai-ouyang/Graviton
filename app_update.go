@@ -78,9 +78,12 @@ func (a *App) getUpdateBusyReasons() []string {
 	var reasons []string
 	a.mu.Lock()
 	switching := len(a.switchingIDs) > 0
-	refreshingAll := a.refreshingAll || a.qianwenRefreshingAll
+	refreshingAll := a.refreshingAll || a.qianwenRefreshingAll || a.deepseekRefreshingAll
 	a.mu.Unlock()
-	if (a.service != nil && a.service.IsBusy()) || (a.qianwenSvc != nil && a.qianwenSvc.IsBusy()) || switching || refreshingAll {
+	if (a.service != nil && a.service.IsBusy()) ||
+		(a.qianwenSvc != nil && a.qianwenSvc.IsBusy()) ||
+		(a.deepseekSvc != nil && a.deepseekSvc.IsBusy()) ||
+		switching || refreshingAll {
 		reasons = append(reasons, "账号操作正在进行（切号 / 授权 / 配额刷新）")
 	}
 	if a.procMgr != nil {
