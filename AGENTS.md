@@ -47,6 +47,8 @@ Run from the repo root unless noted.
 
 - Tailwind CSS v4 via `@tailwindcss/vite`; theme tokens live in `frontend/src/style.css` under `@theme`, not in a `tailwind.config.js`.
 - Dynamic multi-column grids (quota metrics, account cards, detail groups, etc.) must use `adaptiveGridCols` from `frontend/src/utils/layout.ts` so a single item always spans full width (`grid-cols-1`) and 2 items do not leave an empty 3rd column.
+- Let layout explain instead of adding secondary descriptions, modal/page subtitles, or redundant count/status tags (e.g., "已连接 N 个账号" when the list sits right below); keep only genuinely stateful indicators (tier, active, forbidden, expired, errors).
+- Segmented switchers whose options have clear icon semantics (theme, motion, reset-time format, card/table view) must be icon-only via `IconSegmentedControl` (`frontend/src/components/IconSegmentedControl.tsx`) with hover Radix Tooltips carrying concise labels and live details; keep short text only for proper-noun or text-only concepts (Shell names, 已用/剩余, model sort).
 - Components follow shadcn/ui Nova plus Radix primitives, Lucide icons, `motion/react` animations that respect the reduced-motion setting, and Zustand stores.
 - User-facing UI copy and error messages are Simplified Chinese; match the existing tone.
 - No CGO: SQLite uses `modernc.org/sqlite`. Do not swap in a CGO-based driver.
