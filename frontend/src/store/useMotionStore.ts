@@ -5,6 +5,7 @@ export type MotionMode = 'auto' | 'full' | 'off';
 interface AutoEvaluation {
   resolved: 'full' | 'off';
   reason: string;
+  summary: string;
 }
 
 export interface MotionState {
@@ -12,6 +13,7 @@ export interface MotionState {
   resolvedMotion: 'full' | 'off';
   shouldAnimate: boolean;
   autoReason: string;
+  autoSummary: string;
   setMotionMode: (mode: MotionMode) => void;
   initMotion: () => () => void;
 }
@@ -32,7 +34,11 @@ function getStoredMotionMode(): MotionMode {
 
 function evaluateAutoMotion(): AutoEvaluation {
   if (typeof window === 'undefined') {
-    return { resolved: 'full', reason: '默认启用过渡效果' };
+    return {
+      resolved: 'full',
+      reason: '默认启用过渡效果',
+      summary: '已开',
+    };
   }
 
   // 1. OS / Browser prefers-reduced-motion accessibility & performance setting
@@ -43,6 +49,7 @@ function evaluateAutoMotion(): AutoEvaluation {
     return {
       resolved: 'off',
       reason: '检测到系统已开启「减弱动画」，已自动关闭过渡效果',
+      summary: '已关 (系统减弱动画)',
     };
   }
 
@@ -55,6 +62,7 @@ function evaluateAutoMotion(): AutoEvaluation {
     return {
       resolved: 'off',
       reason: `检测到低功耗处理器 (${cores} 逻辑核心)，已自动关闭过渡效果以保障流畅度`,
+      summary: `已关 (${cores}核)`,
     };
   }
 
@@ -62,13 +70,15 @@ function evaluateAutoMotion(): AutoEvaluation {
     return {
       resolved: 'off',
       reason: `检测到设备内存较小 (≤${memory}GB)，已自动关闭过渡效果以保障流畅度`,
+      summary: `已关 (≤${memory}GB)`,
     };
   }
 
-  const hwSummary = `${cores} 核${memory ? ` / ${memory}GB` : ''}`;
+  const hwSummary = `${cores}核${memory ? `/${memory}GB` : ''}`;
   return {
     resolved: 'full',
-    reason: `设备性能充足 (${hwSummary})，已自动启用全部过渡效果`,
+    reason: `设备性能充足 (${cores} 核${memory ? ` / ${memory}GB` : ''})，已自动启用全部过渡效果`,
+    summary: `已开 (${hwSummary})`,
   };
 }
 
@@ -86,6 +96,7 @@ function resolveState(mode: MotionMode): {
   resolvedMotion: 'full' | 'off';
   shouldAnimate: boolean;
   autoReason: string;
+  autoSummary: string;
 } {
   const autoEval = evaluateAutoMotion();
   const resolvedMotion: 'full' | 'off' =
@@ -94,6 +105,7 @@ function resolveState(mode: MotionMode): {
     resolvedMotion,
     shouldAnimate: resolvedMotion === 'full',
     autoReason: autoEval.reason,
+    autoSummary: autoEval.summary,
   };
 }
 
