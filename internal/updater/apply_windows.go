@@ -329,8 +329,11 @@ function Write-Log([string]$msg) {
 }
 Write-Log "restart_app start (pid=%d)"
 $deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt $deadline) {
-    if (-not (Get-Process -Id %d -ErrorAction SilentlyContinue)) { break }
+while (Get-Process -Id %d -ErrorAction SilentlyContinue) {
+    if ((Get-Date) -ge $deadline) {
+        Write-Log "timed out waiting for the old app to exit"
+        exit 1
+    }
     Start-Sleep -Milliseconds 150
 }
 try {
@@ -352,10 +355,12 @@ func LaunchRestartHelper(p RestartParams) error {
 		return fmt.Errorf("写入重启脚本失败: %w", err)
 	}
 
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", p.ScriptPath)
+	// Windows PowerShell needs a hidden console context to run the script.
+	// With DETACHED_PROCESS it can exit before reaching the script.
+	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", p.ScriptPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.DETACHED_PROCESS,
+		CreationFlags: windows.CREATE_NO_WINDOW,
 	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("启动重启辅助进程失败: %w", err)
