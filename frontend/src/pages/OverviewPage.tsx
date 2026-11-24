@@ -12,6 +12,10 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import {
+  IconSegmentedControl,
+  IconSegmentedOption,
+} from '../components/IconSegmentedControl';
 import { ProviderLogo } from '../components/ProviderLogo';
 import {
   AntigravityProviderCard,
@@ -31,9 +35,9 @@ import { useQianwenStore } from '../store/useQianwenStore';
 import { openSettingsModal } from '../store/useSettingsModalStore';
 import { QuotaDisplayMode } from '../utils/quota';
 
-const VIEW_MODES: { id: OverviewViewMode; label: string; icon: React.ReactNode }[] = [
-  { id: 'card', label: '卡片', icon: <LayoutGrid className="h-3 w-3" /> },
-  { id: 'table', label: '表格', icon: <Table2 className="h-3 w-3" /> },
+const VIEW_MODES: IconSegmentedOption<OverviewViewMode>[] = [
+  { value: 'card', label: '卡片视图', tooltip: '卡片视图', icon: LayoutGrid },
+  { value: 'table', label: '表格视图', tooltip: '表格视图', icon: Table2 },
 ];
 
 const QUOTA_MODES: { id: QuotaDisplayMode; label: string }[] = [
@@ -88,15 +92,6 @@ export const OverviewPage: React.FC = () => {
   if (qwAccounts.length > 0) connectedProviders.push('qianwen');
   if (dsAccounts.length > 0) connectedProviders.push('deepseek');
 
-  const subtitleParts: string[] = [];
-  if (agAccounts.length > 0) subtitleParts.push(`Antigravity ${agAccounts.length}`);
-  if (qwAccounts.length > 0) subtitleParts.push(`千问 ${qwAccounts.length}`);
-  if (dsAccounts.length > 0) subtitleParts.push(`DeepSeek ${dsAccounts.length}`);
-  const headerSubtitle =
-    subtitleParts.length > 0
-      ? `已连接 ${subtitleParts.join(' · ')}`
-      : '尚未连接任何供应商账号';
-
   const handleRefreshAllProviders = async () => {
     const tasks: Promise<unknown>[] = [];
     if (agAccounts.length > 0 && !agRefreshingAll) {
@@ -123,14 +118,9 @@ export const OverviewPage: React.FC = () => {
     <>
       <header className="sticky top-0 z-30 border-b border-neutral-200/80 bg-card dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-5 py-3">
-          <div className="flex items-baseline gap-2.5">
-            <h2 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-              概览
-            </h2>
-            <span className="text-xs text-neutral-500 dark:text-neutral-400">
-              {headerSubtitle}
-            </span>
-          </div>
+          <h2 className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+            概览
+          </h2>
 
           {/* High-Density Console Toolbar */}
           <div className="flex flex-wrap items-center gap-1.5">
@@ -175,39 +165,15 @@ export const OverviewPage: React.FC = () => {
             </button>
 
             {/* Card / Table Switcher */}
-            <div
-              role="group"
-              aria-label="切换卡片或表格视图"
-              className="inline-flex h-7 items-center rounded-lg border border-neutral-200/90 bg-neutral-100/80 p-0.5 dark:border-neutral-800 dark:bg-neutral-950/70"
-            >
-              {VIEW_MODES.map((opt) => {
-                const active = viewMode === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setViewMode(opt.id)}
-                    className={`relative inline-flex h-full items-center gap-1 rounded-md px-2 text-[11px] font-medium transition-colors ${
-                      active
-                        ? 'text-neutral-900 dark:text-neutral-100'
-                        : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
-                    }`}
-                  >
-                    {active && (
-                      <motion.span
-                        layoutId={shouldAnimate ? 'overview-view-pill' : undefined}
-                        transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
-                        className="absolute inset-0 rounded-md bg-card shadow-2xs dark:bg-neutral-800"
-                      />
-                    )}
-                    <span className="relative z-10 inline-flex items-center gap-1">
-                      {opt.icon}
-                      <span>{opt.label}</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <IconSegmentedControl
+              value={viewMode}
+              onChange={setViewMode}
+              options={VIEW_MODES}
+              ariaLabel="切换卡片或表格视图"
+              layoutIdPrefix="overview-view-pill"
+              size="sm"
+              tooltipSide="bottom"
+            />
 
             {/* Used / Remaining Switcher */}
             <div

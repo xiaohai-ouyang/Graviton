@@ -35,7 +35,6 @@ import { useDeepSeekStore } from '../../store/useDeepSeekStore';
 import { useEnvStore } from '../../store/useEnvStore';
 import { useMotionStore } from '../../store/useMotionStore';
 import { useQianwenStore } from '../../store/useQianwenStore';
-import { useResetTimeStore } from '../../store/useResetTimeStore';
 import {
   extractSettingsSlug,
   getBackgroundLocation,
@@ -89,8 +88,7 @@ export const SettingsModal: React.FC = () => {
   } = useEnvStore();
 
   const { appInfo, changelog, loadAppInfo, openChangelog } = useAppInfoStore();
-  const { motionMode, shouldAnimate, autoReason } = useMotionStore();
-  const resetTimeFormat = useResetTimeStore((s) => s.resetTimeFormat);
+  const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
   const setLastSection = useSettingsModalStore((s) => s.setLastSection);
   const {
     state: updateState,
@@ -566,9 +564,6 @@ export const SettingsModal: React.FC = () => {
                                     {sectionLabel}
                                   </span>
                                 </div>
-                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
-                                  {entry.description}
-                                </p>
                               </button>
                             );
                           })}
@@ -605,12 +600,12 @@ export const SettingsModal: React.FC = () => {
 
                   {/* Right Scrollable Content */}
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                    <header className="flex shrink-0 items-start justify-between gap-4 border-b border-settings-border px-6 py-4">
+                    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-settings-border px-6 py-4">
                       <div className="min-w-0">
                         <Dialog.Title className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
                           {activeSectionMeta.title}
                         </Dialog.Title>
-                        <Dialog.Description className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                        <Dialog.Description className="sr-only">
                           {activeSectionMeta.subtitle}
                         </Dialog.Description>
                       </div>
@@ -643,20 +638,15 @@ export const SettingsModal: React.FC = () => {
                           <section className="rounded-2xl border border-neutral-200/80 bg-card/90 p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
                             <div
                               data-settings-entry-id="theme"
-                              className={`-m-2 flex flex-wrap items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('theme')}`}
+                              className={`-m-2 flex items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('theme')}`}
                             >
                               <div className="flex items-center gap-2.5">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                   <Palette className="h-4 w-4" />
                                 </div>
-                                <div>
-                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                    界面外观
-                                  </h3>
-                                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                    选择跟随系统、浅色或深色主题模式
-                                  </p>
-                                </div>
+                                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                  界面外观
+                                </h3>
                               </div>
                               <ThemeToggle />
                             </div>
@@ -664,24 +654,15 @@ export const SettingsModal: React.FC = () => {
                             <div className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-800">
                               <div
                                 data-settings-entry-id="motion"
-                                className={`-m-2 flex flex-wrap items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('motion')}`}
+                                className={`-m-2 flex items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('motion')}`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                     <WandSparkles className="h-4 w-4" />
                                   </div>
-                                  <div>
-                                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                      过渡动效
-                                    </h3>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      {motionMode === 'auto'
-                                        ? autoReason
-                                        : motionMode === 'full'
-                                        ? '已开启页面切换、列表展开收缩与排序过渡效果'
-                                        : '已关闭界面过渡效果，采用零延迟即时响应'}
-                                    </p>
-                                  </div>
+                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                    过渡动效
+                                  </h3>
                                 </div>
                                 <MotionToggle />
                               </div>
@@ -690,22 +671,15 @@ export const SettingsModal: React.FC = () => {
                             <div className="mt-4 border-t border-neutral-100 pt-4 dark:border-neutral-800">
                               <div
                                 data-settings-entry-id="reset-time"
-                                className={`-m-2 flex flex-wrap items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('reset-time')}`}
+                                className={`-m-2 flex items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('reset-time')}`}
                               >
                                 <div className="flex items-center gap-2.5">
                                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                     <Clock className="h-4 w-4" />
                                   </div>
-                                  <div>
-                                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                      重置时间格式
-                                    </h3>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      {resetTimeFormat === 'countdown'
-                                        ? '显示距离重置的剩余倒计时（如“还有6天5小时重置”），悬停可查看精确时间'
-                                        : '显示具体重置时间点（如“11月29日 06:38 重置”），悬停可查看剩余倒计时'}
-                                    </p>
-                                  </div>
+                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                    重置时间格式
+                                  </h3>
                                 </div>
                                 <ResetTimeModeToggle />
                               </div>
@@ -715,20 +689,15 @@ export const SettingsModal: React.FC = () => {
                           <section className="rounded-2xl border border-neutral-200/80 bg-card/90 p-5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900/60">
                             <div
                               data-settings-entry-id="widget-top"
-                              className={`-m-2 flex flex-wrap items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('widget-top')}`}
+                              className={`-m-2 flex items-center justify-between gap-4 p-2 transition-colors ${entryHighlightClass('widget-top')}`}
                             >
                               <div className="flex items-center gap-2.5">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                   <Layers className="h-4 w-4" />
                                 </div>
-                                <div>
-                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                    悬浮窗
-                                  </h3>
-                                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                    控制桌面悬浮窗是否始终置顶于其他窗口之上（关闭后可避免遮挡鼠标点击）
-                                  </p>
-                                </div>
+                                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                  悬浮窗置顶
+                                </h3>
                               </div>
                               <button
                                 type="button"
@@ -764,37 +733,28 @@ export const SettingsModal: React.FC = () => {
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                   <MonitorCheck className="h-4 w-4" />
                                 </div>
-                                <div>
-                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                    客户端路径
-                                  </h3>
-                                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                    默认自动探测本机运行进程或标准安装目录。若安装于非标准目录，可在此手动指定。
-                                  </p>
-                                </div>
+                                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                  Antigravity 客户端路径
+                                </h3>
                               </div>
 
-                              <div className="mt-4">
-                                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                                  Antigravity 可执行文件路径
-                                </label>
-                                <div className="mt-2 flex gap-2">
-                                  <input
-                                    type="text"
-                                    readOnly
-                                    value={clientPath || '自动探测 (默认路径)'}
-                                    placeholder="未指定自定义路径，系统将自动探测"
-                                    className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 focus:outline-hidden dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={selectClientPath}
-                                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                                  >
-                                    <FolderOpen className="h-3.5 w-3.5" />
-                                    <span>浏览...</span>
-                                  </button>
-                                </div>
+                              <div className="mt-4 flex gap-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  aria-label="Antigravity 可执行文件路径"
+                                  value={clientPath || '自动探测 (默认路径)'}
+                                  placeholder="未指定自定义路径，系统将自动探测"
+                                  className="w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-800 focus:outline-hidden dark:border-neutral-800 dark:bg-neutral-800 dark:text-neutral-200"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={selectClientPath}
+                                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 bg-card px-3.5 py-2 text-xs font-medium text-neutral-700 shadow-xs transition-colors hover:bg-neutral-50 active:scale-[0.98] dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
+                                >
+                                  <FolderOpen className="h-3.5 w-3.5" />
+                                  <span>浏览...</span>
+                                </button>
                               </div>
                             </div>
                           </section>
@@ -809,14 +769,9 @@ export const SettingsModal: React.FC = () => {
                                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                                     <Terminal className="h-4 w-4" />
                                   </div>
-                                  <div>
-                                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                      命令执行环境（Shell）
-                                    </h3>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      Windows 默认优先使用 PowerShell；未单独指定环境的指令（含扫描与 AI 优化指令）均跟随全局默认。
-                                    </p>
-                                  </div>
+                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                    默认执行 Shell
+                                  </h3>
                                 </div>
 
                                 <div
@@ -913,11 +868,8 @@ export const SettingsModal: React.FC = () => {
                                 className={`-m-2 p-2 transition-colors ${entryHighlightClass('git-bash-path')}`}
                               >
                                 <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                                  Git Bash 可执行文件路径（bash.exe，可选）
+                                  Git Bash 路径（可选）
                                 </label>
-                                <p className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                  默认自动探测本机 Git for Windows 安装路径与 PATH（自动排除 WSL System32\bash.exe）；若安装在非标准位置可在此指定。
-                                </p>
                                 <div className="mt-2 flex gap-2">
                                   <input
                                     type="text"
@@ -971,14 +923,9 @@ export const SettingsModal: React.FC = () => {
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
                                   <Sparkles className="h-4 w-4" />
                                 </div>
-                                <div>
-                                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                    轻量 AI 指令助手（可选）
-                                  </h3>
-                                  <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                    配置 OpenAI 兼容接口（如 DeepSeek、Gemini、Ollama），导入项目时后台自动优化中文命名与核心指令推荐
-                                  </p>
-                                </div>
+                                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                  AI 指令助手
+                                </h3>
                               </div>
 
                               <button
@@ -1052,10 +999,7 @@ export const SettingsModal: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
-                              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                                API Key 加密存储于本机 Windows 凭据管理器
-                              </span>
+                            <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
                               <div className="flex items-center gap-2">
                                 <button
                                   type="button"
@@ -1105,28 +1049,23 @@ export const SettingsModal: React.FC = () => {
                                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                     <Download className="h-4 w-4" />
                                   </div>
-                                  <div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                        应用更新
-                                      </h3>
-                                      {updateState && (
-                                        <span
-                                          className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-                                            (updateStatusMeta[updateState.status] || updateStatusMeta.idle)
-                                              .badgeClass
-                                          }`}
-                                        >
-                                          {
-                                            (updateStatusMeta[updateState.status] || updateStatusMeta.idle)
-                                              .label
-                                          }
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      基于 GitHub Releases 的自动检查、后台下载、应用内安装与重启生效（强制 SHA-256 校验）
-                                    </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                      应用更新
+                                    </h3>
+                                    {updateState && (
+                                      <span
+                                        className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                                          (updateStatusMeta[updateState.status] || updateStatusMeta.idle)
+                                            .badgeClass
+                                        }`}
+                                      >
+                                        {
+                                          (updateStatusMeta[updateState.status] || updateStatusMeta.idle)
+                                            .label
+                                        }
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
 
@@ -1297,14 +1236,9 @@ export const SettingsModal: React.FC = () => {
 
                               {/* Auto check switch */}
                               <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-neutral-200/70 bg-neutral-50/70 px-3.5 py-3 dark:border-neutral-800 dark:bg-neutral-800/40">
-                                <div>
-                                  <div className="text-xs font-medium text-neutral-800 dark:text-neutral-200">
-                                    自动检查并后台下载更新
-                                  </div>
-                                  <div className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                    启动后延迟检查，之后每 6 小时检查一次；下载完成后等待您点击安装，安装完毕再提示重启
-                                  </div>
-                                </div>
+                                <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200">
+                                  自动检查并后台下载更新
+                                </span>
                                 <button
                                   type="button"
                                   role="switch"
@@ -1364,9 +1298,6 @@ export const SettingsModal: React.FC = () => {
                                     保存
                                   </button>
                                 </div>
-                                <p className="mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
-                                  留空直连 GitHub；镜像仅用于加速下载，安装前仍强制校验官方 SHA-256，篡改包会被拒绝
-                                </p>
                               </div>
                             </div>
                           </section>
@@ -1408,29 +1339,24 @@ export const SettingsModal: React.FC = () => {
                                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
                                     <FileClock className="h-4 w-4" />
                                   </div>
-                                  <div>
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                                        关于与更新日志
-                                      </h3>
-                                      {appInfo && (
-                                        <>
-                                          <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
-                                            v{appInfo.version}
-                                          </span>
-                                          <span
-                                            className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
-                                              (CHANNEL_META[appInfo.channel] || CHANNEL_META.dev).badgeClass
-                                            }`}
-                                          >
-                                            {(CHANNEL_META[appInfo.channel] || CHANNEL_META.dev).label}
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                                      查看当前构建元数据与各版本功能演进记录
-                                    </p>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                                      关于与更新日志
+                                    </h3>
+                                    {appInfo && (
+                                      <>
+                                        <span className="rounded-md bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-neutral-800 dark:bg-neutral-800 dark:text-neutral-200">
+                                          v{appInfo.version}
+                                        </span>
+                                        <span
+                                          className={`rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${
+                                            (CHANNEL_META[appInfo.channel] || CHANNEL_META.dev).badgeClass
+                                          }`}
+                                        >
+                                          {(CHANNEL_META[appInfo.channel] || CHANNEL_META.dev).label}
+                                        </span>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
 

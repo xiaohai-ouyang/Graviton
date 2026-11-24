@@ -613,14 +613,9 @@ export const EnvironmentPage: React.FC = () => {
       {/* Top Bar */}
       <header className="shrink-0 border-b border-neutral-200/80 bg-card/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
-          <div>
-            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-              环境
-            </h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
-              启动、停止、重启项目并查看实时终端输出
-            </p>
-          </div>
+          <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+            环境
+          </h2>
 
           <div className="flex items-center gap-2">
             <form onSubmit={handleQuickImport} className="hidden items-center sm:flex">

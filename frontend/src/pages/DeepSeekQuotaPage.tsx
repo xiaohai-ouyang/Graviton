@@ -64,14 +64,9 @@ export const DeepSeekQuotaPage: React.FC = () => {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <ProviderLogo provider="deepseek" size="md" />
-            <div>
-              <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-                DeepSeek · 余额
-              </h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                DeepSeek 开放平台（api.deepseek.com）账户实时余额与赠金明细监控
-              </p>
-            </div>
+            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              DeepSeek · 余额
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -178,12 +173,6 @@ export const DeepSeekQuotaPage: React.FC = () => {
                 </div>
               </div>
             )}
-
-            <div className="flex items-center justify-between px-0.5 text-xs">
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                已连接账号 ({accounts.length})
-              </span>
-            </div>
 
             <div
               className={`grid gap-4 ${adaptiveGridCols(

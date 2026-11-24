@@ -75,27 +75,9 @@ export const QuotaPage: React.FC = () => {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <ProviderLogo provider="antigravity" size="md" />
-            <div>
-              <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-                Antigravity · 额度
-              </h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                {currentAccount ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                    当前客户端账号：
-                    <strong className="font-medium text-neutral-800 dark:text-neutral-200">
-                      {currentAccount.email}
-                    </strong>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-                    <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
-                    当前客户端账号：未知
-                  </span>
-                )}
-              </p>
-            </div>
+            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              Antigravity · 额度
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -164,11 +146,7 @@ export const QuotaPage: React.FC = () => {
           <div className="space-y-4">
             {/* Compact Status & Sort Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-3 px-0.5">
-              <div className="flex flex-wrap items-center gap-2.5 text-xs">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  全部账号 ({accounts.length})
-                </span>
-                <span className="text-neutral-300 dark:text-neutral-700">|</span>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 {currentAccount ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-300">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -177,16 +155,13 @@ export const QuotaPage: React.FC = () => {
                 ) : (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950/50 dark:text-amber-300">
                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                    当前客户端账号未收录或未知
+                    当前客户端账号未知
                   </span>
                 )}
               </div>
 
               <div className="flex items-center gap-1.5">
-                <span className="hidden items-center gap-1 text-[11px] text-neutral-500 sm:inline-flex dark:text-neutral-400">
-                  <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-                  排序:
-                </span>
+                <ArrowDownWideNarrow className="hidden h-3.5 w-3.5 text-neutral-400 sm:inline-block dark:text-neutral-500" />
                 <div className="inline-flex rounded-lg border border-neutral-200/90 bg-card p-0.5 shadow-2xs dark:border-neutral-800 dark:bg-neutral-900">
                   {(
                     [

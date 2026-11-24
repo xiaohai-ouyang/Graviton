@@ -61,14 +61,9 @@ export const QianwenQuotaPage: React.FC = () => {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-3.5">
           <div className="flex items-center gap-2.5">
             <ProviderLogo provider="qianwen" size="md" />
-            <div>
-              <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-                千问 · Token Plan
-              </h2>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                千问 AI 平台（platform.qianwenai.com）个人版与团队版实时额度监控
-              </p>
-            </div>
+            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              千问 · Token Plan
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -116,40 +111,32 @@ export const QianwenQuotaPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-0.5 text-xs">
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                已连接账号 ({accounts.length})
-              </span>
-            </div>
-
-            <div
-              className={`grid gap-4 ${adaptiveGridCols(
-                accounts.length,
-                'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
-                'grid-cols-1 md:grid-cols-2'
-              )}`}
-            >
-              <AnimatePresence initial={false}>
-                {accounts.map((account) => (
-                  <motion.div
-                    key={account.id}
-                    layout={shouldAnimate ? 'position' : false}
-                    initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={shouldAnimate ? { opacity: 0, scale: 0.96 } : { opacity: 0 }}
-                    transition={
-                      shouldAnimate
-                        ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-                        : { duration: 0 }
-                    }
-                    className="flex"
-                  >
-                    <QianwenAccountCard account={account} onReauth={openReauth} />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+          <div
+            className={`grid gap-4 ${adaptiveGridCols(
+              accounts.length,
+              'grid-cols-1 md:grid-cols-2 xl:grid-cols-3',
+              'grid-cols-1 md:grid-cols-2'
+            )}`}
+          >
+            <AnimatePresence initial={false}>
+              {accounts.map((account) => (
+                <motion.div
+                  key={account.id}
+                  layout={shouldAnimate ? 'position' : false}
+                  initial={shouldAnimate ? { opacity: 0, y: 6 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={shouldAnimate ? { opacity: 0, scale: 0.96 } : { opacity: 0 }}
+                  transition={
+                    shouldAnimate
+                      ? { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                      : { duration: 0 }
+                  }
+                  className="flex"
+                >
+                  <QianwenAccountCard account={account} onReauth={openReauth} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </main>

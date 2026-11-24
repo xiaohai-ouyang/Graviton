@@ -74,7 +74,6 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
   const nowMs = useNowTick();
 
   const agAccounts = useAccountStore((s) => s.accounts);
-  const agHasLoaded = useAccountStore((s) => s.hasLoaded);
   const capturing = useAccountStore((s) => s.capturing);
   const qwAccounts = useQianwenStore((s) => s.accounts);
   const qwHasLoaded = useQianwenStore((s) => s.hasLoaded);
@@ -614,32 +613,18 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
           data-settings-entry-id="provider-antigravity"
           className={`-m-2 p-2 transition-colors ${entryHighlightClass('provider-antigravity')}`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 ${
+              agAddOpen || agAccounts.length > 0
+                ? 'border-b border-neutral-100 pb-3.5 dark:border-neutral-800'
+                : ''
+            }`}
+          >
             <div className="flex items-center gap-2.5">
               <ProviderLogo provider="antigravity" size="md" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    Antigravity
-                  </h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      agAccounts.length > 0
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                    }`}
-                  >
-                    {agHasLoaded
-                      ? agAccounts.length > 0
-                        ? `已连接 ${agAccounts.length} 个账号`
-                        : '未连接'
-                      : '加载中...'}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Google Antigravity 客户端账号 · OAuth / Token 导入 / 本机收录
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                Antigravity
+              </h3>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -731,10 +716,6 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
                       {/* Tab 1: Browser OAuth */}
                       {activeTab === 'oauth' && (
                         <div className="mt-4 space-y-4">
-                          <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                            通过 Google 官方 OAuth 授权登录新账号。不会自动切换或重启当前正在运行的 Antigravity 客户端。
-                          </p>
-
                           {!oauthSession ? (
                             <button
                               type="button"
@@ -900,10 +881,7 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
 
                       {/* Tab 3: Capture Current Client Account */}
                       {activeTab === 'capture' && (
-                        <div className="mt-4 space-y-4">
-                          <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                            自动读取本机 Antigravity 客户端当前已登录的账号凭据（支持新版系统凭据库与旧版数据库）并收录到 Graviton。
-                          </p>
+                        <div className="mt-4">
                           <button
                             type="button"
                             onClick={handleCaptureCurrent}
@@ -990,32 +968,18 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
           data-settings-entry-id="provider-qianwen"
           className={`-m-2 p-2 transition-colors ${entryHighlightClass('provider-qianwen')}`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 ${
+              qwConnectOpen || qwAccounts.length > 0
+                ? 'border-b border-neutral-100 pb-3.5 dark:border-neutral-800'
+                : ''
+            }`}
+          >
             <div className="flex items-center gap-2.5">
               <ProviderLogo provider="qianwen" size="md" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    千问 · Token Plan
-                  </h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      qwAccounts.length > 0
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                    }`}
-                  >
-                    {qwHasLoaded
-                      ? qwAccounts.length > 0
-                        ? `已连接 ${qwAccounts.length} 个账号`
-                        : '未连接'
-                      : '加载中...'}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  千问 AI 平台个人版 / 团队版 · OAuth Device Flow 授权
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                千问 · Token Plan
+              </h3>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -1075,10 +1039,6 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
                       </button>
                     </div>
                   )}
-
-                  <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    通过千问官方 OAuth 2.0 Device Flow + PKCE 协议授权登录（无需安装 CLI 或配置 AK/SK），授权凭据仅安全保存在 Windows 凭据管理器中。
-                  </p>
 
                   {!qwSession ? (
                     <button
@@ -1294,32 +1254,18 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
           data-settings-entry-id="provider-deepseek"
           className={`-m-2 p-2 transition-colors ${entryHighlightClass('provider-deepseek')}`}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-100 pb-3.5 dark:border-neutral-800">
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 ${
+              dsPanelOpen || dsAccounts.length > 0
+                ? 'border-b border-neutral-100 pb-3.5 dark:border-neutral-800'
+                : ''
+            }`}
+          >
             <div className="flex items-center gap-2.5">
               <ProviderLogo provider="deepseek" size="md" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                    DeepSeek
-                  </h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                      dsAccounts.length > 0
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
-                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
-                    }`}
-                  >
-                    {dsHasLoaded
-                      ? dsAccounts.length > 0
-                        ? `已连接 ${dsAccounts.length} 个账号`
-                        : '未连接'
-                      : '加载中...'}
-                  </span>
-                </div>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  DeepSeek 开放平台余额查询 · API Key（Windows 凭据管理器加密保存）
-                </p>
-              </div>
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                DeepSeek
+              </h3>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -1393,10 +1339,6 @@ export const ProvidersSettingsSection: React.FC<ProvidersSettingsSectionProps> =
                       </button>
                     </div>
                   )}
-
-                  <p className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
-                    使用官方接口 <code className="rounded bg-neutral-200/70 px-1 py-0.5 text-[11px] dark:bg-neutral-800">https://api.deepseek.com/user/balance</code> 验证并查询实时余额。API Key 仅保存在 Windows 凭据管理器中，不会明文写入配置文件。
-                  </p>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
