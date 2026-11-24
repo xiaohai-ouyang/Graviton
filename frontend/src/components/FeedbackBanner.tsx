@@ -15,7 +15,7 @@ export const FeedbackBanner: React.FC = () => {
   useEffect(() => {
     if (!banner || hovered) return;
 
-    const duration = banner.type === 'error' ? 5500 : 3500;
+    const duration = banner.action ? 8000 : banner.type === 'error' ? 5500 : 3500;
     timerRef.current = window.setTimeout(() => {
       clearBanner();
     }, duration);
@@ -65,7 +65,21 @@ export const FeedbackBanner: React.FC = () => {
               ) : (
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-neutral-600 dark:text-neutral-400" />
               )}
-              <span className="font-medium leading-snug break-words">{banner.message}</span>
+              <div className="min-w-0">
+                <p className="font-medium leading-snug break-words">{banner.message}</p>
+                {banner.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearBanner();
+                      banner.action?.onClick();
+                    }}
+                    className="mt-1 text-xs font-medium underline underline-offset-2 hover:no-underline"
+                  >
+                    {banner.action.label}
+                  </button>
+                )}
+              </div>
             </div>
             <button
               onClick={clearBanner}

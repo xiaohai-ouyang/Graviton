@@ -6,6 +6,10 @@ import { api, parseError } from '../services/api';
 interface FeedbackBanner {
   type: 'success' | 'error' | 'info';
   message: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 interface RefreshProgress {

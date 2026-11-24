@@ -256,7 +256,7 @@ func (m *Manager) SkipVersion(version string) {
 	m.emit()
 }
 
-// DismissUpdatedNotice clears the one-shot "updated from" banner state.
+// DismissUpdatedNotice clears the one-shot "updated from" notice state.
 func (m *Manager) DismissUpdatedNotice() {
 	m.mu.Lock()
 	m.settings.UpdatedFromVersion = ""

@@ -1,7 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCircle2, FileClock, Hourglass, PartyPopper, RotateCcw, X } from 'lucide-react';
-import { useAppInfoStore } from '../store/useAppInfoStore';
+import { CheckCircle2, Hourglass, RotateCcw } from 'lucide-react';
 import { useMotionStore } from '../store/useMotionStore';
 import { useUpdateStore } from '../store/useUpdateStore';
 
@@ -9,21 +8,16 @@ export const UpdateStatusBar: React.FC = () => {
   const state = useUpdateStore((s) => s.state);
   const restartToApply = useUpdateStore((s) => s.restartToApply);
   const cancelDeferred = useUpdateStore((s) => s.cancelDeferred);
-  const dismissUpdatedNotice = useUpdateStore((s) => s.dismissUpdatedNotice);
   const setModalOpen = useUpdateStore((s) => s.setModalOpen);
-  const openChangelog = useAppInfoStore((s) => s.openChangelog);
   const shouldAnimate = useMotionStore((s) => s.shouldAnimate);
 
   const waiting = state?.status === 'waiting_idle';
   const installed = state?.status === 'installed';
-  const updated = Boolean(state?.updatedFromVersion);
-  const visible = waiting || installed || updated;
-
-  const bannerKey = waiting ? 'waiting-idle' : installed ? 'installed-pending-restart' : 'updated-notice';
+  const bannerKey = waiting ? 'waiting-idle' : 'installed-pending-restart';
 
   return (
     <AnimatePresence initial={false}>
-      {visible && state && (
+      {(waiting || installed) && state && (
         <motion.div
           key={bannerKey}
           initial={shouldAnimate ? { height: 0, opacity: 0 } : false}
@@ -62,7 +56,7 @@ export const UpdateStatusBar: React.FC = () => {
                 取消预约
               </button>
             </div>
-          ) : installed ? (
+          ) : (
             <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200/80 bg-emerald-50 px-5 py-2.5 text-xs text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-200">
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 flex-1">
@@ -82,32 +76,6 @@ export const UpdateStatusBar: React.FC = () => {
               >
                 <RotateCcw className="h-3 w-3" />
                 立即重启
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-2 border-b border-emerald-200/80 bg-emerald-50 px-5 py-2.5 text-xs text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/50 dark:text-emerald-200">
-              <PartyPopper className="h-3.5 w-3.5 shrink-0" />
-              <span className="min-w-0 flex-1">
-                Graviton 已成功更新至 v{state.currentVersion}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  openChangelog();
-                  void dismissUpdatedNotice();
-                }}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-emerald-800 transition-colors hover:bg-emerald-100 dark:text-emerald-200 dark:hover:bg-emerald-900/60"
-              >
-                <FileClock className="h-3 w-3" />
-                查看更新日志
-              </button>
-              <button
-                type="button"
-                aria-label="关闭更新提示"
-                onClick={() => void dismissUpdatedNotice()}
-                className="shrink-0 rounded-md p-1 text-emerald-700 transition-colors hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-              >
-                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )}

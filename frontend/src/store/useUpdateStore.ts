@@ -2,12 +2,14 @@ import { create } from 'zustand';
 import { api, parseError } from '../services/api';
 import { UpdateState } from '../types';
 import { useAccountStore } from './useAccountStore';
+import { useAppInfoStore } from './useAppInfoStore';
 
 interface UpdateStoreState {
   state: UpdateState | null;
   modalOpen: boolean;
   promptedReadyVersion: string | null;
   promptedInstalledVersion: string | null;
+  notifiedUpdatedVersion: string | null;
   checking: boolean;
   savingSettings: boolean;
 
@@ -20,7 +22,6 @@ interface UpdateStoreState {
   installUpdate: () => Promise<void>;
   restartToApply: () => Promise<void>;
   cancelDeferred: () => Promise<void>;
-  dismissUpdatedNotice: () => Promise<void>;
 }
 
 const notify = (type: 'success' | 'error' | 'info', message: string) => {
@@ -32,6 +33,7 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   modalOpen: false,
   promptedReadyVersion: null,
   promptedInstalledVersion: null,
+  notifiedUpdatedVersion: null,
   checking: false,
   savingSettings: false,
 
@@ -41,7 +43,7 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   },
 
   applyUpdateState: (next) => {
-    const { promptedReadyVersion, promptedInstalledVersion } = get();
+    const { promptedReadyVersion, promptedInstalledVersion, notifiedUpdatedVersion } = get();
     const patch: Partial<UpdateStoreState> = { state: next };
     // First ready offer for a version in this session: open modal to offer "立即安装".
     if (
@@ -61,7 +63,22 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
       patch.promptedInstalledVersion = next.latestVersion;
       patch.modalOpen = true;
     }
+    const shouldNotifyUpdated = Boolean(
+      next.updatedFromVersion && next.currentVersion !== notifiedUpdatedVersion,
+    );
+    if (shouldNotifyUpdated) patch.notifiedUpdatedVersion = next.currentVersion;
     set(patch);
+    if (shouldNotifyUpdated) {
+      useAccountStore.getState().setBanner({
+        type: 'success',
+        message: `Graviton 已成功更新至 v${next.currentVersion}`,
+        action: {
+          label: '查看更新日志',
+          onClick: useAppInfoStore.getState().openChangelog,
+        },
+      });
+      void api.dismissUpdatedNotice();
+    }
   },
 
   setModalOpen: (open) => set({ modalOpen: open }),
@@ -133,12 +150,6 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
 
   cancelDeferred: async () => {
     const st = await api.cancelDeferredUpdate();
-    if (st) set({ state: st });
-  },
-
-  dismissUpdatedNotice: async () => {
-    await api.dismissUpdatedNotice();
-    const st = await api.getUpdateState();
     if (st) set({ state: st });
   },
 }));

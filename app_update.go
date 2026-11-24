@@ -26,7 +26,7 @@ func (a *App) initUpdater() {
 		sf = &storage.SettingsFile{FormatVersion: storage.CurrentFormatVersion}
 	}
 	// One-shot "updated to vX" notice: only when the version actually advanced;
-	// a failed install relaunches the same version and must not show the banner.
+	// a failed install relaunches the same version and must not show the notice.
 	versionAdvanced := false
 	if sf.LastRunVersion != "" && sf.LastRunVersion != info.Version {
 		if cmp, err := updater.CompareVersion(info.Version, sf.LastRunVersion); err == nil && cmp > 0 {
@@ -250,7 +250,7 @@ func (a *App) InstallUpdate() (updater.UpdateState, error) {
 	}
 
 	// Record pre-update version as soon as installation succeeds so even a manual restart later
-	// shows the one-shot "updated to vX" banner on next launch.
+	// shows the one-shot "updated to vX" notice on next launch.
 	if sf, _, err := a.storageMgr.LoadSettings(); err == nil && sf != nil {
 		sf.UpdatedFromVersion = a.GetAppInfo().Version
 		_ = a.storageMgr.SaveSettings(sf)
@@ -290,7 +290,7 @@ func (a *App) CancelDeferredUpdate() updater.UpdateState {
 	return a.GetUpdateState()
 }
 
-// DismissUpdatedNotice clears the one-shot post-update banner.
+// DismissUpdatedNotice clears the one-shot post-update notice.
 func (a *App) DismissUpdatedNotice() error {
 	if a.updater != nil {
 		a.updater.DismissUpdatedNotice()
