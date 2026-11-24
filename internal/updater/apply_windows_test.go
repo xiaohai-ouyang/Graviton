@@ -4,7 +4,6 @@ package updater
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -163,27 +162,24 @@ func TestInstallInPlace_DevModeRejected(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRestartScript_ExitsCleanlyOnNonexistentPID(t *testing.T) {
+func TestLaunchRestartHelper_RunsScriptDetached(t *testing.T) {
 	dir := t.TempDir()
 	exePath := filepath.Join(dir, "Graviton.exe")
 	logPath := filepath.Join(dir, "restart.log")
 	require.NoError(t, os.WriteFile(exePath, []byte("not-a-pe"), 0755))
 
-	script := BuildRestartScript(RestartParams{
+	require.NoError(t, LaunchRestartHelper(RestartParams{
 		CurrentPID: 99999999,
 		ExePath:    exePath,
 		ScriptPath: filepath.Join(dir, "restart_app.ps1"),
 		LogPath:    logPath,
-	})
-	require.NoError(t, writeUTF8BOMFile(filepath.Join(dir, "restart_app.ps1"), script))
+	}))
 
-	start := time.Now()
-	cmd := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(dir, "restart_app.ps1"))
-	out, err := cmd.CombinedOutput()
-	require.NoError(t, err, "script output: %s", string(out))
-	assert.Less(t, time.Since(start), 15*time.Second)
-
-	logData, err := os.ReadFile(logPath)
-	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(logData), "restart_app done"), "log: %s", string(logData))
+	var logData []byte
+	require.Eventually(t, func() bool {
+		data, err := os.ReadFile(logPath)
+		logData = data
+		return err == nil && strings.Contains(string(data), "restart_app done")
+	}, 15*time.Second, 50*time.Millisecond)
+	assert.Contains(t, string(logData), "relaunch failed:")
 }
