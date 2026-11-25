@@ -104,7 +104,7 @@ func (a *App) onPotentialIdleForUpdate() {
 		a.updater.SetWaitingIdle(reasons)
 		return
 	}
-	_ = a.executeRestartNow(true)
+	_ = a.executeRestartNow(true, false)
 }
 
 func (a *App) resolveUpdateExePath() (string, error) {
@@ -119,7 +119,7 @@ func (a *App) resolveUpdateExePath() (string, error) {
 }
 
 // executeRestartNow launches the detached restart helper and quits the current process.
-func (a *App) executeRestartNow(fromWaitingOnly bool) error {
+func (a *App) executeRestartNow(fromWaitingOnly, stopProjects bool) error {
 	if a.updater == nil || a.storageMgr == nil {
 		return appservice.NewAppError("UPDATE_UNAVAILABLE", "更新功能不可用")
 	}
@@ -137,6 +137,14 @@ func (a *App) executeRestartNow(fromWaitingOnly bool) error {
 	if err != nil {
 		a.updater.RevertRestarting()
 		return appservice.NewAppError("UPDATE_PATH_ERROR", err.Error())
+	}
+
+	if stopProjects && a.procMgr != nil {
+		a.procMgr.StopAll()
+		if a.procMgr.HasRunningProcesses() {
+			a.updater.RevertRestarting()
+			return appservice.NewAppError("UPDATE_STOP_FAILED", "仍有托管命令在运行，请停止后重试")
+		}
 	}
 
 	cacheDir := filepath.Join(a.storageMgr.BaseDir(), "updates")
@@ -275,10 +283,16 @@ func (a *App) RestartToApplyUpdate() (updater.UpdateState, error) {
 		a.updater.SetWaitingIdle(reasons)
 		return a.updater.State(), nil
 	}
-	if err := a.executeRestartNow(false); err != nil {
+	if err := a.executeRestartNow(false, false); err != nil {
 		return a.updater.State(), err
 	}
 	return a.updater.State(), nil
+}
+
+// RestartToApplyUpdateNow stops managed project commands and restarts without waiting for idle.
+func (a *App) RestartToApplyUpdateNow() (updater.UpdateState, error) {
+	err := a.executeRestartNow(false, true)
+	return a.GetUpdateState(), err
 }
 
 // CancelDeferredUpdate cancels a waiting-idle restart reservation, returning to installed state.

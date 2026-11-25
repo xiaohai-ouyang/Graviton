@@ -94,6 +94,8 @@ export const UpdateModal: React.FC = () => {
     setModalOpen,
     installUpdate,
     restartToApply,
+    restartNow,
+    restartingNow,
     cancelDeferred,
     skipVersion,
   } = useUpdateStore();
@@ -306,42 +308,39 @@ export const UpdateModal: React.FC = () => {
                 前往 GitHub 查看
               </button>
 
-              <div className="flex items-center gap-2">
-                {isWaiting ? (
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {isWaiting || isInstalled ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => void cancelDeferred()}
-                      className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
-                    >
-                      取消预约
-                    </button>
-                    <Dialog.Close asChild>
+                    {isWaiting && (
                       <button
                         type="button"
-                        className="rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                        disabled={restartingNow}
+                        onClick={() => void cancelDeferred()}
+                        className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
-                        关闭
+                        取消预约
                       </button>
-                    </Dialog.Close>
-                  </>
-                ) : isInstalled ? (
-                  <>
+                    )}
                     <Dialog.Close asChild>
                       <button
                         type="button"
                         className="rounded-lg border border-neutral-300 bg-card px-3 py-1.5 text-xs font-medium text-neutral-700 transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
                       >
-                        稍后重启
+                        {isWaiting ? '关闭' : '稍后重启'}
                       </button>
                     </Dialog.Close>
                     <button
                       type="button"
-                      onClick={() => void restartToApply()}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+                      disabled={restartingNow}
+                      onClick={() => void (isWaiting ? restartNow() : restartToApply())}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-neutral-900 px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                      立即重启
+                      {restartingNow ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      )}
+                      {restartingNow ? '正在重启…' : isWaiting ? '停止项目并重启' : '立即重启'}
                     </button>
                   </>
                 ) : (

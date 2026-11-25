@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	apiTimeout        = 20 * time.Second
-	startCheckDelay   = 8 * time.Second
-	checkInterval     = 6 * time.Hour
-	progressThrottle  = 200 * time.Millisecond
+	apiTimeout       = 20 * time.Second
+	startCheckDelay  = 8 * time.Second
+	checkInterval    = 6 * time.Hour
+	progressThrottle = 200 * time.Millisecond
 )
 
 // Update statuses surfaced to the frontend state machine.
@@ -287,7 +287,7 @@ func (m *Manager) resetOfferLocked() {
 // SetWaitingIdle marks a deferred restart after installation with the reasons the app is still busy.
 func (m *Manager) SetWaitingIdle(reasons []string) {
 	m.mu.Lock()
-	if m.state.Status == StatusInstalled || m.state.Status == StatusWaitingIdle {
+	if !m.restarting && (m.state.Status == StatusInstalled || m.state.Status == StatusWaitingIdle) {
 		m.state.Status = StatusWaitingIdle
 		m.state.PendingRestart = true
 		m.state.BusyReasons = reasons

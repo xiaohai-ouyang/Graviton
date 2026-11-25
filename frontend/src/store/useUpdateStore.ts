@@ -12,6 +12,7 @@ interface UpdateStoreState {
   notifiedUpdatedVersion: string | null;
   checking: boolean;
   savingSettings: boolean;
+  restartingNow: boolean;
 
   loadUpdateState: () => Promise<void>;
   applyUpdateState: (next: UpdateState) => void;
@@ -21,6 +22,7 @@ interface UpdateStoreState {
   skipVersion: (version: string) => Promise<void>;
   installUpdate: () => Promise<void>;
   restartToApply: () => Promise<void>;
+  restartNow: () => Promise<void>;
   cancelDeferred: () => Promise<void>;
 }
 
@@ -36,6 +38,7 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   notifiedUpdatedVersion: null,
   checking: false,
   savingSettings: false,
+  restartingNow: false,
 
   loadUpdateState: async () => {
     const st = await api.getUpdateState();
@@ -137,6 +140,7 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
   },
 
   restartToApply: async () => {
+    if (get().restartingNow) return;
     try {
       const st = await api.restartToApplyUpdate();
       set({ state: st });
@@ -148,7 +152,22 @@ export const useUpdateStore = create<UpdateStoreState>((set, get) => ({
     }
   },
 
+  restartNow: async () => {
+    if (get().restartingNow) return;
+    set({ restartingNow: true });
+    try {
+      const st = await api.restartToApplyUpdateNow();
+      set({ state: st });
+    } catch (e) {
+      notify('error', parseError(e).message);
+      await get().loadUpdateState();
+    } finally {
+      set({ restartingNow: false });
+    }
+  },
+
   cancelDeferred: async () => {
+    if (get().restartingNow) return;
     const st = await api.cancelDeferredUpdate();
     if (st) set({ state: st });
   },

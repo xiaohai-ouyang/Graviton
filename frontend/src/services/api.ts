@@ -496,6 +496,14 @@ export const api = {
     }
   },
 
+  async restartToApplyUpdateNow(): Promise<UpdateState> {
+    try {
+      return await WailsApp.RestartToApplyUpdateNow();
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
   async cancelDeferredUpdate(): Promise<UpdateState | null> {
     try {
       return await WailsApp.CancelDeferredUpdate();

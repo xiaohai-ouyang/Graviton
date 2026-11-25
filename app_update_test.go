@@ -238,6 +238,40 @@ func TestOnPotentialIdleForUpdate_ConcurrentCallsRestartOnlyOnce(t *testing.T) {
 	assert.Equal(t, int32(1), hooks.quitCalls.Load())
 }
 
+func TestRestartToApplyUpdateNow_StopsCommandsBeforeRelaunch(t *testing.T) {
+	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
+	projectRoot := t.TempDir()
+	app.procMgr = envmgr.NewProcessManager(envmgr.RunnerCallbacks{
+		OnStatus: func(state envmgr.ProcessState) {
+			if state.Status == envmgr.StatusStopped {
+				app.onPotentialIdleForUpdate()
+			}
+		},
+	})
+	t.Cleanup(app.procMgr.StopAll)
+	launch := app.launchRestartFn
+	app.launchRestartFn = func(params updater.RestartParams) error {
+		assert.Zero(t, app.procMgr.RunningCount())
+		return launch(params)
+	}
+	require.NoError(t, app.procMgr.StartCommand(
+		"project-1", "command-1", projectRoot, "", "ping -t 127.0.0.1", envmgr.ShellCMD, envmgr.ShellConfig{},
+	))
+	require.Equal(t, 1, app.procMgr.RunningCount())
+
+	_, err := app.InstallUpdate()
+	require.NoError(t, err)
+	state, err := app.RestartToApplyUpdate()
+	require.NoError(t, err)
+	require.Equal(t, updater.StatusWaitingIdle, state.Status)
+
+	state, err = app.RestartToApplyUpdateNow()
+	require.NoError(t, err)
+	assert.Equal(t, updater.StatusInstalled, state.Status)
+	assert.Equal(t, int32(1), hooks.restartCalls.Load())
+	assert.Equal(t, int32(1), hooks.quitCalls.Load())
+}
+
 func TestRestartToApplyUpdate_LaunchFailureRevertsToInstalled(t *testing.T) {
 	app, _, hooks := newReadyUpdateApp(t, buildinfo.ChannelRC)
 	_, err := app.InstallUpdate()

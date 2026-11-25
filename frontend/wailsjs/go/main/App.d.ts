@@ -119,6 +119,8 @@ export function RestartCommand(arg1:string,arg2:string):Promise<void>;
 
 export function RestartToApplyUpdate():Promise<updater.UpdateState>;
 
+export function RestartToApplyUpdateNow():Promise<updater.UpdateState>;
+
 export function SaveAIConfig(arg1:envmgr.AIConfig):Promise<void>;
 
 export function SaveProjectCommand(arg1:string,arg2:storage.ProjectCommand):Promise<storage.ProjectRecord>;

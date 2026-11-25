@@ -218,6 +218,10 @@ export function RestartToApplyUpdate() {
   return window['go']['main']['App']['RestartToApplyUpdate']();
 }
 
+export function RestartToApplyUpdateNow() {
+  return window['go']['main']['App']['RestartToApplyUpdateNow']();
+}
+
 export function SaveAIConfig(arg1) {
   return window['go']['main']['App']['SaveAIConfig'](arg1);
 }
