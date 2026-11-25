@@ -28,12 +28,16 @@ import {
   FolderPlus,
   Layers,
   Loader2,
+  Network,
   Pin,
+  Terminal,
 } from 'lucide-react';
 import { useEnvStore } from '../store/useEnvStore';
 import { ProjectCommand, ProjectRecord } from '../types';
 import { CommandContextMenu, CommandContextMenuState } from '../components/CommandContextMenu';
 import { CommandModal } from '../components/CommandModal';
+import { PortConflictDialog } from '../components/PortConflictDialog';
+import { PortOverviewPane } from '../components/PortOverviewPane';
 import { TerminalPane } from '../components/TerminalPane';
 import { ProjectCardDragPreview, SortableProjectCard } from '../components/ProjectCard';
 
@@ -148,10 +152,13 @@ export const EnvironmentPage: React.FC = () => {
     importing,
     processStates,
     activeLogTarget,
+    rightPaneMode,
+    portOverview,
     aiAnalyzingIds,
     aiConfig,
     collapsedProjects,
     init,
+    setRightPaneMode,
     selectAndImportProject,
     importProjectByPath,
     rescanProject,
@@ -613,9 +620,50 @@ export const EnvironmentPage: React.FC = () => {
       {/* Top Bar */}
       <header className="shrink-0 border-b border-neutral-200/80 bg-card/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900/80">
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
-          <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            环境
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              环境
+            </h2>
+            {projects.length > 0 && (
+              <div
+                role="tablist"
+                aria-label="右侧视图切换"
+                className="inline-flex items-center rounded-lg border border-neutral-200/90 bg-neutral-100/80 p-0.5 dark:border-neutral-800 dark:bg-neutral-950/70"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={rightPaneMode === 'terminal'}
+                  onClick={() => setRightPaneMode('terminal')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    rightPaneMode === 'terminal'
+                      ? 'bg-card text-neutral-900 shadow-2xs dark:bg-neutral-800 dark:text-neutral-50'
+                      : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                  }`}
+                >
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span>终端</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={rightPaneMode === 'ports'}
+                  onClick={() => setRightPaneMode('ports')}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    rightPaneMode === 'ports'
+                      ? 'bg-card text-neutral-900 shadow-2xs dark:bg-neutral-800 dark:text-neutral-50'
+                      : 'text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200'
+                  }`}
+                >
+                  <Network className="h-3.5 w-3.5" />
+                  <span>端口总览</span>
+                  {(portOverview?.conflictCount ?? 0) > 0 && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <form onSubmit={handleQuickImport} className="hidden items-center sm:flex">
@@ -803,12 +851,16 @@ export const EnvironmentPage: React.FC = () => {
             />
           </div>
 
-          {/* Right Pane: Persistent Embedded Terminal */}
-          <TerminalPane
-            onEditCommand={(projectId, cmd) =>
-              setCmdModalState({ open: true, projectId, editing: cmd })
-            }
-          />
+          {/* Right Pane: Embedded Terminal or Port Overview */}
+          {rightPaneMode === 'ports' ? (
+            <PortOverviewPane />
+          ) : (
+            <TerminalPane
+              onEditCommand={(projectId, cmd) =>
+                setCmdModalState({ open: true, projectId, editing: cmd })
+              }
+            />
+          )}
         </div>
       )}
 
@@ -831,6 +883,8 @@ export const EnvironmentPage: React.FC = () => {
         onClose={() => setCmdModalState({ open: false, projectId: '', editing: null })}
         onSave={(cmd) => saveCommand(cmdModalState.projectId, cmd)}
       />
+
+      <PortConflictDialog />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import * as WailsApp from '../../wailsjs/go/main/App';
+import { envmgr as WailsEnvmgr } from '../../wailsjs/go/models';
 import {
   AccountDisplay,
   AIConfig,
@@ -10,6 +11,8 @@ import {
   DeepSeekBatchRefreshResult,
   LogEntry,
   OAuthStartResult,
+  PortConflictCheck,
+  PortOverviewSnapshot,
   ProcessState,
   ProjectCommand,
   ProjectRecord,
@@ -309,6 +312,72 @@ export const api = {
   async startCommand(projectID: string, commandID: string): Promise<void> {
     try {
       await WailsApp.StartCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async startCommandWithPortOverride(
+    projectID: string,
+    commandID: string,
+    overridePort: number
+  ): Promise<void> {
+    try {
+      await WailsApp.StartCommandWithPortOverride(projectID, commandID, overridePort);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async checkCommandPortConflict(
+    projectID: string,
+    commandID: string
+  ): Promise<PortConflictCheck> {
+    try {
+      return await WailsApp.CheckCommandPortConflict(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async stopConflictAndStartCommand(projectID: string, commandID: string): Promise<void> {
+    try {
+      await WailsApp.StopConflictAndStartCommand(projectID, commandID);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async getProjectPortOverview(): Promise<PortOverviewSnapshot> {
+    try {
+      return (
+        (await WailsApp.GetProjectPortOverview()) ||
+        WailsEnvmgr.PortOverviewSnapshot.createFrom({
+          entries: [],
+          conflictCount: 0,
+          runningCount: 0,
+        })
+      );
+    } catch {
+      return WailsEnvmgr.PortOverviewSnapshot.createFrom({
+        entries: [],
+        conflictCount: 0,
+        runningCount: 0,
+      });
+    }
+  },
+
+  async killExternalPortProcess(pid: number): Promise<void> {
+    try {
+      await WailsApp.KillExternalPortProcess(pid);
+    } catch (e) {
+      throw parseError(e);
+    }
+  },
+
+  async openLocalURL(rawURL: string): Promise<void> {
+    try {
+      await WailsApp.OpenLocalURL(rawURL);
     } catch (e) {
       throw parseError(e);
     }

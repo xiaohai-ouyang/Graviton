@@ -25,6 +25,8 @@ export function CancelQianwenAuth():Promise<void>;
 
 export function CaptureCurrentAccount():Promise<appservice.AccountDisplay>;
 
+export function CheckCommandPortConflict(arg1:string,arg2:string):Promise<envmgr.PortConflictCheck>;
+
 export function CheckForUpdates():Promise<updater.UpdateState>;
 
 export function ClearCommandLogs(arg1:string):Promise<void>;
@@ -55,6 +57,8 @@ export function GetCommandLogs(arg1:string):Promise<Array<envmgr.LogEntry>>;
 
 export function GetProcessStates():Promise<Record<string, envmgr.ProcessState>>;
 
+export function GetProjectPortOverview():Promise<envmgr.PortOverviewSnapshot>;
+
 export function GetScreenWorkArea():Promise<widget.WorkArea>;
 
 export function GetShellEnvironment():Promise<envmgr.ShellEnvironmentInfo>;
@@ -77,6 +81,8 @@ export function IsWidgetMode():Promise<boolean>;
 
 export function IsWidgetOpen():Promise<boolean>;
 
+export function KillExternalPortProcess(arg1:number):Promise<void>;
+
 export function ListAccounts():Promise<Array<appservice.AccountDisplay>>;
 
 export function ListDeepSeekAccounts():Promise<Array<deepseek.AccountDisplay>>;
@@ -86,6 +92,8 @@ export function ListProjects():Promise<Array<storage.ProjectRecord>>;
 export function ListQianwenAccounts():Promise<Array<qianwen.AccountDisplay>>;
 
 export function OpenCommandInTerminal(arg1:string,arg2:string):Promise<void>;
+
+export function OpenLocalURL(arg1:string):Promise<void>;
 
 export function OpenProjectFolder(arg1:string):Promise<void>;
 
@@ -147,11 +155,15 @@ export function SkipUpdateVersion(arg1:string):Promise<updater.UpdateState>;
 
 export function StartCommand(arg1:string,arg2:string):Promise<void>;
 
+export function StartCommandWithPortOverride(arg1:string,arg2:string,arg3:number):Promise<void>;
+
 export function StartOAuthLogin():Promise<appservice.OAuthStartResult>;
 
 export function StartQianwenAuth(arg1:string):Promise<qianwen.AuthStartResponse>;
 
 export function StopCommand(arg1:string):Promise<void>;
+
+export function StopConflictAndStartCommand(arg1:string,arg2:string):Promise<void>;
 
 export function SwitchAccount(arg1:string):Promise<client.SwitchResult>;
 

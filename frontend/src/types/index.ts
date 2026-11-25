@@ -23,11 +23,24 @@ export type ModelQuota = storage.ModelQuota;
 export type ProjectRecord = storage.ProjectRecord;
 export type ProjectCommand = storage.ProjectCommand;
 export type LogEntry = envmgr.LogEntry;
+export type PortOccupant = envmgr.PortOccupant;
+export type PortConflictCheck = envmgr.PortConflictCheck;
+export type ProjectPortEntry = envmgr.ProjectPortEntry;
+export type PortOverviewSnapshot = envmgr.PortOverviewSnapshot;
 export type AIConfig = envmgr.AIConfig;
 export type ShellConfig = envmgr.ShellConfig;
 export type ShellAvailability = envmgr.ShellAvailability;
 export type ShellEnvironmentInfo = envmgr.ShellEnvironmentInfo;
 export type UpdateState = updater.UpdateState;
+
+export interface ListeningPort {
+  port: number;
+  address: string;
+  scheme: string;
+  url: string;
+  pid: number;
+  process: string;
+}
 
 export interface ProcessState {
   projectId: string;
@@ -37,6 +50,8 @@ export interface ProcessState {
   exitCode: number;
   startedAt?: string;
   errorMsg?: string;
+  ports?: ListeningPort[];
+  overridePort?: number;
 }
 
 export interface ApiError {

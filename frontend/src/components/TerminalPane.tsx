@@ -4,6 +4,7 @@ import {
   ArrowDown,
   Check,
   Copy,
+  ExternalLink,
   Pencil,
   Play,
   RotateCw,
@@ -154,11 +155,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
     activeLogTarget,
     logsByCmd,
     processStates,
+    portOverview,
     shellEnv,
     startCommand,
     stopCommand,
     restartCommand,
     clearLogs,
+    openLocalURL,
   } = useEnvStore();
 
   const [autoScroll, setAutoScroll] = useState(true);
@@ -243,6 +246,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
 
   const procState = command ? processStates[command.id] : undefined;
   const isRunning = procState?.status === 'running';
+  const livePorts = isRunning && procState?.ports ? procState.ports : [];
+  const cmdOverviewEntries = command
+    ? portOverview?.entries?.filter((e) => e.commandId === command.id) ?? []
+    : [];
+  const cmdExternalClash = cmdOverviewEntries.find((e) => e.externalClash)?.externalClash;
+  const cmdStaticClash = cmdOverviewEntries.some((e) => e.staticClash);
   const badge = getStatusBadge(procState);
   const defaultShell = normalizeDefaultShell(shellEnv?.config.defaultShell);
   const effectiveShell = resolveEffectiveShell(command?.shell, defaultShell);
@@ -335,6 +344,89 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ onEditCommand }) => 
             >
               {badge.label}
             </span>
+            {livePorts.length > 0 ? (
+              <div className="flex shrink-0 items-center gap-1">
+                {livePorts.slice(0, 2).map((lp) => {
+                  const localUrl = lp.url || `http://localhost:${lp.port}`;
+                  return (
+                    <Tooltip.Root key={`${lp.port}-${lp.pid}`}>
+                      <Tooltip.Trigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => void openLocalURL(localUrl)}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[11px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
+                        >
+                          <span>:{lp.port}</span>
+                          <ExternalLink className="h-2.5 w-2.5 opacity-75" />
+                        </button>
+                      </Tooltip.Trigger>
+                      <Tooltip.Portal>
+                        <Tooltip.Content
+                          side="bottom"
+                          align="start"
+                          sideOffset={6}
+                          className="z-[70] rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] font-mono text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                        >
+                          打开 {localUrl}
+                        </Tooltip.Content>
+                      </Tooltip.Portal>
+                    </Tooltip.Root>
+                  );
+                })}
+                {livePorts.length > 2 && (
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <span className="shrink-0 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[10px] font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300">
+                        +{livePorts.length - 2}
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        side="bottom"
+                        align="start"
+                        sideOffset={6}
+                        className="z-[70] whitespace-pre-wrap rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                      >
+                        {livePorts
+                          .slice(2)
+                          .map((p) => p.url || `http://localhost:${p.port}`)
+                          .join('\n')}
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                )}
+              </div>
+            ) : command.expectedPort && command.expectedPort > 0 ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <span
+                    className={`shrink-0 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-medium ${
+                      cmdExternalClash
+                        ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/15 dark:text-rose-300'
+                        : cmdStaticClash
+                        ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300'
+                        : 'border-neutral-200 bg-neutral-100 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400'
+                    }`}
+                  >
+                    :{command.expectedPort}
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Content
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    className="z-[70] rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1 text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+                  >
+                    {cmdExternalClash
+                      ? `端口 :${command.expectedPort} 已被 ${cmdExternalClash.processName} (PID ${cmdExternalClash.pid}) 占用`
+                      : cmdStaticClash
+                      ? `预期端口 :${command.expectedPort}（与其他项目配置冲突）`
+                      : `预期端口 :${command.expectedPort}`}
+                  </Tooltip.Content>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            ) : null}
           </div>
 
           <div className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-xs text-neutral-500 dark:text-neutral-400">

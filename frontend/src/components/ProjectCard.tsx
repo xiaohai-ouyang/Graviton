@@ -117,6 +117,8 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
   const defaultShell = normalizeDefaultShell(
     useEnvStore((s) => s.shellEnv?.config.defaultShell)
   );
+  const portOverview = useEnvStore((s) => s.portOverview);
+  const openLocalURL = useEnvStore((s) => s.openLocalURL);
   const canAnimate = shouldAnimate && !isDragging;
 
   const coreCommands = project.commands.filter((c) => c.pinned);
@@ -139,6 +141,88 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
         ? SHELL_META[shellOverride]
         : null;
 
+    const livePorts = isRunning && state?.ports ? state.ports : [];
+    const overviewEntries =
+      portOverview?.entries?.filter((e) => e.commandId === cmd.id) ?? [];
+    const externalClash = overviewEntries.find((e) => e.externalClash)?.externalClash;
+    const hasStaticClash = overviewEntries.some((e) => e.staticClash);
+
+    const renderPortBadge = () => {
+      if (livePorts.length > 0) {
+        const primary = livePorts[0];
+        const extraCount = livePorts.length - 1;
+        const tooltipLines = livePorts
+          .map((p) => `${p.url || `http://localhost:${p.port}`}${p.process ? ` (${p.process})` : ''}`)
+          .join('\n');
+        return (
+          <Tooltip.Root open={isDragging || isContextMenuOpen ? false : undefined}>
+            <Tooltip.Trigger asChild>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void openLocalURL(primary.url || `http://localhost:${primary.port}`);
+                }}
+                className="inline-flex shrink-0 items-center gap-0.5 rounded bg-emerald-50 px-1.5 py-0.2 font-mono text-[10px] font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
+              >
+                <span>:{primary.port}</span>
+                {extraCount > 0 && <span className="opacity-75">+{extraCount}</span>}
+              </button>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="top"
+                align="start"
+                sideOffset={6}
+                className="z-[70] max-w-xs whitespace-pre-wrap rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                {tooltipLines}
+                {'\n'}点击在浏览器打开
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        );
+      }
+
+      if (cmd.expectedPort && cmd.expectedPort > 0) {
+        const badgeClass = externalClash
+          ? 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'
+          : hasStaticClash
+          ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+          : 'bg-neutral-200/70 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400';
+
+        const tip = externalClash
+          ? `端口 :${cmd.expectedPort} 已被外部进程 ${externalClash.processName} (PID ${externalClash.pid}) 占用`
+          : hasStaticClash
+          ? `预期端口 :${cmd.expectedPort}（与其他项目配置冲突）`
+          : `预期端口 :${cmd.expectedPort}`;
+
+        return (
+          <Tooltip.Root open={isDragging || isContextMenuOpen ? false : undefined}>
+            <Tooltip.Trigger asChild>
+              <span
+                className={`shrink-0 rounded px-1.5 py-0.2 font-mono text-[10px] font-medium ${badgeClass}`}
+              >
+                :{cmd.expectedPort}
+              </span>
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="top"
+                align="start"
+                sideOffset={6}
+                className="z-[70] max-w-xs rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                {tip}
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+        );
+      }
+
+      return null;
+    };
+
     return (
       <div
         key={cmd.id}
@@ -150,37 +234,38 @@ export const SortableProjectCard: React.FC<ProjectCardProps> = (props) => {
             : 'border-transparent bg-neutral-50/80 hover:bg-neutral-100/80 dark:bg-neutral-950/60 dark:hover:bg-neutral-800/50'
         } ${isContextMenuOpen ? 'ring-1 ring-neutral-300 dark:ring-neutral-600' : ''}`}
       >
-        <Tooltip.Root open={isDragging || isContextMenuOpen ? false : undefined}>
-          <Tooltip.Trigger asChild>
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <Tooltip.Root open={isDragging || isContextMenuOpen ? false : undefined}>
+            <Tooltip.Trigger asChild>
               <span className="truncate text-xs font-medium text-neutral-900 dark:text-neutral-100">
                 {cmd.name}
               </span>
-              {overrideMeta && (
-                <span
-                  className={`shrink-0 rounded px-1 py-0.2 font-mono text-[10px] font-medium ${overrideMeta.badgeClass}`}
-                >
-                  {overrideMeta.shortLabel}
-                </span>
-              )}
-              {cmd.cwd && (
-                <span className="shrink-0 rounded bg-neutral-200/80 px-1 py-0.2 font-mono text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-                  {cmd.cwd}
-                </span>
-              )}
-            </div>
-          </Tooltip.Trigger>
-          <Tooltip.Portal>
-            <Tooltip.Content
-              side="top"
-              align="start"
-              sideOffset={6}
-              className="z-[70] max-w-xs whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+            </Tooltip.Trigger>
+            <Tooltip.Portal>
+              <Tooltip.Content
+                side="top"
+                align="start"
+                sideOffset={6}
+                className="z-[70] max-w-xs whitespace-pre-wrap break-all rounded-lg border border-neutral-200/20 bg-neutral-900 px-2.5 py-1.5 font-mono text-[11px] text-neutral-100 shadow-lg dark:border-neutral-700 dark:bg-neutral-800"
+              >
+                {cmd.command}
+              </Tooltip.Content>
+            </Tooltip.Portal>
+          </Tooltip.Root>
+          {renderPortBadge()}
+          {overrideMeta && (
+            <span
+              className={`shrink-0 rounded px-1 py-0.2 font-mono text-[10px] font-medium ${overrideMeta.badgeClass}`}
             >
-              {cmd.command}
-            </Tooltip.Content>
-          </Tooltip.Portal>
-        </Tooltip.Root>
+              {overrideMeta.shortLabel}
+            </span>
+          )}
+          {cmd.cwd && (
+            <span className="shrink-0 rounded bg-neutral-200/80 px-1 py-0.2 font-mono text-[10px] text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+              {cmd.cwd}
+            </span>
+          )}
+        </div>
 
         {/* Only Start / Stop / Restart */}
         <div

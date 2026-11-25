@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -206,4 +207,64 @@ func TestShellConfigPersistence(t *testing.T) {
 	sfAfterReset, _, err := app.storageMgr.LoadSettings()
 	require.NoError(t, err)
 	assert.Empty(t, sfAfterReset.GitBashPath)
+}
+
+func TestPortConflictAndOverview_FocusedOnImportedProjects(t *testing.T) {
+	app := newTestApp(t)
+
+	// Open a real local TCP listener to simulate an external process occupying a port
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	occupiedPort := ln.Addr().(*net.TCPAddr).Port
+
+	initial := []storage.ProjectRecord{
+		{
+			ID:   "p-java",
+			Name: "JavaBackend",
+			Path: `F:\java-backend`,
+			Commands: []storage.ProjectCommand{
+				{ID: "c-java", Name: "启动 Spring Boot", Command: "mvn spring-boot:run", Category: "dev", Pinned: true, Source: "rule", ExpectedPort: occupiedPort},
+			},
+		},
+		{
+			ID:   "p-py",
+			Name: "PyBackend",
+			Path: `F:\py-backend`,
+			Commands: []storage.ProjectCommand{
+				{ID: "c-py", Name: "启动 FastAPI", Command: "uvicorn main:app", Category: "dev", Pinned: true, Source: "rule", ExpectedPort: occupiedPort},
+			},
+		},
+	}
+	require.NoError(t, app.storageMgr.SaveProjects(initial))
+
+	// Invalid port validation
+	_, err = app.SaveProjectCommand("p-java", storage.ProjectCommand{
+		Name:         "Bad Port",
+		Command:      "echo hi",
+		ExpectedPort: 70000,
+	})
+	assert.Error(t, err)
+
+	// Conflict check detects the live external listener and suggests a free port
+	check, err := app.CheckCommandPortConflict("p-java", "c-java")
+	require.NoError(t, err)
+	assert.True(t, check.HasConflict)
+	assert.Equal(t, occupiedPort, check.Port)
+	assert.NotEqual(t, occupiedPort, check.SuggestedPort)
+	require.NotNil(t, check.Occupant)
+	assert.False(t, check.Occupant.IsManaged)
+	assert.Equal(t, os.Getpid(), check.Occupant.PID)
+
+	// Overview only includes imported projects' entries, marking both static clash & external clash
+	overview, err := app.GetProjectPortOverview()
+	require.NoError(t, err)
+	require.Len(t, overview.Entries, 2)
+	assert.Equal(t, 1, overview.ConflictCount)
+	for _, entry := range overview.Entries {
+		assert.Equal(t, occupiedPort, entry.Port)
+		assert.True(t, entry.StaticClash)
+		require.NotNil(t, entry.ExternalClash)
+		assert.Equal(t, os.Getpid(), entry.ExternalClash.PID)
+	}
 }

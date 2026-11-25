@@ -121,7 +121,9 @@ func gitBashNotFoundError(customPath string) error {
 	return errors.New("未找到 Git Bash (bash.exe)，请安装 Git for Windows 或在「设置」页手动指定路径")
 }
 
-func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellConfig) (*exec.Cmd, func(), error) {
+func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellConfig, extraEnv ...string) (*exec.Cmd, func(), error) {
+	procEnv := mergeExtraEnv(withUTF8ProcessEnv(os.Environ()), extraEnv)
+
 	switch resolvedShell {
 	case ShellPowerShell:
 		scriptPath, err := writeTempPowerShellScript(commandLine)
@@ -138,7 +140,7 @@ func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellCon
 			"-File", scriptPath,
 		)
 		cmd.Dir = dir
-		cmd.Env = withUTF8ProcessEnv(os.Environ())
+		cmd.Env = procEnv
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow: true,
 		}
@@ -157,7 +159,7 @@ func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellCon
 		// Run non-login mode so startup matches PowerShell's -NoProfile and preserves cmd.Dir & PATH.
 		cmd := exec.Command(bashExe, scriptPath)
 		cmd.Dir = dir
-		cmd.Env = withUTF8ProcessEnv(os.Environ())
+		cmd.Env = procEnv
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow: true,
 		}
@@ -173,7 +175,7 @@ func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellCon
 			}
 			cmd := exec.Command(comspec)
 			cmd.Dir = dir
-			cmd.Env = withUTF8ProcessEnv(os.Environ())
+			cmd.Env = procEnv
 			cmd.SysProcAttr = &syscall.SysProcAttr{
 				HideWindow: true,
 				CmdLine:    buildCmdExeVerbatimLine(comspec, "/C", `"`+scriptPath+`"`),
@@ -186,7 +188,7 @@ func buildShellCommand(dir, commandLine, resolvedShell string, shellCfg ShellCon
 		fullCmd := "chcp 65001 >nul && " + commandLine
 		cmd := exec.Command(comspec)
 		cmd.Dir = dir
-		cmd.Env = withUTF8ProcessEnv(os.Environ())
+		cmd.Env = procEnv
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			HideWindow: true,
 			CmdLine:    buildCmdExeVerbatimLine(comspec, "/C", fullCmd),

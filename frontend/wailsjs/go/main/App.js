@@ -30,6 +30,10 @@ export function CaptureCurrentAccount() {
   return window['go']['main']['App']['CaptureCurrentAccount']();
 }
 
+export function CheckCommandPortConflict(arg1, arg2) {
+  return window['go']['main']['App']['CheckCommandPortConflict'](arg1, arg2);
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
@@ -90,6 +94,10 @@ export function GetProcessStates() {
   return window['go']['main']['App']['GetProcessStates']();
 }
 
+export function GetProjectPortOverview() {
+  return window['go']['main']['App']['GetProjectPortOverview']();
+}
+
 export function GetScreenWorkArea() {
   return window['go']['main']['App']['GetScreenWorkArea']();
 }
@@ -134,6 +142,10 @@ export function IsWidgetOpen() {
   return window['go']['main']['App']['IsWidgetOpen']();
 }
 
+export function KillExternalPortProcess(arg1) {
+  return window['go']['main']['App']['KillExternalPortProcess'](arg1);
+}
+
 export function ListAccounts() {
   return window['go']['main']['App']['ListAccounts']();
 }
@@ -152,6 +164,10 @@ export function ListQianwenAccounts() {
 
 export function OpenCommandInTerminal(arg1, arg2) {
   return window['go']['main']['App']['OpenCommandInTerminal'](arg1, arg2);
+}
+
+export function OpenLocalURL(arg1) {
+  return window['go']['main']['App']['OpenLocalURL'](arg1);
 }
 
 export function OpenProjectFolder(arg1) {
@@ -274,6 +290,10 @@ export function StartCommand(arg1, arg2) {
   return window['go']['main']['App']['StartCommand'](arg1, arg2);
 }
 
+export function StartCommandWithPortOverride(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StartCommandWithPortOverride'](arg1, arg2, arg3);
+}
+
 export function StartOAuthLogin() {
   return window['go']['main']['App']['StartOAuthLogin']();
 }
@@ -284,6 +304,10 @@ export function StartQianwenAuth(arg1) {
 
 export function StopCommand(arg1) {
   return window['go']['main']['App']['StopCommand'](arg1);
+}
+
+export function StopConflictAndStartCommand(arg1, arg2) {
+  return window['go']['main']['App']['StopConflictAndStartCommand'](arg1, arg2);
 }
 
 export function SwitchAccount(arg1) {

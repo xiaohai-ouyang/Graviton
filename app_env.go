@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -346,6 +347,9 @@ func (a *App) SaveProjectCommand(projectID string, cmd storage.ProjectCommand) (
 	if strings.TrimSpace(cmd.Name) == "" || strings.TrimSpace(cmd.Command) == "" {
 		return nil, errors.New("指令名称和命令内容不能为空")
 	}
+	if cmd.ExpectedPort < 0 || cmd.ExpectedPort > 65535 {
+		return nil, errors.New("预期端口必须在 1~65535 之间")
+	}
 
 	a.projectsMu.Lock()
 	defer a.projectsMu.Unlock()
@@ -472,6 +476,355 @@ func (a *App) StartCommand(projectID, commandID string) error {
 	}
 	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
 	return a.procMgr.StartCommand(proj.ID, cmd.ID, proj.Path, cmd.Cwd, cmd.Command, cmd.Shell, shellCfg)
+}
+
+// StartCommandWithPortOverride launches a command with a temporary alternate port without modifying saved config.
+func (a *App) StartCommandWithPortOverride(projectID, commandID string, overridePort int) error {
+	if a.procMgr == nil {
+		return errors.New("进程管理器未初始化")
+	}
+	if overridePort < 1 || overridePort > 65535 {
+		return errors.New("新端口必须在 1~65535 之间")
+	}
+	proj, cmd, err := a.findProjectAndCommand(projectID, commandID)
+	if err != nil {
+		return err
+	}
+	shellCfg := envmgr.LoadShellConfig(a.storageMgr)
+	return a.procMgr.StartCommandWithOptions(envmgr.StartOptions{
+		ProjectID:    proj.ID,
+		CommandID:    cmd.ID,
+		ProjectRoot:  proj.Path,
+		Cwd:          cmd.Cwd,
+		CommandLine:  cmd.Command,
+		Shell:        cmd.Shell,
+		ShellCfg:     shellCfg,
+		OverridePort: overridePort,
+	})
+}
+
+// CheckCommandPortConflict inspects whether a command's expected port is currently occupied on this machine.
+func (a *App) CheckCommandPortConflict(projectID, commandID string) (envmgr.PortConflictCheck, error) {
+	_, cmd, err := a.findProjectAndCommand(projectID, commandID)
+	if err != nil {
+		return envmgr.PortConflictCheck{}, err
+	}
+	if cmd.ExpectedPort < 1 || cmd.ExpectedPort > 65535 {
+		return envmgr.PortConflictCheck{HasConflict: false}, nil
+	}
+
+	projects, _ := a.ListProjects()
+	occ := a.findPortOccupant(cmd.ExpectedPort, commandID, projects, nil)
+	if occ == nil {
+		return envmgr.PortConflictCheck{HasConflict: false, Port: cmd.ExpectedPort}, nil
+	}
+
+	return envmgr.PortConflictCheck{
+		HasConflict:   true,
+		Port:          cmd.ExpectedPort,
+		SuggestedPort: envmgr.FindAvailablePort(cmd.ExpectedPort),
+		Occupant:      occ,
+	}, nil
+}
+
+// StopConflictAndStartCommand stops the process occupying a command's expected port and then starts the command.
+func (a *App) StopConflictAndStartCommand(projectID, commandID string) error {
+	if a.procMgr == nil {
+		return errors.New("进程管理器未初始化")
+	}
+	_, cmd, err := a.findProjectAndCommand(projectID, commandID)
+	if err != nil {
+		return err
+	}
+
+	if cmd.ExpectedPort >= 1 && cmd.ExpectedPort <= 65535 {
+		projects, _ := a.ListProjects()
+		if occ := a.findPortOccupant(cmd.ExpectedPort, commandID, projects, nil); occ != nil {
+			if occ.IsManaged && occ.CommandID != "" {
+				if stopErr := a.procMgr.StopCommand(occ.CommandID); stopErr != nil {
+					return fmt.Errorf("停止冲突指令失败: %w", stopErr)
+				}
+			} else if occ.PID > 0 {
+				if killErr := envmgr.KillExternalProcess(occ.PID); killErr != nil {
+					return killErr
+				}
+			}
+
+			// Wait briefly for the OS to release the TCP listening socket
+			deadline := time.Now().Add(3 * time.Second)
+			for time.Now().Before(deadline) {
+				if a.findPortOccupant(cmd.ExpectedPort, commandID, projects, nil) == nil {
+					break
+				}
+				time.Sleep(150 * time.Millisecond)
+			}
+			if still := a.findPortOccupant(cmd.ExpectedPort, commandID, projects, nil); still != nil {
+				return fmt.Errorf("端口 %d 仍被 %s (PID %d) 占用，无法释放", cmd.ExpectedPort, still.ProcessName, still.PID)
+			}
+		}
+	}
+
+	return a.StartCommand(projectID, commandID)
+}
+
+// GetProjectPortOverview returns a focused port snapshot covering only imported projects and conflicting external listeners.
+func (a *App) GetProjectPortOverview() (envmgr.PortOverviewSnapshot, error) {
+	projects, err := a.ListProjects()
+	if err != nil {
+		return envmgr.PortOverviewSnapshot{Entries: []envmgr.ProjectPortEntry{}}, err
+	}
+
+	var listeners []envmgr.TCPListener
+	var states map[string]envmgr.ProcessState
+	var managedPIDs map[int]envmgr.ProcessState
+
+	if a.procMgr != nil {
+		listeners = a.procMgr.RefreshLivePortsNow()
+		states = a.procMgr.GetStates()
+		managedPIDs = a.procMgr.GetManagedPIDMap()
+	} else {
+		listeners, _ = envmgr.ListListeningTCPSockets()
+		states = map[string]envmgr.ProcessState{}
+		managedPIDs = map[int]envmgr.ProcessState{}
+	}
+
+	listenersByPort := make(map[int][]envmgr.TCPListener)
+	for _, l := range listeners {
+		listenersByPort[l.Port] = append(listenersByPort[l.Port], l)
+	}
+
+	entries := make([]envmgr.ProjectPortEntry, 0)
+	cmdIDsByPort := make(map[int]map[string]bool)
+	recordPortCmd := func(port int, cmdID string) {
+		if cmdIDsByPort[port] == nil {
+			cmdIDsByPort[port] = make(map[string]bool)
+		}
+		cmdIDsByPort[port][cmdID] = true
+	}
+
+	runningCount := 0
+
+	for _, proj := range projects {
+		for _, cmd := range proj.Commands {
+			st := states[cmd.ID]
+			if st.Status == envmgr.StatusRunning {
+				if len(st.Ports) > 0 {
+					for _, lp := range st.Ports {
+						runningCount++
+						recordPortCmd(lp.Port, cmd.ID)
+						entries = append(entries, envmgr.ProjectPortEntry{
+							Port:         lp.Port,
+							State:        "running",
+							URL:          lp.URL,
+							Scheme:       lp.Scheme,
+							ProjectID:    proj.ID,
+							ProjectName:  proj.Name,
+							CommandID:    cmd.ID,
+							CommandName:  cmd.Name,
+							Cwd:          cmd.Cwd,
+							PID:          lp.PID,
+							ProcessName:  lp.Process,
+							OverridePort: st.OverridePort,
+							ExpectedPort: cmd.ExpectedPort,
+						})
+					}
+					continue
+				}
+				// Running but not yet listening: show expected/override port if known
+				fallbackPort := st.OverridePort
+				if fallbackPort <= 0 {
+					fallbackPort = cmd.ExpectedPort
+				}
+				if fallbackPort > 0 {
+					recordPortCmd(fallbackPort, cmd.ID)
+					entries = append(entries, envmgr.ProjectPortEntry{
+						Port:         fallbackPort,
+						State:        "expected",
+						URL:          envmgr.BuildLocalURL("http", fallbackPort),
+						Scheme:       "http",
+						ProjectID:    proj.ID,
+						ProjectName:  proj.Name,
+						CommandID:    cmd.ID,
+						CommandName:  cmd.Name,
+						Cwd:          cmd.Cwd,
+						PID:          st.PID,
+						OverridePort: st.OverridePort,
+						ExpectedPort: cmd.ExpectedPort,
+					})
+				}
+				continue
+			}
+
+			if cmd.ExpectedPort > 0 {
+				recordPortCmd(cmd.ExpectedPort, cmd.ID)
+				entries = append(entries, envmgr.ProjectPortEntry{
+					Port:         cmd.ExpectedPort,
+					State:        "expected",
+					URL:          envmgr.BuildLocalURL("http", cmd.ExpectedPort),
+					Scheme:       "http",
+					ProjectID:    proj.ID,
+					ProjectName:  proj.Name,
+					CommandID:    cmd.ID,
+					CommandName:  cmd.Name,
+					Cwd:          cmd.Cwd,
+					ExpectedPort: cmd.ExpectedPort,
+				})
+			}
+		}
+	}
+
+	// Mark static/shared port clashes and external process clashes
+	conflictPorts := make(map[int]bool)
+	for i := range entries {
+		e := &entries[i]
+		if len(cmdIDsByPort[e.Port]) > 1 {
+			e.StaticClash = true
+			conflictPorts[e.Port] = true
+		}
+
+		// Find any external (non-managed) listener occupying this port
+		for _, l := range listenersByPort[e.Port] {
+			if _, isManaged := managedPIDs[l.PID]; isManaged {
+				continue
+			}
+			e.ExternalClash = &envmgr.PortOccupant{
+				Port:        l.Port,
+				Address:     l.Address,
+				PID:         l.PID,
+				ProcessName: l.ProcessName,
+				IsManaged:   false,
+			}
+			conflictPorts[e.Port] = true
+			break
+		}
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		ci := entries[i].StaticClash || entries[i].ExternalClash != nil
+		cj := entries[j].StaticClash || entries[j].ExternalClash != nil
+		if ci != cj {
+			return ci
+		}
+		ri := entries[i].State == "running"
+		rj := entries[j].State == "running"
+		if ri != rj {
+			return ri
+		}
+		if entries[i].Port != entries[j].Port {
+			return entries[i].Port < entries[j].Port
+		}
+		if entries[i].ProjectName != entries[j].ProjectName {
+			return entries[i].ProjectName < entries[j].ProjectName
+		}
+		return entries[i].CommandName < entries[j].CommandName
+	})
+
+	return envmgr.PortOverviewSnapshot{
+		Entries:       entries,
+		ConflictCount: len(conflictPorts),
+		RunningCount:  runningCount,
+	}, nil
+}
+
+// KillExternalPortProcess terminates a non-managed local process occupying a conflicting port.
+func (a *App) KillExternalPortProcess(pid int) error {
+	return envmgr.KillExternalProcess(pid)
+}
+
+// OpenLocalURL opens a validated localhost HTTP(S) URL in the default browser.
+func (a *App) OpenLocalURL(rawURL string) error {
+	safeURL, err := envmgr.ValidateLocalURL(rawURL)
+	if err != nil {
+		return err
+	}
+	if a.ctx == nil {
+		return errors.New("应用上下文未就绪")
+	}
+	runtime.BrowserOpenURL(a.ctx, safeURL)
+	return nil
+}
+
+func (a *App) findPortOccupant(port int, ignoreCommandID string, projects []storage.ProjectRecord, cachedListeners []envmgr.TCPListener) *envmgr.PortOccupant {
+	if port < 1 || port > 65535 {
+		return nil
+	}
+
+	listeners := cachedListeners
+	if listeners == nil {
+		if a.procMgr != nil {
+			listeners = a.procMgr.RefreshLivePortsNow()
+		} else {
+			listeners, _ = envmgr.ListListeningTCPSockets()
+		}
+	}
+
+	managedPIDs := map[int]envmgr.ProcessState{}
+	if a.procMgr != nil {
+		managedPIDs = a.procMgr.GetManagedPIDMap()
+	}
+
+	projNames := make(map[string]string, len(projects))
+	cmdNames := make(map[string]string)
+	for _, p := range projects {
+		projNames[p.ID] = p.Name
+		for _, c := range p.Commands {
+			cmdNames[c.ID] = c.Name
+		}
+	}
+
+	// First check managed states directly (in case of log-supplemented port)
+	if a.procMgr != nil {
+		for cmdID, st := range a.procMgr.GetStates() {
+			if cmdID == ignoreCommandID || st.Status != envmgr.StatusRunning {
+				continue
+			}
+			for _, lp := range st.Ports {
+				if lp.Port == port {
+					return &envmgr.PortOccupant{
+						Port:        port,
+						Address:     lp.Address,
+						PID:         lp.PID,
+						ProcessName: lp.Process,
+						IsManaged:   true,
+						ProjectID:   st.ProjectID,
+						ProjectName: projNames[st.ProjectID],
+						CommandID:   st.CommandID,
+						CommandName: cmdNames[st.CommandID],
+					}
+				}
+			}
+		}
+	}
+
+	for _, l := range listeners {
+		if l.Port != port {
+			continue
+		}
+		if st, ok := managedPIDs[l.PID]; ok {
+			if st.CommandID == ignoreCommandID {
+				continue
+			}
+			return &envmgr.PortOccupant{
+				Port:        port,
+				Address:     l.Address,
+				PID:         l.PID,
+				ProcessName: l.ProcessName,
+				IsManaged:   true,
+				ProjectID:   st.ProjectID,
+				ProjectName: projNames[st.ProjectID],
+				CommandID:   st.CommandID,
+				CommandName: cmdNames[st.CommandID],
+			}
+		}
+		return &envmgr.PortOccupant{
+			Port:        port,
+			Address:     l.Address,
+			PID:         l.PID,
+			ProcessName: l.ProcessName,
+			IsManaged:   false,
+		}
+	}
+	return nil
 }
 
 // StopCommand stops a running managed process tree.

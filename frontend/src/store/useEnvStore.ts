@@ -4,6 +4,8 @@ import { api, parseError } from '../services/api';
 import {
   AIConfig,
   LogEntry,
+  PortConflictCheck,
+  PortOverviewSnapshot,
   ProcessState,
   ProjectCommand,
   ProjectRecord,
@@ -61,6 +63,15 @@ function insertUnpinnedProjectAtTop(projects: ProjectRecord[], proj: ProjectReco
 
 let reorderSeq = 0;
 
+export interface PortConflictDialogState {
+  open: boolean;
+  projectId: string;
+  commandId: string;
+  projectName: string;
+  commandName: string;
+  check: PortConflictCheck;
+}
+
 interface EnvState {
   projects: ProjectRecord[];
   loading: boolean;
@@ -68,6 +79,10 @@ interface EnvState {
   processStates: Record<string, ProcessState>;
   logsByCmd: Record<string, LogEntry[]>;
   activeLogTarget: { projectId: string; commandId: string } | null;
+  rightPaneMode: 'terminal' | 'ports';
+  portOverview: PortOverviewSnapshot | null;
+  portOverviewLoading: boolean;
+  portConflictDialog: PortConflictDialogState | null;
   aiAnalyzingIds: Record<string, boolean>;
   aiConfig: AIConfig | null;
   shellEnv: ShellEnvironmentInfo | null;
@@ -75,6 +90,13 @@ interface EnvState {
   initialized: boolean;
 
   init: () => () => void;
+  setRightPaneMode: (mode: 'terminal' | 'ports') => void;
+  refreshPortOverview: () => Promise<void>;
+  closePortConflictDialog: () => void;
+  confirmStartWithOverridePort: (overridePort: number) => Promise<boolean>;
+  confirmStopConflictAndStart: () => Promise<boolean>;
+  killExternalPortProcess: (pid: number) => Promise<void>;
+  openLocalURL: (url: string) => Promise<void>;
   loadProjects: () => Promise<void>;
   selectAndImportProject: () => Promise<void>;
   importProjectByPath: (path: string) => Promise<void>;
@@ -120,6 +142,10 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   processStates: {},
   logsByCmd: {},
   activeLogTarget: null,
+  rightPaneMode: 'terminal',
+  portOverview: null,
+  portOverviewLoading: false,
+  portConflictDialog: null,
   aiAnalyzingIds: {},
   aiConfig: null,
   shellEnv: null,
@@ -134,6 +160,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       void get().loadShellEnvironment();
       void api.getProcessStates().then((states) => {
         set({ processStates: states });
+        void get().refreshPortOverview();
       });
     }
 
@@ -145,6 +172,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
           [state.commandId]: state,
         },
       }));
+      void get().refreshPortOverview();
     });
 
     const offLog = EventsOn('env:process:log', (entry: LogEntry) => {
@@ -166,6 +194,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
       set((s) => ({
         projects: s.projects.map((p) => (p.id === proj.id ? proj : p)),
       }));
+      void get().refreshPortOverview();
     });
 
     const offAIStatus = EventsOn('env:project:ai_status', (payload: { projectId: string; analyzing: boolean }) => {
@@ -186,11 +215,91 @@ export const useEnvStore = create<EnvState>((set, get) => ({
     };
   },
 
+  setRightPaneMode: (mode: 'terminal' | 'ports') => {
+    set({ rightPaneMode: mode });
+    if (mode === 'ports') {
+      void get().refreshPortOverview();
+    }
+  },
+
+  refreshPortOverview: async () => {
+    set({ portOverviewLoading: true });
+    try {
+      const snapshot = await api.getProjectPortOverview();
+      set({ portOverview: snapshot, portOverviewLoading: false });
+    } catch {
+      set({ portOverviewLoading: false });
+    }
+  },
+
+  closePortConflictDialog: () => set({ portConflictDialog: null }),
+
+  confirmStartWithOverridePort: async (overridePort: number) => {
+    const dlg = get().portConflictDialog;
+    if (!dlg) return false;
+    try {
+      set((s) => ({
+        activeLogTarget:
+          s.rightPaneMode === 'ports'
+            ? s.activeLogTarget
+            : { projectId: dlg.projectId, commandId: dlg.commandId },
+        logsByCmd: { ...s.logsByCmd, [dlg.commandId]: [] },
+      }));
+      await api.startCommandWithPortOverride(dlg.projectId, dlg.commandId, overridePort);
+      set({ portConflictDialog: null });
+      void get().refreshPortOverview();
+      return true;
+    } catch (e) {
+      notify('error', parseError(e).message);
+      return false;
+    }
+  },
+
+  confirmStopConflictAndStart: async () => {
+    const dlg = get().portConflictDialog;
+    if (!dlg) return false;
+    try {
+      set((s) => ({
+        activeLogTarget:
+          s.rightPaneMode === 'ports'
+            ? s.activeLogTarget
+            : { projectId: dlg.projectId, commandId: dlg.commandId },
+        logsByCmd: { ...s.logsByCmd, [dlg.commandId]: [] },
+      }));
+      await api.stopConflictAndStartCommand(dlg.projectId, dlg.commandId);
+      set({ portConflictDialog: null });
+      void get().refreshPortOverview();
+      return true;
+    } catch (e) {
+      notify('error', parseError(e).message);
+      return false;
+    }
+  },
+
+  killExternalPortProcess: async (pid: number) => {
+    try {
+      await api.killExternalPortProcess(pid);
+      notify('success', `已终止外部进程 (PID ${pid})`);
+      void get().refreshPortOverview();
+    } catch (e) {
+      notify('error', parseError(e).message);
+    }
+  },
+
+  openLocalURL: async (url: string) => {
+    try {
+      await api.openLocalURL(url);
+    } catch (e) {
+      notify('error', parseError(e).message);
+    }
+  },
+
   loadProjects: async () => {
     set({ loading: true });
     try {
       const projects = await api.listProjects();
       set({ projects, loading: false });
+      void get().refreshPortOverview();
 
       const currentTarget = get().activeLogTarget;
       const targetExists =
@@ -244,6 +353,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         };
       });
       notify('success', `已导入项目「${proj.name}」，共识别 ${proj.commands.length} 条指令`);
+      void get().refreshPortOverview();
     } catch (e) {
       set({ importing: false });
       notify('error', parseError(e).message);
@@ -266,6 +376,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         };
       });
       notify('success', `已导入项目「${proj.name}」，共识别 ${proj.commands.length} 条指令`);
+      void get().refreshPortOverview();
     } catch (e) {
       set({ importing: false });
       notify('error', parseError(e).message);
@@ -279,6 +390,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         projects: s.projects.map((p) => (p.id === projectId ? updated : p)),
       }));
       notify('success', `已重新扫描「${updated.name}」的本地配置`);
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -291,6 +403,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         projects: s.projects.map((p) => (p.id === projectId ? updated : p)),
       }));
       notify('success', `AI 已完成「${updated.name}」的指令优化`);
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -310,6 +423,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         };
       });
       notify('info', '已移除项目');
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -411,6 +525,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         projects: s.projects.map((p) => (p.id === projectId ? updated : p)),
       }));
       notify('success', '指令已保存');
+      void get().refreshPortOverview();
       return true;
     } catch (e) {
       notify('error', parseError(e).message);
@@ -431,6 +546,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
         };
       });
       notify('info', '已删除指令');
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -449,11 +565,30 @@ export const useEnvStore = create<EnvState>((set, get) => ({
 
   startCommand: async (projectId: string, commandId: string) => {
     try {
+      const check = await api.checkCommandPortConflict(projectId, commandId);
+      if (check?.hasConflict && check.occupant) {
+        const proj = get().projects.find((p) => p.id === projectId);
+        const cmd = proj?.commands.find((c) => c.id === commandId);
+        set({
+          portConflictDialog: {
+            open: true,
+            projectId,
+            commandId,
+            projectName: proj?.name || '',
+            commandName: cmd?.name || '',
+            check,
+          },
+        });
+        return;
+      }
+
       set((s) => ({
-        activeLogTarget: { projectId, commandId },
+        activeLogTarget:
+          s.rightPaneMode === 'ports' ? s.activeLogTarget : { projectId, commandId },
         logsByCmd: { ...s.logsByCmd, [commandId]: [] },
       }));
       await api.startCommand(projectId, commandId);
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -462,6 +597,7 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   stopCommand: async (commandId: string) => {
     try {
       await api.stopCommand(commandId);
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
@@ -470,17 +606,19 @@ export const useEnvStore = create<EnvState>((set, get) => ({
   restartCommand: async (projectId: string, commandId: string) => {
     try {
       set((s) => ({
-        activeLogTarget: { projectId, commandId },
+        activeLogTarget:
+          s.rightPaneMode === 'ports' ? s.activeLogTarget : { projectId, commandId },
         logsByCmd: { ...s.logsByCmd, [commandId]: [] },
       }));
       await api.restartCommand(projectId, commandId);
+      void get().refreshPortOverview();
     } catch (e) {
       notify('error', parseError(e).message);
     }
   },
 
   openLogDrawer: async (projectId: string, commandId: string) => {
-    set({ activeLogTarget: { projectId, commandId } });
+    set({ activeLogTarget: { projectId, commandId }, rightPaneMode: 'terminal' });
     const existing = await api.getCommandLogs(commandId);
     set((s) => ({
       logsByCmd: { ...s.logsByCmd, [commandId]: existing },

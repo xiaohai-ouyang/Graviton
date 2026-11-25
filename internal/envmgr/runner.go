@@ -57,13 +57,27 @@ const (
 
 // ProcessState is the serializable runtime snapshot for a command.
 type ProcessState struct {
-	ProjectID string        `json:"projectId"`
-	CommandID string        `json:"commandId"`
-	Status    ProcessStatus `json:"status"`
-	PID       int           `json:"pid"`
-	ExitCode  int           `json:"exitCode"`
-	StartedAt string        `json:"startedAt,omitempty"`
-	ErrorMsg  string        `json:"errorMsg,omitempty"`
+	ProjectID    string          `json:"projectId"`
+	CommandID    string          `json:"commandId"`
+	Status       ProcessStatus   `json:"status"`
+	PID          int             `json:"pid"`
+	ExitCode     int             `json:"exitCode"`
+	StartedAt    string          `json:"startedAt,omitempty"`
+	ErrorMsg     string          `json:"errorMsg,omitempty"`
+	Ports        []ListeningPort `json:"ports,omitempty"`
+	OverridePort int             `json:"overridePort,omitempty"`
+}
+
+// StartOptions configures how a managed command is launched.
+type StartOptions struct {
+	ProjectID    string
+	CommandID    string
+	ProjectRoot  string
+	Cwd          string
+	CommandLine  string
+	Shell        string
+	ShellCfg     ShellConfig
+	OverridePort int
 }
 
 // LogEntry represents a single stdout/stderr line from a managed command.
@@ -82,18 +96,21 @@ type RunnerCallbacks struct {
 }
 
 type managedProc struct {
-	cmd       *exec.Cmd
-	state     ProcessState
-	stopping  bool
-	doneCh    chan struct{}
+	cmd        *exec.Cmd
+	state      ProcessState
+	stopping   bool
+	startedAt  time.Time
+	doneCh     chan struct{}
 }
 
 // ProcessManager manages lifecycle and logs of project commands.
 type ProcessManager struct {
-	mu        sync.Mutex
-	procs     map[string]*managedProc
-	logs      map[string][]LogEntry
-	callbacks RunnerCallbacks
+	mu          sync.Mutex
+	procs       map[string]*managedProc
+	logs        map[string][]LogEntry
+	portHints   map[string]map[int]string
+	monitorOn   bool
+	callbacks   RunnerCallbacks
 }
 
 // NewProcessManager creates a ProcessManager with optional event callbacks.
@@ -101,6 +118,7 @@ func NewProcessManager(cb RunnerCallbacks) *ProcessManager {
 	return &ProcessManager{
 		procs:     make(map[string]*managedProc),
 		logs:      make(map[string][]LogEntry),
+		portHints: make(map[string]map[int]string),
 		callbacks: cb,
 	}
 }
@@ -119,11 +137,26 @@ func ResolveCwd(projectRoot, cwd string) string {
 
 // StartCommand starts a command in the background and streams stdout/stderr.
 func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, commandLine, shell string, shellCfg ShellConfig) error {
-	commandLine = NormalizeCommandText(commandLine)
+	return pm.StartCommandWithOptions(StartOptions{
+		ProjectID:   projectID,
+		CommandID:   commandID,
+		ProjectRoot: projectRoot,
+		Cwd:         cwd,
+		CommandLine: commandLine,
+		Shell:       shell,
+		ShellCfg:    shellCfg,
+	})
+}
+
+// StartCommandWithOptions starts a command with optional temporary port override.
+func (pm *ProcessManager) StartCommandWithOptions(opts StartOptions) error {
+	projectID := opts.ProjectID
+	commandID := opts.CommandID
+	commandLine := NormalizeCommandText(opts.CommandLine)
 	if commandLine == "" {
 		return errors.New("命令内容不能为空")
 	}
-	resolvedShell := ResolveEffectiveShell(shell, shellCfg.DefaultShell)
+	resolvedShell := ResolveEffectiveShell(opts.Shell, opts.ShellCfg.DefaultShell)
 
 	pm.mu.Lock()
 	if existing, ok := pm.procs[commandID]; ok && existing.state.Status == StatusRunning {
@@ -131,8 +164,14 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 		return errors.New("该指令已在运行中")
 	}
 
-	resolvedDir := ResolveCwd(projectRoot, cwd)
-	cmd, cleanup, err := buildShellCommand(resolvedDir, commandLine, resolvedShell, shellCfg)
+	resolvedDir := ResolveCwd(opts.ProjectRoot, opts.Cwd)
+	execCommand := commandLine
+	var extraEnv []string
+	if isValidPort(opts.OverridePort) {
+		execCommand, extraEnv = ApplyTemporaryPortOverride(commandLine, resolvedShell, resolvedDir, opts.OverridePort)
+	}
+
+	cmd, cleanup, err := buildShellCommand(resolvedDir, execCommand, resolvedShell, opts.ShellCfg, extraEnv...)
 	if err != nil {
 		pm.mu.Unlock()
 		return fmt.Errorf("构造命令失败: %w", err)
@@ -162,28 +201,42 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 		return fmt.Errorf("启动命令失败: %w", err)
 	}
 
-	nowStr := time.Now().Format(time.RFC3339)
+	now := time.Now()
+	nowStr := now.Format(time.RFC3339)
 	mp := &managedProc{
-		cmd:    cmd,
-		doneCh: make(chan struct{}),
+		cmd:       cmd,
+		startedAt: now,
+		doneCh:    make(chan struct{}),
 		state: ProcessState{
-			ProjectID: projectID,
-			CommandID: commandID,
-			Status:    StatusRunning,
-			PID:       cmd.Process.Pid,
-			StartedAt: nowStr,
+			ProjectID:    projectID,
+			CommandID:    commandID,
+			Status:       StatusRunning,
+			PID:          cmd.Process.Pid,
+			StartedAt:    nowStr,
+			OverridePort: opts.OverridePort,
 		},
 	}
 	pm.procs[commandID] = mp
-	// Reset logs for fresh run
+	// Reset logs and port hints for fresh run
 	pm.logs[commandID] = []LogEntry{}
+	pm.portHints[commandID] = make(map[int]string)
+	pm.ensurePortMonitorLocked()
 	pm.mu.Unlock()
 
+	if isValidPort(opts.OverridePort) {
+		pm.appendLog(LogEntry{
+			ProjectID: projectID,
+			CommandID: commandID,
+			Stream:    "system",
+			Line:      fmt.Sprintf("> [临时换端口] 已使用端口 %d 启动（未修改原配置）", opts.OverridePort),
+			Timestamp: time.Now().Format("15:04:05"),
+		})
+	}
 	pm.appendLog(LogEntry{
 		ProjectID: projectID,
 		CommandID: commandID,
 		Stream:    "system",
-		Line:      formatStartLogLine(resolvedDir, commandLine, resolvedShell, cmd.Process.Pid),
+		Line:      formatStartLogLine(resolvedDir, execCommand, resolvedShell, cmd.Process.Pid),
 		Timestamp: time.Now().Format("15:04:05"),
 	})
 	pm.emitStatus(mp.state)
@@ -224,6 +277,9 @@ func (pm *ProcessManager) StartCommand(projectID, commandID, projectRoot, cwd, c
 		mp.state.ExitCode = exitCode
 		mp.state.ErrorMsg = errMsg
 		mp.state.PID = 0
+		mp.state.Ports = nil
+		mp.state.OverridePort = 0
+		delete(pm.portHints, commandID)
 		finalState := mp.state
 		close(mp.doneCh)
 		pm.mu.Unlock()
@@ -311,7 +367,11 @@ func (pm *ProcessManager) GetStates() map[string]ProcessState {
 	defer pm.mu.Unlock()
 	out := make(map[string]ProcessState, len(pm.procs))
 	for k, mp := range pm.procs {
-		out[k] = mp.state
+		st := mp.state
+		if len(mp.state.Ports) > 0 {
+			st.Ports = append([]ListeningPort(nil), mp.state.Ports...)
+		}
+		out[k] = st
 	}
 	return out
 }
@@ -337,14 +397,207 @@ func (pm *ProcessManager) readStream(projectID, commandID, stream string, r io.R
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
+		line := normalizeLogLine(scanner.Bytes())
+		if hints := extractLogPortHints(line); len(hints) > 0 {
+			pm.recordPortHints(commandID, hints)
+		}
 		pm.appendLog(LogEntry{
 			ProjectID: projectID,
 			CommandID: commandID,
 			Stream:    stream,
-			Line:      normalizeLogLine(scanner.Bytes()),
+			Line:      line,
 			Timestamp: time.Now().Format("15:04:05"),
 		})
 	}
+}
+
+func (pm *ProcessManager) recordPortHints(commandID string, hints map[int]string) {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	dst := pm.portHints[commandID]
+	if dst == nil {
+		dst = make(map[int]string)
+		pm.portHints[commandID] = dst
+	}
+	for port, scheme := range hints {
+		if prev, ok := dst[port]; !ok || (prev != "https" && scheme == "https") {
+			dst[port] = scheme
+		}
+	}
+}
+
+func (pm *ProcessManager) ensurePortMonitorLocked() {
+	if pm.monitorOn {
+		return
+	}
+	pm.monitorOn = true
+	go pm.portMonitorLoop()
+}
+
+func (pm *ProcessManager) portMonitorLoop() {
+	for {
+		pm.RefreshLivePortsNow()
+
+		pm.mu.Lock()
+		runningCount := 0
+		fastBurst := false
+		now := time.Now()
+		for _, mp := range pm.procs {
+			if mp.state.Status == StatusRunning {
+				runningCount++
+				if now.Sub(mp.startedAt) < 10*time.Second {
+					fastBurst = true
+				}
+			}
+		}
+		if runningCount == 0 {
+			pm.monitorOn = false
+			pm.mu.Unlock()
+			return
+		}
+		pm.mu.Unlock()
+
+		if fastBurst {
+			time.Sleep(500 * time.Millisecond)
+		} else {
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
+// RefreshLivePortsNow probes Windows TCP listeners and updates listening ports for all running managed commands.
+func (pm *ProcessManager) RefreshLivePortsNow() []TCPListener {
+	pm.mu.Lock()
+	type activeTarget struct {
+		commandID string
+		rootPID   int
+		hints     map[int]string
+	}
+	var targets []activeTarget
+	for cmdID, mp := range pm.procs {
+		if mp.state.Status == StatusRunning && mp.state.PID > 0 {
+			hintsCopy := make(map[int]string, len(pm.portHints[cmdID]))
+			for p, s := range pm.portHints[cmdID] {
+				hintsCopy[p] = s
+			}
+			targets = append(targets, activeTarget{
+				commandID: cmdID,
+				rootPID:   mp.state.PID,
+				hints:     hintsCopy,
+			})
+		}
+	}
+	pm.mu.Unlock()
+
+	children, names, _ := collectProcessSnapshot()
+	listeners, err := listListeningTCPSocketsWithNames(names)
+	if err != nil {
+		return nil
+	}
+	if len(targets) == 0 {
+		return listeners
+	}
+
+	listenerByPort := make(map[int][]TCPListener)
+	for _, l := range listeners {
+		listenerByPort[l.Port] = append(listenerByPort[l.Port], l)
+	}
+
+	var changed []ProcessState
+
+	for _, t := range targets {
+		descendants := collectDescendantPIDs(t.rootPID, children)
+		portMap := make(map[int]ListeningPort)
+
+		// 1. OS-level listening sockets owned by this command's process tree
+		for _, l := range listeners {
+			if !descendants[l.PID] {
+				continue
+			}
+			scheme := "http"
+			if hinted, ok := t.hints[l.Port]; ok && hinted != "" {
+				scheme = hinted
+			}
+			portMap[l.Port] = ListeningPort{
+				Port:    l.Port,
+				Address: l.Address,
+				Scheme:  scheme,
+				URL:     BuildLocalURL(scheme, l.Port),
+				PID:     l.PID,
+				Process: l.ProcessName,
+			}
+		}
+
+		// 2. Supplement with log-announced local ports that are confirmed LISTEN on the host
+		// (useful for Docker Compose / WSL port-forwarded services whose daemon isn't a direct child PID).
+		for hintedPort, scheme := range t.hints {
+			if _, exists := portMap[hintedPort]; exists {
+				continue
+			}
+			if ls := listenerByPort[hintedPort]; len(ls) > 0 {
+				l := ls[0]
+				portMap[hintedPort] = ListeningPort{
+					Port:    hintedPort,
+					Address: l.Address,
+					Scheme:  scheme,
+					URL:     BuildLocalURL(scheme, hintedPort),
+					PID:     l.PID,
+					Process: l.ProcessName,
+				}
+			}
+		}
+
+		nextPorts := make([]ListeningPort, 0, len(portMap))
+		for _, lp := range portMap {
+			nextPorts = append(nextPorts, lp)
+		}
+		sortListeningPorts(nextPorts)
+
+		pm.mu.Lock()
+		if mp, ok := pm.procs[t.commandID]; ok && mp.state.Status == StatusRunning && mp.state.PID == t.rootPID {
+			if !listeningPortsEqual(mp.state.Ports, nextPorts) {
+				mp.state.Ports = nextPorts
+				stateCopy := mp.state
+				stateCopy.Ports = append([]ListeningPort(nil), nextPorts...)
+				changed = append(changed, stateCopy)
+			}
+		}
+		pm.mu.Unlock()
+	}
+
+	for _, st := range changed {
+		pm.emitStatus(st)
+	}
+	return listeners
+}
+
+// GetManagedPIDMap builds a mapping from any PID belonging to a running managed command tree to its ProcessState.
+func (pm *ProcessManager) GetManagedPIDMap() map[int]ProcessState {
+	pm.mu.Lock()
+	type runningItem struct {
+		state ProcessState
+	}
+	var running []runningItem
+	for _, mp := range pm.procs {
+		if mp.state.Status == StatusRunning && mp.state.PID > 0 {
+			st := mp.state
+			st.Ports = append([]ListeningPort(nil), mp.state.Ports...)
+			running = append(running, runningItem{state: st})
+		}
+	}
+	pm.mu.Unlock()
+
+	out := make(map[int]ProcessState)
+	if len(running) == 0 {
+		return out
+	}
+	children, _, _ := collectProcessSnapshot()
+	for _, item := range running {
+		for pid := range collectDescendantPIDs(item.state.PID, children) {
+			out[pid] = item.state
+		}
+	}
+	return out
 }
 
 // withUTF8ProcessEnv ensures Python and other CLIs emit unbuffered UTF-8 when attached to pipes.

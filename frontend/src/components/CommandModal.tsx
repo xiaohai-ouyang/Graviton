@@ -50,6 +50,7 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
   const [name, setName] = useState('');
   const [command, setCommand] = useState('');
   const [cwd, setCwd] = useState('');
+  const [expectedPort, setExpectedPort] = useState('');
   const [shell, setShell] = useState<ShellOverride>('');
   const [category, setCategory] = useState('dev');
   const [pinned, setPinned] = useState(true);
@@ -69,6 +70,7 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
       setName(initial.name);
       setCommand(initial.command);
       setCwd(initial.cwd || '');
+      setExpectedPort(initial.expectedPort ? String(initial.expectedPort) : '');
       setShell(normalizeShellOverride(initial.shell));
       setCategory(initial.category || 'other');
       setPinned(Boolean(initial.pinned));
@@ -76,6 +78,7 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
       setName('');
       setCommand('');
       setCwd('');
+      setExpectedPort('');
       setShell('');
       setCategory('dev');
       setPinned(true);
@@ -94,10 +97,15 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
+  const parsedPort = expectedPort.trim() === '' ? 0 : Number(expectedPort.trim());
+  const isPortValid =
+    expectedPort.trim() === '' ||
+    (Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535);
+
   const submitCommand = async () => {
     const trimmedName = name.trim();
     const normalizedCommand = normalizeCommandInput(command);
-    if (saving || !trimmedName || !normalizedCommand) return;
+    if (saving || !trimmedName || !normalizedCommand || !isPortValid) return;
     setSaving(true);
     const ok = await onSave({
       id: initial?.id || '',
@@ -109,6 +117,7 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
       pinned,
       source: 'manual',
       subProject: cwd.trim(),
+      expectedPort: parsedPort || 0,
     });
     setSaving(false);
     if (ok) onClose();
@@ -205,17 +214,38 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
-                  工作目录 (可选)
-                </label>
-                <input
-                  type="text"
-                  value={cwd}
-                  onChange={(e) => setCwd(e.target.value)}
-                  placeholder="默认项目根目录，如 frontend"
-                  className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-900 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    工作目录 (可选)
+                  </label>
+                  <input
+                    type="text"
+                    value={cwd}
+                    onChange={(e) => setCwd(e.target.value)}
+                    placeholder="默认根目录，如 frontend"
+                    className="mt-1.5 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-900 focus:border-neutral-400 focus:outline-hidden dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    预期端口 (可选)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={expectedPort}
+                    onChange={(e) => setExpectedPort(e.target.value)}
+                    placeholder="如 8080（留空自动识别）"
+                    className={`mt-1.5 w-full rounded-lg border bg-neutral-50 px-3 py-2 font-mono text-xs text-neutral-900 focus:outline-hidden dark:bg-neutral-800 dark:text-neutral-100 ${
+                      isPortValid
+                        ? 'border-neutral-200 focus:border-neutral-400 dark:border-neutral-700'
+                        : 'border-rose-400 focus:border-rose-500 dark:border-rose-500'
+                    }`}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -275,7 +305,7 @@ export const CommandModal: React.FC<CommandModalProps> = ({ open, initial, onClo
                 </button>
                 <button
                   type="submit"
-                  disabled={saving || !name.trim() || !normalizeCommandInput(command)}
+                  disabled={saving || !name.trim() || !normalizeCommandInput(command) || !isPortValid}
                   className="rounded-lg bg-neutral-900 px-4 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
                 >
                   {saving ? '保存中...' : '保存'}
