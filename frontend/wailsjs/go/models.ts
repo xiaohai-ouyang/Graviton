@@ -694,6 +694,7 @@ export namespace storage {
 	    pinned: boolean;
 	    source: string;
 	    subProject?: string;
+	    expectedPort?: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProjectCommand(source);
@@ -710,6 +711,7 @@ export namespace storage {
 	        this.pinned = source["pinned"];
 	        this.source = source["source"];
 	        this.subProject = source["subProject"];
+	        this.expectedPort = source["expectedPort"];
 	    }
 	}
 	export class ProjectRecord {

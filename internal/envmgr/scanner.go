@@ -166,10 +166,13 @@ func scanSingleDir(
 		}
 		detectFrontendFrameworks(pkg, addStack)
 
-		extractNodeScripts(pkg, pm, relCwd, allowPin && !hasWails, subLabel, cmds)
+		extractNodeScripts(dirPath, pkg, pm, relCwd, allowPin && !hasWails, subLabel, cmds)
 	}
 
-	// 4. Go (go.mod)
+	// 4. Java (Maven / Gradle / Spring Boot)
+	scanJavaDir(dirPath, relCwd, allowPin, subLabel, targetShell, addStack, cmds)
+
+	// 5. Go (go.mod)
 	if fileExists(filepath.Join(dirPath, "go.mod")) {
 		addStack("Go")
 		if !hasWails && !isWailsRoot {
@@ -293,14 +296,16 @@ func scanPythonDir(
 	primaryPinned := allowPin
 	if hasManage {
 		addStack("Django")
-		*cmds = append(*cmds, newRuleCommand(
+		djangoCmd := newRuleCommand(
 			withSubPrefix("启动 Django 服务", subLabel),
 			pyRunner+" manage.py runserver",
 			relCwd,
 			"dev",
 			primaryPinned,
 			subLabel,
-		))
+		)
+		djangoCmd.ExpectedPort = detectPythonEntryPort(dirPath, "manage.py", djangoCmd.Command, "Django")
+		*cmds = append(*cmds, djangoCmd)
 		primaryPinned = false
 	}
 
@@ -311,14 +316,16 @@ func scanPythonDir(
 				addStack(fw)
 			}
 			pinned := primaryPinned && idx == 0
-			*cmds = append(*cmds, newRuleCommand(
+			pyCmd := newRuleCommand(
 				withSubPrefix(label, subLabel),
 				cmdStr,
 				relCwd,
 				"dev",
 				pinned,
 				subLabel,
-			))
+			)
+			pyCmd.ExpectedPort = detectPythonEntryPort(dirPath, entry, cmdStr, fw)
+			*cmds = append(*cmds, pyCmd)
 			// Keep at most 2 standard entrypoints to avoid clutter
 			if idx >= 1 {
 				break
@@ -330,14 +337,16 @@ func scanPythonDir(
 			if fw != "" {
 				addStack(fw)
 			}
-			*cmds = append(*cmds, newRuleCommand(
+			pyCmd := newRuleCommand(
 				withSubPrefix(label, subLabel),
 				cmdStr,
 				relCwd,
 				"dev",
 				primaryPinned,
 				subLabel,
-			))
+			)
+			pyCmd.ExpectedPort = detectPythonEntryPort(dirPath, script, cmdStr, fw)
+			*cmds = append(*cmds, pyCmd)
 		}
 	}
 
@@ -529,6 +538,7 @@ func formatNodeRunCommand(pm, scriptName string) string {
 }
 
 func extractNodeScripts(
+	dirPath string,
 	pkg packageJSON,
 	pm string,
 	relCwd string,
@@ -567,7 +577,114 @@ func extractNodeScripts(
 			}
 		}
 		cmdStr := formatNodeRunCommand(pm, scriptName)
-		*cmds = append(*cmds, newRuleCommand(withSubPrefix(zhName, subLabel), cmdStr, relCwd, category, wantPin, subLabel))
+		c := newRuleCommand(withSubPrefix(zhName, subLabel), cmdStr, relCwd, category, wantPin, subLabel)
+		c.ExpectedPort = detectNodeScriptExpectedPort(dirPath, pkg, scriptName, pkg.Scripts[scriptName], category)
+		*cmds = append(*cmds, c)
+	}
+}
+
+func scanJavaDir(
+	dirPath string,
+	relCwd string,
+	allowPin bool,
+	subLabel string,
+	targetShell string,
+	addStack func(string),
+	cmds *[]storage.ProjectCommand,
+) {
+	pomPath := filepath.Join(dirPath, "pom.xml")
+	gradlePath := filepath.Join(dirPath, "build.gradle")
+	gradleKtsPath := filepath.Join(dirPath, "build.gradle.kts")
+
+	hasPom := fileExists(pomPath)
+	hasGradle := fileExists(gradlePath) || fileExists(gradleKtsPath)
+	if !hasPom && !hasGradle {
+		return
+	}
+
+	addStack("Java")
+
+	if hasPom {
+		addStack("Maven")
+		pomContent := strings.ToLower(readFileTailOrHead(pomPath, 32768))
+		isSpringBoot := strings.Contains(pomContent, "spring-boot")
+		isSpringWeb := isSpringBoot && (strings.Contains(pomContent, "spring-boot-starter-web") ||
+			strings.Contains(pomContent, "spring-boot-starter-webflux") ||
+			strings.Contains(pomContent, "spring-boot-starter-undertow") ||
+			strings.Contains(pomContent, "spring-boot-starter-jetty"))
+		if isSpringBoot {
+			addStack("Spring Boot")
+		}
+
+		mvnCmd := "mvn"
+		if fileExists(filepath.Join(dirPath, "mvnw.cmd")) || fileExists(filepath.Join(dirPath, "mvnw")) {
+			if targetShell == ShellGitBash && fileExists(filepath.Join(dirPath, "mvnw")) {
+				mvnCmd = "./mvnw"
+			} else if fileExists(filepath.Join(dirPath, "mvnw.cmd")) {
+				mvnCmd = `.\mvnw.cmd`
+			} else {
+				mvnCmd = "./mvnw"
+			}
+		}
+
+		if isSpringBoot {
+			runCmd := newRuleCommand(
+				withSubPrefix("启动 Spring Boot", subLabel),
+				mvnCmd+" spring-boot:run",
+				relCwd,
+				"dev",
+				allowPin,
+				subLabel,
+			)
+			runCmd.ExpectedPort = detectSpringBootPort(dirPath, isSpringWeb || isSpringBoot)
+			*cmds = append(*cmds, runCmd)
+		}
+		*cmds = append(*cmds,
+			newRuleCommand(withSubPrefix("Maven 打包", subLabel), mvnCmd+" package -DskipTests", relCwd, "build", false, subLabel),
+			newRuleCommand(withSubPrefix("运行测试", subLabel), mvnCmd+" test", relCwd, "test", false, subLabel),
+		)
+		return
+	}
+
+	if hasGradle {
+		addStack("Gradle")
+		buildFile := gradlePath
+		if !fileExists(buildFile) {
+			buildFile = gradleKtsPath
+		}
+		gradleContent := strings.ToLower(readFileTailOrHead(buildFile, 32768))
+		isSpringBoot := strings.Contains(gradleContent, "spring-boot") || strings.Contains(gradleContent, "org.springframework.boot")
+		if isSpringBoot {
+			addStack("Spring Boot")
+		}
+
+		gradleCmd := "gradle"
+		if fileExists(filepath.Join(dirPath, "gradlew.bat")) || fileExists(filepath.Join(dirPath, "gradlew")) {
+			if targetShell == ShellGitBash && fileExists(filepath.Join(dirPath, "gradlew")) {
+				gradleCmd = "./gradlew"
+			} else if fileExists(filepath.Join(dirPath, "gradlew.bat")) {
+				gradleCmd = `.\gradlew.bat`
+			} else {
+				gradleCmd = "./gradlew"
+			}
+		}
+
+		if isSpringBoot {
+			runCmd := newRuleCommand(
+				withSubPrefix("启动 Spring Boot", subLabel),
+				gradleCmd+" bootRun",
+				relCwd,
+				"dev",
+				allowPin,
+				subLabel,
+			)
+			runCmd.ExpectedPort = detectSpringBootPort(dirPath, true)
+			*cmds = append(*cmds, runCmd)
+		}
+		*cmds = append(*cmds,
+			newRuleCommand(withSubPrefix("Gradle 构建", subLabel), gradleCmd+" build -x test", relCwd, "build", false, subLabel),
+			newRuleCommand(withSubPrefix("运行测试", subLabel), gradleCmd+" test", relCwd, "test", false, subLabel),
+		)
 	}
 }
 

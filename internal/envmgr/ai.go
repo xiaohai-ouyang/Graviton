@@ -130,13 +130,14 @@ func TestAIConfig(ctx context.Context, cfg AIConfig) error {
 }
 
 type aiSuggestedCommand struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name"`
-	Command  string `json:"command"`
-	Cwd      string `json:"cwd"`
-	Shell    string `json:"shell,omitempty"`
-	Category string `json:"category"`
-	Pinned   bool   `json:"pinned"`
+	ID           string `json:"id,omitempty"`
+	Name         string `json:"name"`
+	Command      string `json:"command"`
+	Cwd          string `json:"cwd"`
+	Shell        string `json:"shell,omitempty"`
+	Category     string `json:"category"`
+	Pinned       bool   `json:"pinned"`
+	ExpectedPort int    `json:"expectedPort,omitempty"`
 }
 
 type aiAnalyzePayload struct {
@@ -169,13 +170,14 @@ func buildAISystemPrompt(targetShell string) string {
 %s
 
 要求：
-1. 只返回合法 JSON 对象，格式为：{"commands":[{"id":"已有候选指令ID(如为新发现则省略)","name":"中文名称","command":"可执行命令","cwd":"相对目录(根目录为空字符串)","shell":"留空表示跟随全局默认，仅在必须使用其他Shell时填 powershell|gitbash|cmd","category":"dev|build|test|lint|other","pinned":true}]}
+1. 只返回合法 JSON 对象，格式为：{"commands":[{"id":"已有候选指令ID(如为新发现则省略)","name":"中文名称","command":"可执行命令","cwd":"相对目录(根目录为空字符串)","shell":"留空表示跟随全局默认，仅在必须使用其他Shell时填 powershell|gitbash|cmd","category":"dev|build|test|lint|other","pinned":true,"expectedPort":0}]}
 2. name 使用简短清晰的中文（例如："启动桌面"、"启动 Agent"、"启动开发"、"Windows 打包"）。
 3. 将最常用的 2~6 条开发启动或打包指令设为 pinned: true，其余测试/检查/辅助脚本设为 pinned: false。
 4. 尽量保留并更新已有候选指令的 id（优化中文名称或将其命令语法翻译为当前默认 Shell %q）；与当前默认 Shell 语法一致时，shell 请留空 ""。
 5. 仅当某条指令天然依赖特定 Shell（例如直接运行 .sh 脚本需 gitbash、运行 .ps1 需 powershell、专用 .bat/.cmd 需 cmd）且不宜改写时，才在 shell 中显式标注对应值。
-6. 不要编造项目里不存在的脚本命令；如果 README 中有重要启动命令而本地扫描遗漏了，可以补充。
-7. 不要输出任何 Markdown 代码块以外的解释文字。`, syntaxGuide, targetShell)
+6. 若某条指令属于长期运行的 Web/API 开发服务（category 为 dev），且可从配置文件、启动脚本或 README 中判断其默认监听端口，请在 expectedPort 中填入 1~65535 的整数；非服务类或无法确定端口时填 0。
+7. 不要编造项目里不存在的脚本命令；如果 README 中有重要启动命令而本地扫描遗漏了，可以补充。
+8. 不要输出任何 Markdown 代码块以外的解释文字。`, syntaxGuide, targetShell)
 }
 
 // AnalyzeProjectWithAI calls the configured lightweight model to refine Chinese labels,
@@ -286,6 +288,11 @@ func mergeAICommands(existing []storage.ProjectCommand, suggested []aiSuggestedC
 			}
 		}
 
+		expectedPort := 0
+		if isValidPort(s.ExpectedPort) {
+			expectedPort = s.ExpectedPort
+		}
+
 		if matched != nil {
 			if matched.ID != "" {
 				consumedIDs[matched.ID] = true
@@ -302,19 +309,23 @@ func mergeAICommands(existing []storage.ProjectCommand, suggested []aiSuggestedC
 			matched.Category = cat
 			matched.Pinned = s.Pinned
 			matched.Source = "ai"
+			if expectedPort > 0 {
+				matched.ExpectedPort = expectedPort
+			}
 			out = append(out, *matched)
 		} else {
 			consumedKeys[key] = true
 			out = append(out, storage.ProjectCommand{
-				ID:         uuid.NewString(),
-				Name:       name,
-				Command:    cmdStr,
-				Cwd:        cwd,
-				Shell:      shellOverride,
-				Category:   cat,
-				Pinned:     s.Pinned,
-				Source:     "ai",
-				SubProject: cwd,
+				ID:           uuid.NewString(),
+				Name:         name,
+				Command:      cmdStr,
+				Cwd:          cwd,
+				Shell:        shellOverride,
+				Category:     cat,
+				Pinned:       s.Pinned,
+				Source:       "ai",
+				SubProject:   cwd,
+				ExpectedPort: expectedPort,
 			})
 		}
 	}
@@ -369,6 +380,17 @@ func buildProjectContextForAI(proj storage.ProjectRecord, targetShell string) st
 	appendSnippet("wails.json", "wails.json", 1000)
 	appendSnippet("pyproject.toml", "pyproject.toml", 1500)
 	appendSnippet("requirements.txt", "requirements.txt", 1000)
+	appendSnippet("pom.xml", "pom.xml", 1500)
+	appendSnippet("build.gradle", "build.gradle", 1500)
+	appendSnippet("build.gradle.kts", "build.gradle.kts", 1500)
+	appendSnippet("vite.config.ts", "vite.config.ts", 1200)
+	appendSnippet("vite.config.js", "vite.config.js", 1200)
+	appendSnippet("vue.config.js", "vue.config.js", 1200)
+	appendFilteredPortSnippet(&sb, proj.Path, "application.yml", filepath.Join("src", "main", "resources", "application.yml"), 1200)
+	appendFilteredPortSnippet(&sb, proj.Path, "application.yaml", filepath.Join("src", "main", "resources", "application.yaml"), 1200)
+	appendFilteredPortSnippet(&sb, proj.Path, "application.properties", filepath.Join("src", "main", "resources", "application.properties"), 1200)
+	appendFilteredPortSnippet(&sb, proj.Path, ".env (port hints)", ".env", 600)
+	appendFilteredPortSnippet(&sb, proj.Path, ".env.development (port hints)", ".env.development", 600)
 	appendSnippet("README.md", "README.md", 2500)
 
 	if venv := detectPythonVenv(proj.Path, targetShell); venv != "" {
@@ -377,9 +399,52 @@ func buildProjectContextForAI(proj storage.ProjectRecord, targetShell string) st
 
 	sb.WriteString("--- 本地规则已提取的候选指令 ---\n")
 	for _, c := range proj.Commands {
-		sb.WriteString(fmt.Sprintf("- id=%q name=%q command=%q cwd=%q shell=%q category=%q pinned=%v\n", c.ID, c.Name, c.Command, c.Cwd, c.Shell, c.Category, c.Pinned))
+		sb.WriteString(fmt.Sprintf("- id=%q name=%q command=%q cwd=%q shell=%q category=%q pinned=%v expectedPort=%d\n", c.ID, c.Name, c.Command, c.Cwd, c.Shell, c.Category, c.Pinned, c.ExpectedPort))
 	}
 	return sb.String()
+}
+
+// appendFilteredPortSnippet extracts only non-sensitive port/host/profile lines so secrets never leave the machine.
+func appendFilteredPortSnippet(sb *strings.Builder, rootPath, title, relPath string, maxBytes int) {
+	data, err := os.ReadFile(filepath.Join(rootPath, relPath))
+	if err != nil {
+		return
+	}
+	sensitiveKeywords := []string{"secret", "password", "passwd", "token", "api_key", "apikey", "private_key", "credential", "auth", "jwt", "access_key"}
+	keepKeywords := []string{"port", "server", "profile", "host", "url", "addr", "listen"}
+
+	var kept []string
+	for _, rawLine := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(rawLine)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		isSensitive := false
+		for _, bad := range sensitiveKeywords {
+			if strings.Contains(lower, bad) {
+				isSensitive = true
+				break
+			}
+		}
+		if isSensitive {
+			continue
+		}
+		for _, good := range keepKeywords {
+			if strings.Contains(lower, good) {
+				kept = append(kept, rawLine)
+				break
+			}
+		}
+	}
+	if len(kept) == 0 {
+		return
+	}
+	text := strings.Join(kept, "\n")
+	if len(text) > maxBytes {
+		text = text[:maxBytes] + "\n...(truncated)"
+	}
+	sb.WriteString(fmt.Sprintf("--- %s ---\n%s\n\n", title, text))
 }
 
 func extractJSONBlock(raw string) string {

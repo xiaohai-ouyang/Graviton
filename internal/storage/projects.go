@@ -12,15 +12,16 @@ const ProjectsFileName = "projects.toml"
 
 // ProjectCommand represents a single executable command inside an imported project.
 type ProjectCommand struct {
-	ID         string `toml:"id" json:"id"`
-	Name       string `toml:"name" json:"name"`
-	Command    string `toml:"command" json:"command"`
-	Cwd        string `toml:"cwd,omitempty" json:"cwd"`
-	Shell      string `toml:"shell,omitempty" json:"shell,omitempty"`
-	Category   string `toml:"category" json:"category"`
-	Pinned     bool   `toml:"pinned" json:"pinned"`
-	Source     string `toml:"source" json:"source"`
-	SubProject string `toml:"sub_project,omitempty" json:"subProject,omitempty"`
+	ID           string `toml:"id" json:"id"`
+	Name         string `toml:"name" json:"name"`
+	Command      string `toml:"command" json:"command"`
+	Cwd          string `toml:"cwd,omitempty" json:"cwd"`
+	Shell        string `toml:"shell,omitempty" json:"shell,omitempty"`
+	Category     string `toml:"category" json:"category"`
+	Pinned       bool   `toml:"pinned" json:"pinned"`
+	Source       string `toml:"source" json:"source"`
+	SubProject   string `toml:"sub_project,omitempty" json:"subProject,omitempty"`
+	ExpectedPort int    `toml:"expected_port,omitempty" json:"expectedPort,omitempty"`
 }
 
 // ProjectRecord represents an imported local development project.

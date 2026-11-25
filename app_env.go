@@ -743,6 +743,9 @@ func mergeRuleScanWithExisting(existing, scanned []storage.ProjectCommand) []sto
 			s.ID = prev.ID
 			s.Pinned = prev.Pinned
 			s.Shell = prev.Shell
+			if s.ExpectedPort <= 0 && prev.ExpectedPort > 0 {
+				s.ExpectedPort = prev.ExpectedPort
+			}
 			if prev.Source == "ai" {
 				s.Name = prev.Name
 				s.Source = "ai"

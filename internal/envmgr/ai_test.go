@@ -1,6 +1,8 @@
 package envmgr
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"graviton/internal/storage"
@@ -97,4 +99,29 @@ func TestMergeAICommands_TranslatesByIDAndNormalizesShellOverrides(t *testing.T)
 	// 4. Omitted rule-2 is preserved unpinned (suggestion targeting manual-1 was skipped)
 	assert.Equal(t, "rule-2", merged[3].ID)
 	assert.False(t, merged[3].Pinned)
+}
+
+func TestMergeAICommands_ExpectedPortAndSecretFiltering(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), []byte(
+		"PORT=8088\nAPI_KEY=super-secret-value\nDB_PASSWORD=topsecret\nSERVER_HOST=127.0.0.1\n",
+	), 0644))
+
+	ctxText := buildProjectContextForAI(storage.ProjectRecord{
+		Name: "Demo",
+		Path: dir,
+	}, ShellPowerShell)
+	assert.Contains(t, ctxText, "PORT=8088")
+	assert.NotContains(t, ctxText, "super-secret-value")
+	assert.NotContains(t, ctxText, "topsecret")
+
+	existing := []storage.ProjectCommand{
+		{ID: "c1", Name: "启动后端", Command: "python app.py", Category: "dev", Source: "rule", ExpectedPort: 5000},
+	}
+	suggested := []aiSuggestedCommand{
+		{ID: "c1", Name: "启动 Flask", Command: "python app.py", Category: "dev", Pinned: true, ExpectedPort: 8088},
+	}
+	merged := mergeAICommands(existing, suggested, ShellPowerShell)
+	require.Len(t, merged, 1)
+	assert.Equal(t, 8088, merged[0].ExpectedPort)
 }
