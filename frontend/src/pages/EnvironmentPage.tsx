@@ -852,15 +852,7 @@ export const EnvironmentPage: React.FC = () => {
           </div>
 
           {/* Right Pane: Embedded Terminal or Port Overview */}
-          {rightPaneMode === 'ports' ? (
-            <PortOverviewPane />
-          ) : (
-            <TerminalPane
-              onEditCommand={(projectId, cmd) =>
-                setCmdModalState({ open: true, projectId, editing: cmd })
-              }
-            />
-          )}
+          {rightPaneMode === 'ports' ? <PortOverviewPane /> : <TerminalPane />}
         </div>
       )}
 
